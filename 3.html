@@ -1,0 +1,1854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Event &amp; Live TV Code Generator</title>
+<style>
+:root {
+  --color-primary: #e0102a;
+  --color-primary-dark: #9c0a1d;
+  --color-secondary: #f6b93b;
+  --color-bg: #0a0c12;
+  --color-bg-alt: #10131c;
+  --color-panel: #161925;
+  --color-panel-alt: #1d2130;
+  --color-border: rgba(255,255,255,.08);
+  --color-text: #f1f2f6;
+  --color-text-dim: #9aa1b2;
+  --color-success: #2ecc71;
+  --color-live: #ff3b52;
+  --font-heading: 'Poppins', Arial, sans-serif;
+  --font-body: 'Inter', Arial, sans-serif;
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --shadow-card: 0 14px 32px rgba(0,0,0,.5);
+  --shadow-soft: 0 6px 18px rgba(0,0,0,.35);
+  --gradient-brand: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  --gradient-gold: linear-gradient(135deg, var(--color-secondary), #e08e1d);
+  --gradient-streamed: linear-gradient(135deg, #6c5ce7, #a29bfe);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--color-bg); color: var(--color-text);
+  font-family: var(--font-body); padding: 20px;
+}
+h1 { font-family: var(--font-heading); font-size: 20px; margin-bottom: 2px; }
+p.sub { color: var(--color-text-dim); font-size: 13px; margin-top: 0 0 18px; }
+
+.tabs-nav { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.tabs-nav button {
+  padding: 9px 18px; border-radius: 999px; border: 1px solid var(--color-border);
+  background: var(--color-panel); color: var(--color-text-dim);
+  font-family: var(--font-body); font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.tabs-nav button.is-active { background: var(--gradient-brand); color: #fff; border-color: transparent; }
+.tabs-nav button[data-tab="streamed-tab"].is-active { background: var(--gradient-streamed); }
+.tab-panel { display: none; }
+.tab-panel.is-active { display: block; }
+
+.layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--color-panel); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: 16px;
+}
+.panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--color-text-dim); margin: 0 0 14px; }
+
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 12px; font-weight: 700; color: var(--color-text-dim); margin-bottom: 5px; }
+.field input, .field select {
+  width: 100%; padding: 9px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border); background: var(--color-panel-alt);
+  color: var(--color-text); font-family: var(--font-body); font-size: 13px;
+}
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.channel-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
+.channel-row input { padding: 7px 8px; font-size: 12px; }
+.icon-btn {
+  background: var(--color-panel-alt); border: 1px solid var(--color-border); color: var(--color-text);
+  border-radius: var(--radius-sm); cursor: pointer; padding: 7px 10px; font-size: 12px;
+}
+.icon-btn:hover { border-color: var(--color-secondary); }
+
+.btn-primary {
+  background: var(--gradient-brand); color: #fff; border: none; border-radius: var(--radius-sm);
+  padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer; margin-top: 6px;
+}
+.btn-secondary {
+  background: var(--color-panel-alt); color: var(--color-text); border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); padding: 9px 14px; font-weight: 700; font-size: 12px; cursor: pointer;
+}
+.btn-streamed {
+  background: var(--gradient-streamed); color: #fff; border: none; border-radius: var(--radius-sm);
+  padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer; margin-top: 6px;
+}
+
+/* -- fixture picker -- */
+.fixture-list { max-height: 220px; overflow-y: auto; margin-top: 10px; border-top: 1px solid var(--color-border); padding-top: 10px; }
+.fixture-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12px;
+}
+.fixture-item:hover { background: var(--color-panel-alt); }
+.fixture-item span.time { color: var(--color-text-dim); }
+
+/* -- streamed.pk specific -- */
+.sport-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.sport-chip {
+  padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  background: var(--color-panel-alt); border: 1px solid var(--color-border);
+  color: var(--color-text-dim); cursor: pointer; transition: all .15s;
+}
+.sport-chip:hover { border-color: #a29bfe; color: #fff; }
+.sport-chip.is-active { background: var(--gradient-streamed); color: #fff; border-color: transparent; }
+.sport-chip .count { font-size: 10px; opacity: .7; margin-left: 4px; }
+
+.streamed-match-item {
+  display: grid; grid-template-columns: 1fr auto; gap: 8px;
+  padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer;
+  border: 1px solid var(--color-border); margin-bottom: 6px;
+  transition: border-color .15s;
+}
+.streamed-match-item:hover { border-color: #a29bfe; }
+.streamed-match-item.selected { border-color: #6c5ce7; background: rgba(108,92,231,.08); }
+.streamed-match-header { display: flex; align-items: center; gap: 8px; }
+.streamed-match-header img { width: 32px; height: 32px; border-radius: 50%; object-fit: contain; background: #fff; padding: 2px; }
+.streamed-match-title { font-size: 13px; font-weight: 600; }
+.streamed-match-meta { font-size: 11px; color: var(--color-text-dim); margin-top: 2px; }
+.streamed-match-teams { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.streamed-match-teams img { width: 24px; height: 24px; border-radius: 50%; background: #fff; padding: 2px; }
+.streamed-match-teams span { font-size: 11.5px; font-weight: 500; }
+.badge-live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--color-live); animation: blink-fade 1.1s infinite; margin-right: 4px; }
+.badge-hd { font-size: 10px; background: #2ecc71; color: #000; padding: 1px 5px; border-radius: 4px; font-weight: 700; margin-left: 4px; }
+
+.stream-info-panel {
+  background: var(--color-panel-alt); border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); padding: 12px; margin-top: 12px;
+}
+.stream-info-panel h3 { font-size: 12px; color: var(--color-text-dim); margin: 0 0 8px; }
+.stream-source-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 0;
+  border-bottom: 1px solid var(--color-border); font-size: 12px;
+}
+.stream-source-row:last-child { border-bottom: none; }
+.stream-source-row .src-label { font-weight: 700; min-width: 60px; }
+.stream-source-row .src-streams { color: var(--color-text-dim); }
+
+.filter-row { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.filter-row select, .filter-row input {
+  padding: 7px 10px; border-radius: var(--radius-sm); border: 1px solid var(--color-border);
+  background: var(--color-panel-alt); color: var(--color-text); font-size: 12px;
+}
+
+.loading-spinner {
+  display: inline-block; width: 14px; height: 14px; border: 2px solid var(--color-border);
+  border-top-color: #a29bfe; border-radius: 50%; animation: spin .6s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* -- code output -- */
+textarea.code-out {
+  width: 100%; min-height: 220px; background: var(--color-bg-alt); color: #b7f2c0;
+  font-family: 'Fira Code', monospace; font-size: 11.5px; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); padding: 12px; resize: vertical;
+}
+.copy-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.copied-msg { font-size: 12px; color: var(--color-secondary); opacity: 0; transition: opacity .2s; }
+.copied-msg.show { opacity: 1; }
+
+/* -- live preview: exact theme markup -- */
+.event-card {
+  position: relative; background: var(--color-panel); background-size: cover; background-position: center;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px;
+  overflow: hidden; box-shadow: var(--shadow-soft);
+}
+.event-card .overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,12,18,.4), rgba(10,12,18,.92)); }
+.event-card > * { position: relative; z-index: 1; }
+.event-status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--color-secondary); font-variant-numeric: tabular-nums; }
+.event-time { font-size: 12px; color: var(--color-text-dim); margin-top: 2px; }
+.event-league { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; margin-top: 8px; color: #fff; }
+.event-league span:last-child { color: var(--color-text-dim); font-weight: 500; }
+.event-divider { height: 1px; background: linear-gradient(to right, transparent, var(--color-border), transparent); margin: 10px 0; }
+.event-team { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 13.5px; font-weight: 600; }
+.event-team img { width: 28px; height: 28px; object-fit: contain; border-radius: 50%; background: #fff; padding: 2px; }
+.event-channels { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.channel-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px;
+  background: var(--color-panel-alt); border: 1px solid var(--color-border); color: #fff;
+  font-family: var(--font-body); font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.badge-live { display: inline-flex; align-items: center; gap: 5px; color: #ff3b52; font-weight: 700; font-size: 12.5px; }
+.badge-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #ff3b52; animation: blink-fade 1.1s infinite; }
+@keyframes blink-fade { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+
+.channel-grid-preview button {
+  border: 1px solid var(--color-border); background: var(--color-panel); border-radius: var(--radius-sm);
+  padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100px;
+}
+.channel-grid-preview img { border-radius: 6px; width: 40px; height: 40px; object-fit: contain; background:#fff; }
+.channel-name { font-size: 11px; font-weight: 600; color: var(--color-text); text-align:center; }
+
+.hint { font-size: 11.5px; color: var(--color-text-dim); margin-top: 4px; }
+
+.section-divider { height: 1px; background: linear-gradient(to right, transparent, var(--color-border), transparent); margin: 20px 0; }
+.auto-push-note { font-size: 12px; color: var(--color-success); margin-top: 8px; }
+
+/* -- stream scraper specific -- */
+.gradient-scraper { background: linear-gradient(135deg, #00b894, #00cec9); }
+.gradient-scraper-dark { background: linear-gradient(135deg, #00b894, #0984e3); }
+.btn-scraper {
+  background: var(--gradient-scraper); color: #fff; border: none; border-radius: var(--radius-sm);
+  padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer; margin-top: 6px;
+}
+.btn-scraper:hover { opacity: .9; }
+.scraper-match-item {
+  display: grid; grid-template-columns: 1fr auto; gap: 8px;
+  padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer;
+  border: 1px solid var(--color-border); margin-bottom: 6px;
+  transition: border-color .15s;
+}
+.scraper-match-item:hover { border-color: #00b894; }
+.scraper-match-item.selected { border-color: #00cec9; background: rgba(0,184,148,.08); }
+.scraper-match-title { font-size: 13px; font-weight: 600; }
+.scraper-match-meta { font-size: 11px; color: var(--color-text-dim); margin-top: 2px; }
+.scraper-source-tag {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700;
+  background: rgba(0,184,148,.2); color: #00b894;
+}
+.scraper-source-tag.prog-txt { background: rgba(9,132,227,.2); color: #0984e3; }
+.scraper-source-tag.ddkaqiu { background: rgba(108,92,231,.2); color: #6c5ce7; }
+.scraper-status { font-size: 12px; padding: 8px 12px; border-radius: var(--radius-sm); margin-top: 8px; }
+.scraper-status.loading { background: rgba(255,255,255,.05); color: var(--color-text-dim); }
+.scraper-status.success { background: rgba(46,204,113,.1); color: #2ecc71; }
+.scraper-status.error { background: rgba(231,76,60,.1); color: #e74c3c; }
+.scraper-status.warning { background: rgba(246,185,59,.1); color: #f6b93b; }
+.scraper-source-list { max-height: 120px; overflow-y: auto; margin-top: 6px; }
+.scraper-source-entry {
+  display: flex; align-items: center; gap: 6px; padding: 4px 0;
+  font-size: 11px; color: var(--color-text-dim); border-bottom: 1px solid var(--color-border);
+}
+.scraper-source-entry:last-child { border-bottom: none; }
+.scraper-source-entry .src-url { font-family: var(--font-body); word-break: break-all; flex: 1; }
+.scraper-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
+.scraper-toggle input[type=checkbox] { accent-color: #00b894; }
+.scraper-divider { height: 1px; background: linear-gradient(to right, transparent, var(--color-border), transparent); margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<h1>Event &amp; Live TV Code Generator</h1>
+<p class="sub">Fill in the form, push it straight to Firebase — your Blogger theme reads it live, no HTML editing needed.</p>
+
+<div class="panel" style="margin-bottom:18px;">
+  <h2>Firebase connection</h2>
+  <div class="field-row">
+    <div class="field">
+      <label>Realtime Database URL</label>
+      <input id="fb-url" value="https://sports-803-1b806-default-rtdb.firebaseio.com"/>
+    </div>
+    <div class="field">
+      <label>Events path</label>
+      <input id="fb-path" value="s803config/todaysMatches"/>
+    </div>
+  </div>
+  <p class="hint" id="fb-status">Not checked yet — click "Manage Events" to test the connection.</p>
+  <p class="hint">This now points at <code>s803config/todaysMatches</code> — the same node your Match-day tool already writes to. Your database rules only grant write access on known paths (this one + <code>livetv/channels</code>), which is why a made-up path returns <strong>401 Permission Denied</strong>. Stream buttons here also try to resolve against <code>livetv/channels</code> when a match came from Match-day.</p>
+</div>
+
+<div class="tabs-nav">
+  <button class="is-active" data-tab="event-tab" onclick="Gen.showTab(this,'event-tab')">Event Card</button>
+  <button data-tab="tv-tab" onclick="Gen.showTab(this,'tv-tab')">Live TV Channel</button>
+  <button data-tab="streamed-tab" onclick="Gen.showTab(this,'streamed-tab'); Gen.loadStreamedSports();">Streamed.pk Auto-Fetch</button>
+  <button data-tab="scraper-tab" onclick="Gen.showTab(this,'scraper-tab');">Stream Scraper</button>
+  <button data-tab="manage-tab" onclick="Gen.showTab(this,'manage-tab'); Gen.refreshManageList();">Manage Events</button>
+</div>
+
+<!-- ============================================================
+     EVENT CARD GENERATOR
+     ============================================================ -->
+<div class="tab-panel is-active" id="event-tab">
+  <div class="layout">
+    <div class="panel">
+      <h2>1. Optional: pull a real fixture</h2>
+      <div class="field-row">
+        <div class="field">
+          <label>League</label>
+          <select id="fx-league">
+            <optgroup label="International">
+              <option value="soccer|fifa.world">FIFA World Cup</option>
+              <option value="soccer|fifa.friendly">International Friendly</option>
+              <option value="soccer|uefa.champions">UEFA Champions League</option>
+              <option value="soccer|uefa.europa">UEFA Europa League</option>
+              <option value="soccer|conmebol.libertadores">Copa Libertadores</option>
+              <option value="soccer|concacaf.league">Concacaf Champions Cup</option>
+            </optgroup>
+            <optgroup label="Friendlies">
+              <option value="soccer|club.friendly">Club Friendly</option>
+              <option value="soccer|nonfifa">Non-FIFA Friendly</option>
+              <option value="soccer|friendly.emirates_cup">Emirates Cup</option>
+              <option value="soccer|global.champs_cup">International Champions Cup</option>
+              <option value="soccer|fifa.friendly">International Friendly (men's)</option>
+              <option value="soccer|fifa.friendly.w">International Friendly (women's)</option>
+            </optgroup>
+            <optgroup label="Domestic Football">
+              <option value="soccer|eng.1">Premier League</option>
+              <option value="soccer|esp.1">La Liga</option>
+              <option value="soccer|ita.1">Serie A</option>
+              <option value="soccer|ger.1">Bundesliga</option>
+              <option value="soccer|fra.1">Ligue 1</option>
+              <option value="soccer|ned.1">Eredivisie</option>
+              <option value="soccer|por.1">Primeira Liga</option>
+              <option value="soccer|ksa.1">Saudi Pro League</option>
+              <option value="soccer|usa.1">MLS</option>
+              <option value="soccer|bra.1">Brasileirão</option>
+              <option value="soccer|mex.1">Liga MX</option>
+            </optgroup>
+            <optgroup label="Basketball / American Football / Hockey / Baseball">
+              <option value="basketball|nba">NBA</option>
+              <option value="football|nfl">NFL</option>
+              <option value="hockey|nhl">NHL</option>
+              <option value="baseball|mlb">MLB</option>
+            </optgroup>
+            <optgroup label="Racing">
+              <option value="racing|f1">Formula 1</option>
+              <option value="racing|nascar-premier">NASCAR Cup Series</option>
+              <option value="racing|irl">IndyCar</option>
+            </optgroup>
+            <optgroup label="MMA">
+              <option value="mma|ufc">UFC</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="field">
+          <label>Day</label>
+          <select id="fx-day">
+            <option value="0">Today</option>
+            <option value="1">Tomorrow</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-secondary" onclick="Gen.fetchFixtures()">Fetch fixtures</button>
+      <div class="fixture-list" id="fixture-list"></div>
+      <p class="hint">Cycling, motocross/supercross, cricket, and other niche sports now covered via the <strong>Streamed.pk Auto-Fetch</strong> tab — use that tab to auto-pull matches with live stream links.</p>
+
+      <h2 style="margin-top:20px;">2. Match / event details</h2>
+      <div class="field">
+        <label>League / competition name</label>
+        <input id="ev-league" value="Premier League" list="league-suggestions"/>
+        <datalist id="league-suggestions">
+          <option value="FIFA World Cup">
+          <option value="International Friendly">
+          <option value="UEFA Champions League">
+          <option value="Premier League">
+          <option value="Cycling — Tour de France">
+          <option value="Cycling — UCI Road World Championship">
+          <option value="Cycling — Giro d'Italia">
+          <option value="Motocross — AMA Supercross">
+          <option value="Motocross — MXGP">
+          <option value="NASCAR Cup Series">
+          <option value="IndyCar">
+          <option value="Formula 1">
+          <option value="UFC">
+        </datalist>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Date</label><input id="ev-date" type="date"/></div>
+        <div class="field"><label>Kickoff time</label><input id="ev-time" type="time" value="16:30"/></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Duration (minutes, for the live window)</label><input id="ev-duration" type="number" value="120"/></div>
+        <div class="field">
+          <label>Category</label>
+          <select id="ev-category">
+            <option value="football">⚽ Football / Soccer</option>
+            <option value="basketball">🏀 Basketball</option>
+            <option value="nfl">🏈 American Football</option>
+            <option value="hockey">🏒 Hockey</option>
+            <option value="baseball">⚾ Baseball</option>
+            <option value="f1">🏎️ F1</option>
+            <option value="nascar">🏁 NASCAR</option>
+            <option value="motorsport">🏍️ Motorsport</option>
+            <option value="boxing">🥊 Boxing</option>
+            <option value="mma">🥋 MMA</option>
+            <option value="cycling">🚴 Cycling</option>
+            <option value="cricket">🏏 Cricket</option>
+            <option value="other">🏆 Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Home team name</label><input id="ev-home-name" value="Home Team"/></div>
+        <div class="field"><label>Home badge/logo URL</label><input id="ev-home-logo" placeholder="https://..."/></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Away team name (leave blank for races/single-entrant events)</label><input id="ev-away-name" value="Away Team"/></div>
+        <div class="field"><label>Away badge/logo URL</label><input id="ev-away-logo" placeholder="https://..."/></div>
+      </div>
+
+      <h2 style="margin-top:20px;">3. Stream buttons for this match</h2>
+      <p class="hint">Streams are auto-fetched from Streamed.pk when you use the Auto-Fetch tab. You can also add manual sources here.</p>
+      <div id="ev-channel-rows"></div>
+      <button class="icon-btn" onclick="Gen.addChannelRow('ev-channel-rows')">+ Add stream button</button>
+
+      <br/>
+      <button class="btn-primary" onclick="Gen.buildEventCard()">Preview</button>
+      <button class="btn-primary" style="background:var(--gradient-gold); color:#1a1300;" onclick="Gen.pushEventToFirebase()">🔥 Push to Firebase</button>
+      <p class="hint" id="push-status"></p>
+    </div>
+
+    <div class="panel">
+      <h2>Live preview</h2>
+      <div id="event-preview"></div>
+      <p class="hint">This preview is exactly what will render on your site once pushed — the theme builds the same markup from this Firebase data.</p>
+      <h2 style="margin-top:20px;">Generated HTML (optional, for manual/static pasting)</h2>
+      <textarea class="code-out" id="event-code" readonly></textarea>
+      <div class="copy-row">
+        <button class="btn-secondary" onclick="Gen.copy('event-code')">Copy code</button>
+        <span class="copied-msg" id="event-copied">Copied!</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     LIVE TV CHANNEL GENERATOR
+     ============================================================ -->
+<div class="tab-panel" id="tv-tab">
+  <div class="layout">
+    <div class="panel">
+      <h2>Channel details</h2>
+      <div class="field"><label>Channel name</label><input id="tv-name" value="Channel Name"/></div>
+      <div class="field"><label>Logo image URL</label><input id="tv-logo" placeholder="https://..."/></div>
+      <div class="field">
+        <label>Stream source (embed URL)</label>
+        <input id="tv-src" placeholder="https://your-authorized-source.example/embed"/>
+        <p class="hint">Only use a URL you're authorized to embed. Leave blank to generate a disabled placeholder button.</p>
+      </div>
+      <button class="btn-primary" onclick="Gen.buildChannelButton()">Generate code</button>
+    </div>
+
+    <div class="panel">
+      <h2>Live preview</h2>
+      <div id="tv-preview"></div>
+      <h2 style="margin-top:20px;">Generated HTML</h2>
+      <textarea class="code-out" id="tv-code" readonly></textarea>
+      <div class="copy-row">
+        <button class="btn-secondary" onclick="Gen.copy('tv-code')">Copy code</button>
+        <span class="copied-msg" id="tv-copied">Copied!</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     STREAMED.PK AUTO-FETCH TAB
+     ============================================================ -->
+<div class="tab-panel" id="streamed-tab">
+  <div class="layout">
+    <div class="panel">
+      <h2>Streamed.pk — Auto-fetch sports &amp; matches</h2>
+      <p class="hint" style="margin-bottom:14px;">Browse all available sports, pick one, and see today's/live matches with stream links ready to push to Firebase.</p>
+
+      <div class="filter-row">
+        <label style="font-size:12px;font-weight:700;color:var(--color-text-dim);">Filter:</label>
+        <select id="streamed-filter-type" onchange="Gen.filterStreamedMatches()">
+          <option value="all">All matches</option>
+          <option value="today">Today</option>
+          <option value="live" selected>Live now</option>
+          <option value="popular">Popular</option>
+          <option value="future">Upcoming</option>
+        </select>
+        <input id="streamed-search" type="text" placeholder="Search matches..." oninput="Gen.filterStreamedMatches()" style="flex:1;min-width:150px;"/>
+        <button class="btn-secondary" onclick="Gen.loadStreamedSports()" style="margin:0;">↻ Refresh</button>
+      </div>
+
+      <div id="streamed-sport-chips" class="sport-grid"></div>
+
+      <div class="section-divider"></div>
+      <h2 id="streamed-match-header">Select a sport above</h2>
+      <div id="streamed-match-list" style="max-height:520px;overflow-y:auto;"></div>
+
+      <div id="streamed-stream-info" class="stream-info-panel" style="display:none;">
+        <h3>Available streams</h3>
+        <div id="streamed-stream-list"></div>
+        <button class="btn-streamed" style="margin-top:10px;" onclick="Gen.fillEventFromStreamed()">📋 Fill event form &amp; streams</button>
+        <p class="hint" id="streamed-fill-status"></p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>What gets auto-filled</h2>
+      <div id="streamed-preview-info">
+        <p class="hint">Pick a sport, select a match, and click "Fill event form &amp; streams" to auto-populate the Event Card form with:</p>
+        <ul style="font-size:12px;color:var(--color-text-dim);line-height:1.8;padding-left:20px;margin-top:8px;">
+          <li>League / competition name (from match title)</li>
+          <li>Date &amp; time (from match timestamp)</li>
+          <li>Home &amp; away team names</li>
+          <li>Team badge images (via Streamed.pk Images API)</li>
+          <li>Category (auto-mapped from sport)</li>
+          <li>Stream embed URLs (all sources fetched automatically)</li>
+        </ul>
+        <p class="hint" style="margin-top:12px;">Then click <strong>"Push to Firebase"</strong> on the Event Card tab to publish it live.</p>
+      </div>
+      <h2 style="margin-top:20px;">Auto-push all matches to Firebase</h2>
+      <p class="hint">Push every match from the selected sport directly to Firebase in one click. Streams are auto-resolved for each match.</p>
+      <button class="btn-streamed" onclick="Gen.pushAllStreamedMatches()" style="width:100%;">🔥 Push All Matches to Firebase</button>
+      <p class="hint" id="auto-push-status"></p>
+
+      <h2 style="margin-top:20px;">Sports coverage on Streamed.pk</h2>
+      <p class="hint" style="margin-bottom:10px;">This API covers sports that traditional free APIs (like ESPN) miss entirely:</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:11.5px;color:var(--color-text-dim);">
+        <span>🚴 Cycling (Tour de France, UCI, etc.)</span>
+        <span>🏁 NASCAR (Cup, Truck, Xfinity)</span>
+        <span>🏍️ Motocross / Supercross</span>
+        <span>🏏 Cricket</span>
+        <span>🏆 Golf</span>
+        <span>🎱 Billiards / Snooker</span>
+        <span>🎯 Darts</span>
+        <span>🏉 Rugby</span>
+        <span>🏈 AFL</span>
+        <span>⛳ All motor sports</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     STREAM SCRAPER (prog.txt + ddkaqiu.com)
+     ============================================================ -->
+<div class="tab-panel" id="scraper-tab">
+  <div class="layout">
+    <div class="panel">
+      <h2>Stream Scraper — prog.txt &amp; ddkaqiu.com</h2>
+      <p class="hint" style="margin-bottom:14px;">Scrape live streams from <strong>sportsonline.st/prog.txt</strong> and <strong>ddkaqiu.com</strong> (formerly ddkanqu.com). Matches are parsed, teams translated, and embed URLs auto-collected.</p>
+
+      <div class="scraper-divider"></div>
+      <h2>prog.txt (SportsOnline)</h2>
+      <div class="field">
+        <label>prog.txt URL</label>
+        <input id="scr-prog-url" value="https://sportsonline.st/prog.txt" placeholder="https://sportsonline.st/prog.txt"/>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <button class="btn-scraper" onclick="Gen.scraperLoadProgTxt()">Load prog.txt</button>
+        <label class="scraper-toggle"><input type="checkbox" id="scr-enable-prog" checked onchange="Gen.scraperSaveConfig()"/> Auto-load on tab open</label>
+      </div>
+      <div id="scr-prog-status" class="scraper-status loading" style="display:none;"></div>
+      <div id="scr-prog-matches" style="max-height:300px;overflow-y:auto;margin-top:8px;"></div>
+
+      <div class="scraper-divider"></div>
+      <h2>ddkaqiu.com (JRS 低调看球)</h2>
+      <p class="hint">Scrapes match cards from ddkaqiu.com homepage. Chinese team names are auto-translated to English.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <button class="btn-scraper" onclick="Gen.scraperLoadDDKHome()">Scrape ddkaqiu.com</button>
+        <label class="scraper-toggle"><input type="checkbox" id="scr-enable-ddk" onchange="Gen.scraperSaveConfig()"/> Enable ddkaqiu scraping</label>
+      </div>
+      <div id="scr-ddk-status" class="scraper-status loading" style="display:none;"></div>
+      <div id="scr-ddk-matches" style="max-height:300px;overflow-y:auto;margin-top:8px;"></div>
+
+      <div class="scraper-divider"></div>
+      <h2>Combined streams for selected match</h2>
+      <p class="hint">Select a match from either source above, or enter team names to look up streams from all sources.</p>
+      <div class="field-row">
+        <div class="field"><label>Home team</label><input id="scr-home-name" placeholder="e.g. Manchester City"/></div>
+        <div class="field"><label>Away team</label><input id="scr-away-name" placeholder="e.g. Arsenal"/></div>
+      </div>
+      <button class="btn-scraper" onclick="Gen.scraperLookupStreams()">Look up all streams</button>
+      <div id="scr-combined-status" class="scraper-status loading" style="display:none;"></div>
+      <div id="scr-combined-sources" style="margin-top:8px;"></div>
+      <button class="btn-scraper" style="margin-top:10px;" onclick="Gen.scraperFillForm()">📋 Fill event form &amp; streams</button>
+      <p class="hint" id="scr-fill-status"></p>
+    </div>
+
+    <div class="panel">
+      <h2>How it works</h2>
+      <div style="font-size:12px;color:var(--color-text-dim);line-height:1.9;">
+        <p><strong>prog.txt</strong> — A pipe-delimited text file listing today's matches with embed URLs. Format: <code>HH:MM Sport: TeamA vs TeamB | embed_url1 | embed_url2</code></p>
+        <p style="margin-top:12px;"><strong>ddkaqiu.com</strong> — Chinese sports streaming site (replaced ddkanqu.com). Homepage lists live/upcoming matches with links to <code>/zhibo/{id}.html</code>. Chinese team names are translated via built-in mapping.</p>
+        <p style="margin-top:12px;"><strong>CORS proxies</strong> — Both sources use <code>corsproxy.io</code> and <code>api.allorigins.win</code> for browser-side fetching since these sites don't set CORS headers.</p>
+        <p style="margin-top:12px;"><strong>Team matching</strong> — Team names are normalized (lowercase, stripped of accents, club abbreviations removed) and matched case-insensitively across both sources.</p>
+      </div>
+
+      <h2 style="margin-top:20px;">Sources covered</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:11.5px;color:var(--color-text-dim);">
+        <span>⚽ Football (all leagues)</span>
+        <span>🏀 Basketball (NBA, KBL, etc.)</span>
+        <span>🎾 Tennis</span>
+        <span>🎯 Darts</span>
+        <span>🏏 Cricket</span>
+        <span>🏉 Rugby</span>
+        <span>🇧🇷 Brazilian leagues</span>
+        <span>🇲🇽 Liga MX</span>
+      </div>
+
+      <h2 style="margin-top:20px;">Combined with Streamed.pk</h2>
+      <p class="hint">Use the <strong>Streamed.pk Auto-Fetch</strong> tab for motorsports, cycling, cricket, UFC, golf, and other niche sports. Use this <strong>Stream Scraper</strong> tab for football, basketball, tennis, and other mainstream sports with embed streams from prog.txt and ddkaqiu.com.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MANAGE FIREBASE EVENTS
+     ============================================================ -->
+<div class="tab-panel" id="manage-tab">
+  <div class="panel">
+    <h2>Events currently on Firebase</h2>
+    <p class="hint">This is exactly what your site is showing right now (past/finished events are already excluded here too). Delete one without touching the others.</p>
+    <button class="btn-secondary" onclick="Gen.refreshManageList()">↻ Refresh</button>
+    <div id="manage-list" class="fixture-list" style="max-height:520px;"></div>
+  </div>
+</div>
+
+<script>
+//<![CDATA[
+var Gen = {
+
+  // ---- Internal state for Streamed.pk ----
+  _streamedSports: [],
+  _streamedMatches: {},   // sportId -> [match, ...]
+  _streamedCurrentSport: null,
+  _streamedCurrentMatch: null,
+  _streamedCurrentStreams: null,
+
+  // ---- Internal state for Stream Scraper ----
+  _progTxtMap: {},        // pairKey -> [{url, type}] from prog.txt
+  _ddkHomeMap: {},        // pairKey -> {zhibo, zhHome, zhAway, enHome, enAway}
+  _scrCurrentMatch: null, // currently selected match from scraper
+  _scrCurrentSources: [], // combined sources for selected match
+
+  // ---- Category mapping: Streamed.pk sport IDs -> our category values ----
+  STREAMED_CATEGORY_MAP: {
+    'football':         { category: 'football',    emoji: '⚽',  leagueId: 'custom.football' },
+    'basketball':       { category: 'basketball',  emoji: '🏀',  leagueId: 'custom.basketball' },
+    'american-football':{ category: 'nfl',         emoji: '🏈',  leagueId: 'nfl' },
+    'hockey':           { category: 'hockey',      emoji: '🏒',  leagueId: 'nhl' },
+    'baseball':         { category: 'baseball',    emoji: '⚾',  leagueId: 'mlb' },
+    'motor-sports':     { category: 'motorsport',  emoji: '🏍️', leagueId: 'motogp' },
+    'fight':            { category: 'mma',         emoji: '🥋',  leagueId: 'mma-ufc' },
+    'tennis':           { category: 'other',       emoji: '🎾',  leagueId: 'tennis' },
+    'rugby':            { category: 'other',       emoji: '🏉',  leagueId: 'rugby' },
+    'golf':             { category: 'other',       emoji: '🏌️', leagueId: 'golf' },
+    'billiards':        { category: 'other',       emoji: '🎱',  leagueId: 'billiards' },
+    'afl':              { category: 'other',       emoji: '🏈',  leagueId: 'afl' },
+    'darts':            { category: 'other',       emoji: '🎯',  leagueId: 'darts' },
+    'cricket':          { category: 'cricket',     emoji: '🏏',  leagueId: 'cricket' },
+    'other':            { category: 'other',       emoji: '🏆',  leagueId: 'other' }
+  },
+
+  showTab: function (btn, id) {
+    document.querySelectorAll('.tabs-nav button').forEach(function (b) { b.classList.remove('is-active'); });
+    btn.classList.add('is-active');
+    document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.toggle('is-active', p.id === id); });
+  },
+
+  esc: function (s) { return (s || '').replace(/"/g, '&quot;'); },
+
+  addChannelRow: function (containerId, label, src) {
+    var container = document.getElementById(containerId);
+    var row = document.createElement('div');
+    row.className = 'channel-row';
+    row.innerHTML =
+      '<input placeholder="Button label" value="' + (label || 'Stream') + '"/>' +
+      '<input placeholder="Embed URL (yours)" value="' + (src || '') + '"/>' +
+      '<span></span>' +
+      '<button class="icon-btn" onclick="this.parentElement.remove()">Remove</button>';
+    container.appendChild(row);
+  },
+
+  // -- Fetch real fixtures from ESPN's public scoreboard to autofill the form --
+  fetchFixtures: function () {
+    var val = document.getElementById('fx-league').value.split('|');
+    var sport = val[0], league = val[1];
+    var dayOffset = parseInt(document.getElementById('fx-day').value, 10);
+    var d = new Date();
+    d.setDate(d.getDate() + dayOffset);
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    var dateParam = '' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate());
+    var list = document.getElementById('fixture-list');
+    list.innerHTML = 'Loading…';
+
+    fetch('https://site.api.espn.com/apis/site/v2/sports/' + sport + '/' + league + '/scoreboard?dates=' + dateParam)
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        var events = (json && json.events) || [];
+        if (!events.length) { list.innerHTML = '<div class="hint">No fixtures found for that day.</div>'; return; }
+        list.innerHTML = '';
+        var isSingleEntrant = (sport === 'racing');
+
+        events.forEach(function (ev) {
+          var comp = (ev.competitions && ev.competitions[0]) || {};
+          var competitors = comp.competitors || [];
+          var getName = function (c) {
+            if (!c) return null;
+            if (c.team) return c.team.shortDisplayName || c.team.displayName;
+            if (c.athlete) return c.athlete.displayName;
+            return null;
+          };
+          var getLogo = function (c) {
+            if (!c) return '';
+            if (c.team) return c.team.logo || '';
+            if (c.athlete) return c.athlete.headshot ? c.athlete.headshot.href : '';
+            return '';
+          };
+
+          var item = document.createElement('div');
+          item.className = 'fixture-item';
+          var dt = new Date(ev.date);
+          var home, away, label;
+
+          if (isSingleEntrant) {
+            home = null; away = null;
+            label = ev.name || ev.shortName || 'Race';
+          } else {
+            home = competitors.find(function (c) { return c.homeAway === 'home'; }) || competitors[0];
+            away = competitors.find(function (c) { return c.homeAway === 'away'; }) || competitors[1];
+            label = (getName(home) || '?') + ' vs ' + (getName(away) || '?');
+          }
+
+          item.innerHTML = '<span>' + label + '</span>' +
+            '<span class="time">' + dt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</span>';
+
+          item.addEventListener('click', function () {
+            document.getElementById('ev-league').value = document.getElementById('fx-league').selectedOptions[0].textContent;
+            document.getElementById('ev-date').value = dt.toISOString().slice(0, 10);
+            document.getElementById('ev-time').value = dt.toTimeString().slice(0, 5);
+            if (isSingleEntrant) {
+              document.getElementById('ev-home-name').value = label;
+              document.getElementById('ev-home-logo').value = '';
+              document.getElementById('ev-away-name').value = '';
+              document.getElementById('ev-away-logo').value = '';
+            } else {
+              document.getElementById('ev-home-name').value = getName(home) || 'Home';
+              document.getElementById('ev-home-logo').value = getLogo(home);
+              document.getElementById('ev-away-name').value = getName(away) || 'Away';
+              document.getElementById('ev-away-logo').value = getLogo(away);
+            }
+          });
+          list.appendChild(item);
+        });
+      })
+      .catch(function () { list.innerHTML = '<div class="hint">Couldn\'t load fixtures right now — you can still fill the form manually.</div>'; });
+  },
+
+  // ============================================================
+  //  STREAMED.PK API INTEGRATION
+  // ============================================================
+
+  // Load all available sports from Streamed.pk
+  loadStreamedSports: function () {
+    var chipsContainer = document.getElementById('streamed-sport-chips');
+    chipsContainer.innerHTML = '<span class="loading-spinner"></span>Loading sports…';
+
+    fetch('https://streamed.pk/api/sports')
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (sports) {
+        Gen._streamedSports = sports;
+        chipsContainer.innerHTML = '';
+
+        sports.forEach(function (sport) {
+          var chip = document.createElement('span');
+          chip.className = 'sport-chip';
+          chip.textContent = sport.name;
+          chip.dataset.sportId = sport.id;
+          chip.addEventListener('click', function () {
+            document.querySelectorAll('.sport-chip').forEach(function (c) { c.classList.remove('is-active'); });
+            chip.classList.add('is-active');
+            Gen._streamedCurrentSport = sport.id;
+            Gen.loadStreamedMatches(sport.id);
+          });
+          chipsContainer.appendChild(chip);
+        });
+      })
+      .catch(function (err) {
+        chipsContainer.innerHTML = '<div class="hint">Could not load sports: ' + err.message + '</div>';
+      });
+  },
+
+  // Load matches for a specific sport
+  loadStreamedMatches: function (sportId) {
+    var listEl = document.getElementById('streamed-match-list');
+    var headerEl = document.getElementById('streamed-match-header');
+    listEl.innerHTML = '<span class="loading-spinner"></span>Loading matches…';
+    headerEl.textContent = 'Loading ' + sportId + '…';
+
+    fetch('https://streamed.pk/api/matches/' + sportId)
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (matches) {
+        Gen._streamedMatches[sportId] = matches;
+        headerEl.textContent = sportId + ' — ' + matches.length + ' match(es)';
+        Gen.filterStreamedMatches();
+      })
+      .catch(function (err) {
+        listEl.innerHTML = '<div class="hint">Could not load matches: ' + err.message + '</div>';
+      });
+  },
+
+  // Filter matches based on type and search
+  filterStreamedMatches: function () {
+    var filterType = document.getElementById('streamed-filter-type').value;
+    var searchTerm = (document.getElementById('streamed-search').value || '').toLowerCase();
+    var sportId = Gen._streamedCurrentSport;
+    var matches = Gen._streamedMatches[sportId] || [];
+    var listEl = document.getElementById('streamed-match-list');
+    var now = Date.now();
+
+    var filtered = matches.filter(function (m) {
+      // Search filter
+      if (searchTerm && !m.title.toLowerCase().includes(searchTerm)) return false;
+
+      // Type filter
+      if (filterType === 'live') return m.date > 0 && m.date <= now + 120000;
+      if (filterType === 'today') {
+        var todayStart = new Date(); todayStart.setHours(0,0,0,0);
+        var todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
+        return m.date >= todayStart.getTime() && m.date <= todayEnd.getTime();
+      }
+      if (filterType === 'future') return m.date > now + 120000;
+      if (filterType === 'popular') return m.popular === true;
+      return true;
+    });
+
+    listEl.innerHTML = '';
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = '<div class="hint">No matches match your filter.</div>';
+      return;
+    }
+
+    filtered.forEach(function (match) {
+      var item = document.createElement('div');
+      item.className = 'streamed-match-item';
+
+      var isLive = match.date > 0 && match.date <= now + 120000;
+      var matchDate = match.date > 0 ? new Date(match.date) : null;
+      var timeStr = matchDate ? matchDate.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'TBD';
+
+      var html = '<div>';
+      html += '<div class="streamed-match-header">';
+      if (isLive) html += '<span class="badge-live-dot"></span><span style="color:var(--color-live);font-weight:700;font-size:11px;">LIVE</span>';
+      if (match.popular) html += '<span class="badge-hd">POPULAR</span>';
+      html += '<span class="streamed-match-title">' + Gen.esc(match.title) + '</span>';
+      html += '</div>';
+      html += '<div class="streamed-match-meta">' + timeStr + ' &middot; ' + (match.sources ? match.sources.length + ' source(s)' : '0 sources') + '</div>';
+
+      // Show teams if available
+      if (match.teams) {
+        html += '<div class="streamed-match-teams">';
+        if (match.teams.home) {
+          html += '<img src="https://streamed.pk/api/images/badge/' + match.teams.home.badge + '.webp" alt="' + Gen.esc(match.teams.home.name) + '" onerror="this.style.display=\'none\'"/>';
+          html += '<span>' + Gen.esc(match.teams.home.name) + '</span>';
+        }
+        if (match.teams.away) {
+          html += '<span style="color:var(--color-text-dim);">vs</span>';
+          html += '<img src="https://streamed.pk/api/images/badge/' + match.teams.away.badge + '.webp" alt="' + Gen.esc(match.teams.away.name) + '" onerror="this.style.display=\'none\'"/>';
+          html += '<span>' + Gen.esc(match.teams.away.name) + '</span>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+
+      // Source count badge
+      html += '<div style="text-align:right;font-size:11px;color:var(--color-text-dim);">' +
+        (match.sources ? match.sources.length + ' src' : '—') + '</div>';
+
+      item.innerHTML = html;
+
+      item.addEventListener('click', function () {
+        document.querySelectorAll('.streamed-match-item').forEach(function (el) { el.classList.remove('selected'); });
+        item.classList.add('selected');
+        Gen._streamedCurrentMatch = match;
+        Gen.fetchStreamsForMatch(match);
+      });
+
+      listEl.appendChild(item);
+    });
+  },
+
+  // Fetch stream details for a selected match
+  fetchStreamsForMatch: function (match) {
+    var infoPanel = document.getElementById('streamed-stream-info');
+    var streamList = document.getElementById('streamed-stream-list');
+    infoPanel.style.display = 'block';
+    streamList.innerHTML = '<span class="loading-spinner"></span>Fetching streams…';
+
+    // Collect all sources
+    var sources = match.sources || [];
+    var allStreams = [];
+    var pending = sources.length;
+
+    if (pending === 0) {
+      streamList.innerHTML = '<div class="hint">No stream sources available for this match.</div>';
+      return;
+    }
+
+    var done = 0;
+    sources.forEach(function (source) {
+      fetch('https://streamed.pk/api/stream/' + source.source + '/' + source.id)
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (streams) {
+          streams.forEach(function (s) {
+            s._sourceName = source.source;
+            allStreams.push(s);
+          });
+          done++;
+          if (done === pending) {
+            Gen._streamedCurrentStreams = allStreams;
+            Gen.renderStreamInfo(allStreams);
+          }
+        })
+        .catch(function () {
+          done++;
+          if (done === pending) {
+            Gen._streamedCurrentStreams = allStreams;
+            Gen.renderStreamInfo(allStreams);
+          }
+        });
+    });
+  },
+
+  // Render stream info panel
+  renderStreamInfo: function (streams) {
+    var streamList = document.getElementById('streamed-stream-list');
+    streamList.innerHTML = '';
+
+    if (streams.length === 0) {
+      streamList.innerHTML = '<div class="hint">No active streams found for this match right now.</div>';
+      return;
+    }
+
+    streams.forEach(function (stream) {
+      var row = document.createElement('div');
+      row.className = 'stream-source-row';
+      row.innerHTML =
+        '<span class="src-label">' + Gen.esc(stream._sourceName || stream.source) + '</span>' +
+        '<span>' + Gen.esc(stream.language || 'Unknown') + '</span>' +
+        (stream.hd ? '<span class="badge-hd">HD</span>' : '') +
+        '<span style="margin-left:auto;font-size:11px;color:var(--color-text-dim);">#' + stream.streamNo + '</span>';
+      streamList.appendChild(row);
+    });
+  },
+
+  // Fill the event form from the selected Streamed.pk match
+  fillEventFromStreamed: function () {
+    var match = Gen._streamedCurrentMatch;
+    var streams = Gen._streamedCurrentStreams || [];
+    var statusEl = document.getElementById('streamed-fill-status');
+
+    if (!match) {
+      statusEl.textContent = '❌ No match selected.';
+      return;
+    }
+
+    // Map sport to category
+    var catMap = Gen.STREAMED_CATEGORY_MAP[match.category] || Gen.STREAMED_CATEGORY_MAP.other;
+
+    // Date and time
+    var matchDate = match.date > 0 ? new Date(match.date) : new Date();
+    document.getElementById('ev-date').value = matchDate.toISOString().slice(0, 10);
+    document.getElementById('ev-time').value = matchDate.toTimeString().slice(0, 5);
+
+    // League name (cleaned from title)
+    var titleParts = match.title.split(' vs ');
+    document.getElementById('ev-league').value = match.category ? match.category.toUpperCase() : '';
+    // Try to extract competition name from title (e.g., "Nascar Cup Series 2026 - Window World 400" -> "Nascar Cup Series 2026 - Window World 400")
+    if (match.title.includes(' - ')) {
+      document.getElementById('ev-league').value = match.title.split(' - ')[0].trim();
+    }
+
+    // Category
+    document.getElementById('ev-category').value = catMap.category;
+
+    // Teams
+    if (match.teams) {
+      if (match.teams.home) {
+        document.getElementById('ev-home-name').value = match.teams.home.name || '';
+        document.getElementById('ev-home-logo').value = 'https://streamed.pk/api/images/badge/' + (match.teams.home.badge || '') + '.webp';
+      } else {
+        document.getElementById('ev-home-name').value = titleParts[0] || match.title;
+        document.getElementById('ev-home-logo').value = '';
+      }
+      if (match.teams.away) {
+        document.getElementById('ev-away-name').value = match.teams.away.name || '';
+        document.getElementById('ev-away-logo').value = 'https://streamed.pk/api/images/badge/' + (match.teams.away.badge || '') + '.webp';
+      } else {
+        document.getElementById('ev-away-name').value = titleParts[1] || '';
+        document.getElementById('ev-away-logo').value = '';
+      }
+    } else {
+      // No teams object — try to parse from title
+      document.getElementById('ev-home-name').value = titleParts[0] || match.title;
+      document.getElementById('ev-home-logo').value = '';
+      document.getElementById('ev-away-name').value = titleParts[1] || '';
+      document.getElementById('ev-away-logo').value = '';
+    }
+
+    // Clear existing channel rows and add streams
+    var container = document.getElementById('ev-channel-rows');
+    container.innerHTML = '';
+
+    if (streams.length > 0) {
+      streams.forEach(function (stream) {
+        var label = (stream._sourceName || stream.source || 'Stream') + ' #' + stream.streamNo + ' - ' + (stream.language || '');
+        Gen.addChannelRow('ev-channel-rows', label, stream.embedUrl || '');
+      });
+    } else {
+      // No streams — add placeholder
+      Gen.addChannelRow('ev-channel-rows', 'Stream 1', '');
+    }
+
+    statusEl.textContent = '✅ Form filled! Go to the "Event Card" tab to preview and push to Firebase.';
+    statusEl.className = 'auto-push-note';
+
+    // Auto-switch to event tab
+    setTimeout(function () {
+      var eventTabBtn = document.querySelector('[data-tab="event-tab"]');
+      Gen.showTab(eventTabBtn, 'event-tab');
+      Gen.buildEventCard();
+    }, 800);
+  },
+
+  // Push all matches from selected sport to Firebase
+  pushAllStreamedMatches: function () {
+    var sportId = Gen._streamedCurrentSport;
+    var statusEl = document.getElementById('auto-push-status');
+    var matches = Gen._streamedMatches[sportId] || [];
+
+    if (!sportId) {
+      statusEl.textContent = '❌ Select a sport first.';
+      return;
+    }
+    if (matches.length === 0) {
+      statusEl.textContent = '❌ No matches loaded for this sport.';
+      return;
+    }
+
+    statusEl.textContent = 'Processing ' + matches.length + ' match(es)…';
+    var completed = 0;
+    var failed = 0;
+
+    matches.forEach(function (match) {
+      Gen.fetchStreamsForAutoPush(match, sportId).then(function (streams) {
+        var payload = Gen.buildAutoPayload(match, streams);
+        var key = 'match_' + match.category + '_' + (match.id || Date.now()).replace(/[^a-zA-Z0-9]/g, '_');
+        var body = {};
+        body[key] = payload;
+
+        return fetch(Gen.fbBase() + '.json', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }).then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          completed++;
+          return r.json();
+        });
+      }).then(function () {
+        if (++completed + failed === matches.length) {
+          statusEl.textContent = '✅ ' + completed + ' match(es) pushed to Firebase. ' + (failed ? failed + ' failed.' : '');
+        }
+      }).catch(function (err) {
+        failed++;
+        if (completed + failed === matches.length) {
+          statusEl.textContent = '❌ ' + completed + ' pushed, ' + failed + ' failed (' + err.message + ')';
+        }
+      });
+    });
+  },
+
+  // Fetch streams for a match (for auto-push)
+  fetchStreamsForAutoPush: function (match, sportId) {
+    var sources = match.sources || [];
+    if (sources.length === 0) return Promise.resolve([]);
+
+    var promises = sources.map(function (source) {
+      return fetch('https://streamed.pk/api/stream/' + source.source + '/' + source.id)
+        .then(function (r) { return r.json(); })
+        .then(function (streams) { return streams.map(function (s) { s._sourceName = source.source; return s; }); })
+        .catch(function () { return []; });
+    });
+
+    return Promise.all(promises).then(function (results) {
+      var all = [];
+      results.forEach(function (arr) { all = all.concat(arr); });
+      return all;
+    });
+  },
+
+  // Build Firebase payload from Streamed.pk match data
+  buildAutoPayload: function (match, streams) {
+    var catMap = Gen.STREAMED_CATEGORY_MAP[match.category] || Gen.STREAMED_CATEGORY_MAP.other;
+    var matchDate = match.date > 0 ? new Date(match.date) : new Date();
+    var isoDateTime = matchDate.toISOString();
+
+    var channels = (streams || []).map(function (s) {
+      return {
+        label: (s._sourceName || s.source || 'Stream') + ' #' + s.streamNo + ' - ' + (s.language || ''),
+        src: s.embedUrl || ''
+      };
+    });
+
+    var homeName = match.teams && match.teams.home ? match.teams.home.name : '';
+    var awayName = match.teams && match.teams.away ? match.teams.away.name : '';
+
+    // Parse title for non-team events
+    if (!homeName) {
+      var parts = match.title.split(' vs ');
+      homeName = parts[0] || match.title;
+      awayName = parts[1] || '';
+    }
+
+    return {
+      kickoff: isoDateTime,
+      sport: catMap.category === 'football' ? 'football' : 'other',
+      isRacing: !awayName,
+      homeName: homeName,
+      homeLogo: (match.teams && match.teams.home && match.teams.home.badge) ? 'https://streamed.pk/api/images/badge/' + match.teams.home.badge + '.webp' : '',
+      awayName: awayName,
+      awayLogo: (match.teams && match.teams.away && match.teams.away.badge) ? 'https://streamed.pk/api/images/badge/' + match.teams.away.badge + '.webp' : '',
+      score: '- -',
+      scoreHome: '',
+      scoreAway: '',
+      statusType: match.date > 0 && match.date <= Date.now() + 120000 ? 'STATUS_LIVE' : 'STATUS_SCHEDULED',
+      leagueName: match.title.split(' - ')[0] || match.category.toUpperCase(),
+      leagueEmoji: catMap.emoji,
+      leagueId: catMap.leagueId,
+      postUrl: '',
+      channelKey: '',
+      channelName: '',
+      venue: '',
+      updatedAt: Date.now(),
+      duration: match.category === 'motor-sports' ? 180 : (match.category === 'football' ? 110 : 120),
+      category: catMap.category,
+      channels: channels
+    };
+  },
+
+  // ---- Original methods ----
+
+  buildEventCard: function () {
+    var league = document.getElementById('ev-league').value;
+    var date = document.getElementById('ev-date').value;
+    var time = document.getElementById('ev-time').value;
+    var duration = document.getElementById('ev-duration').value || '120';
+    var homeName = document.getElementById('ev-home-name').value;
+    var homeLogo = document.getElementById('ev-home-logo').value;
+    var awayName = document.getElementById('ev-away-name').value;
+    var awayLogo = document.getElementById('ev-away-logo').value;
+    var category = document.getElementById('ev-category').value;
+
+    var isoDateTime = (date || new Date().toISOString().slice(0,10)) + 'T' + (time || '00:00') + ':00';
+    var dt = new Date(isoDateTime);
+    var displayTime = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    var displayDate = dt.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+
+    var rows = document.querySelectorAll('#ev-channel-rows .channel-row');
+    var channelButtons = [];
+    rows.forEach(function (row) {
+      var inputs = row.querySelectorAll('input');
+      var label = inputs[0].value || 'Stream';
+      var src = inputs[1].value || '';
+      channelButtons.push(
+        '    <button class="channel-btn" data-src="' + Gen.esc(src) + '">\u{1F4FA} ' + label + '</button>'
+      );
+    });
+    var channelsBlock = channelButtons.length ? channelButtons.join('\n') : '    <!-- add your own stream buttons here -->';
+
+    var homeTeamBlock =
+'  <div class="event-team">\n' +
+(homeLogo ? '    <img alt="' + homeName + '" src="' + homeLogo + '"/>\n' : '') +
+'    <span>' + homeName + '</span>\n' +
+'  </div>\n';
+
+    var awayTeamBlock = awayName.trim()
+      ? '  <div class="event-team">\n' +
+        (awayLogo ? '    <img alt="' + awayName + '" src="' + awayLogo + '"/>\n' : '') +
+        '    <span>' + awayName + '</span>\n' +
+        '  </div>\n'
+      : '';
+
+    var code =
+'<div class="event-card" data-time="' + isoDateTime + '" data-duration="' + duration + '" data-category="' + category + '">\n' +
+'  <div class="overlay"></div>\n' +
+'  <div class="event-status" data-role="status">00:00:00</div>\n' +
+'  <div class="event-time">' + displayTime + '</div>\n' +
+'  <div class="event-league"><span>' + league + '</span><span>' + displayDate + '</span></div>\n' +
+'  <div class="event-divider"></div>\n' +
+homeTeamBlock +
+awayTeamBlock +
+'  <div class="event-channels">\n' + channelsBlock + '\n  </div>\n' +
+'</div>';
+
+    document.getElementById('event-code').value = code;
+
+    var preview = document.getElementById('event-preview');
+    preview.innerHTML = code;
+    var card = preview.querySelector('.event-card');
+    var status = card.querySelector('[data-role="status"]');
+    var start = dt.getTime();
+    var end = start + parseInt(duration, 10) * 60000;
+    var tick = function () {
+      var now = Date.now();
+      if (now >= start && now <= end) status.innerHTML = '<span class="badge-live">LIVE</span>';
+      else if (now < start) {
+        var d = start - now;
+        status.textContent = Math.floor(d/3600000) + 'h ' + Math.floor((d%3600000)/60000) + 'm ' + Math.floor((d%60000)/1000) + 's';
+      } else status.textContent = 'Finished';
+    };
+    tick();
+  },
+
+  buildChannelButton: function () {
+    var name = document.getElementById('tv-name').value || 'Channel';
+    var logo = document.getElementById('tv-logo').value;
+    var src = document.getElementById('tv-src').value;
+
+    var code =
+'<button data-src="' + Gen.esc(src) + '">\n' +
+'  <img alt="' + name + '" src="' + logo + '"/>\n' +
+'  <span class="channel-name">' + name + '</span>\n' +
+'</button>';
+
+    document.getElementById('tv-code').value = code;
+
+    var preview = document.getElementById('tv-preview');
+    preview.innerHTML = '<div class="channel-grid-preview">' + code + '</div>';
+  },
+
+  copy: function (textareaId) {
+    var ta = document.getElementById(textareaId);
+    ta.select();
+    document.execCommand('copy');
+    var msgId = textareaId.replace('-code', '-copied');
+    var msg = document.getElementById(msgId);
+    msg.classList.add('show');
+    setTimeout(function () { msg.classList.remove('show'); }, 1500);
+  },
+
+  fbBase: function () {
+    var url = document.getElementById('fb-url').value.replace(/\/$/, '');
+    var path = document.getElementById('fb-path').value.replace(/^\//, '').replace(/\/$/, '');
+    return url + '/' + path;
+  },
+
+  CATEGORY_META: {
+    football:   { sport: 'football',   leagueEmoji: '⚽',  leagueId: 'custom.football' },
+    basketball: { sport: 'basketball', leagueEmoji: '🏀',  leagueId: 'custom.basketball' },
+    nfl:        { sport: 'other',      leagueEmoji: '🏈',  leagueId: 'nfl' },
+    hockey:     { sport: 'other',      leagueEmoji: '🏒',  leagueId: 'nhl' },
+    baseball:   { sport: 'other',      leagueEmoji: '⚾',  leagueId: 'mlb' },
+    f1:         { sport: 'motorsport', leagueEmoji: '🏎️', leagueId: 'f1' },
+    nascar:     { sport: 'motorsport', leagueEmoji: '🏁',  leagueId: 'nascar-cup' },
+    motorsport: { sport: 'motorsport', leagueEmoji: '🏍️', leagueId: 'motogp' },
+    boxing:     { sport: 'other',      leagueEmoji: '🥊',  leagueId: 'boxing' },
+    mma:        { sport: 'other',      leagueEmoji: '🥋',  leagueId: 'mma-ufc' },
+    cycling:    { sport: 'other',      leagueEmoji: '🚴',  leagueId: 'cycling' },
+    cricket:    { sport: 'other',      leagueEmoji: '🏏',  leagueId: 'cricket' },
+    other:      { sport: 'other',      leagueEmoji: '🏆',  leagueId: 'other' }
+  },
+
+  buildEventPayload: function () {
+    var date = document.getElementById('ev-date').value;
+    var time = document.getElementById('ev-time').value;
+    var isoDateTime = (date || new Date().toISOString().slice(0, 10)) + 'T' + (time || '00:00') + ':00';
+
+    var rows = document.querySelectorAll('#ev-channel-rows .channel-row');
+    var channels = [];
+    rows.forEach(function (row) {
+      var inputs = row.querySelectorAll('input');
+      var label = inputs[0].value || 'Stream';
+      var src = inputs[1].value || '';
+      if (src) channels.push({ label: label, src: src });
+    });
+
+    var homeName = document.getElementById('ev-home-name').value || 'Home';
+    var awayName = (document.getElementById('ev-away-name').value || '').trim();
+    var category = document.getElementById('ev-category').value;
+    var meta = this.CATEGORY_META[category] || this.CATEGORY_META.other;
+
+    return {
+      kickoff: isoDateTime,
+      sport: meta.sport,
+      isRacing: !awayName,
+      homeName: homeName,
+      homeLogo: document.getElementById('ev-home-logo').value || '',
+      awayName: awayName,
+      awayLogo: document.getElementById('ev-away-logo').value || '',
+      score: '- -', scoreHome: '', scoreAway: '',
+      statusType: 'STATUS_SCHEDULED',
+      leagueName: document.getElementById('ev-league').value,
+      leagueEmoji: meta.leagueEmoji,
+      leagueId: meta.leagueId,
+      postUrl: '', channelKey: '', channelName: '',
+      venue: '',
+      updatedAt: Date.now(),
+      duration: parseInt(document.getElementById('ev-duration').value, 10) || 120,
+      category: category,
+      channels: channels
+    };
+  },
+
+  pushEventToFirebase: function () {
+    var statusEl = document.getElementById('push-status');
+    statusEl.textContent = 'Pushing…';
+    var payload = this.buildEventPayload();
+    var key = 'match_' + Date.now();
+    var body = {};
+    body[key] = payload;
+
+    fetch(this.fbBase() + '.json', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw new Error('401 Permission Denied — this path isn\'t writable under your current database rules');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function () {
+        statusEl.textContent = '✅ Pushed as ' + key + ' — it will appear on your site automatically.';
+      })
+      .catch(function (err) {
+        statusEl.textContent = '❌ Could not push (' + err.message + ').';
+      });
+  },
+
+  refreshManageList: function () {
+    var list = document.getElementById('manage-list');
+    var statusEl = document.getElementById('fb-status');
+    list.innerHTML = 'Loading…';
+    statusEl.textContent = 'Connecting…';
+
+    fetch(this.fbBase() + '.json')
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (data) {
+        statusEl.textContent = '✅ Connected.';
+        list.innerHTML = '';
+        if (!data) { list.innerHTML = '<div class="hint">No events saved yet.</div>'; return; }
+
+        var ids = Object.keys(data).sort(function (a, b) {
+          return new Date(data[a].kickoff || 0) - new Date(data[b].kickoff || 0);
+        });
+
+        ids.forEach(function (id) {
+          var ev = data[id] || {};
+          var dt = ev.kickoff ? new Date(ev.kickoff) : null;
+          var isPast = dt && (dt.getTime() + (parseInt(ev.duration, 10) || 120) * 60000) < Date.now();
+          var label = (ev.homeName || '') + (ev.awayName ? ' vs ' + ev.awayName : '') || (ev.leagueName || 'Event');
+
+          var item = document.createElement('div');
+          item.className = 'fixture-item';
+          item.style.opacity = isPast ? '0.5' : '1';
+          item.innerHTML =
+            '<span>' + (ev.leagueName ? '[' + ev.leagueName + '] ' : '') + label +
+            (isPast ? ' (finished — hidden on site)' : '') + '</span>' +
+            '<span class="time">' + (dt ? dt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '') + '</span>';
+
+          var delBtn = document.createElement('button');
+          delBtn.className = 'icon-btn';
+          delBtn.textContent = '🗑️ Remove';
+          delBtn.style.marginLeft = '8px';
+          delBtn.onclick = function (e) {
+            e.stopPropagation();
+            Gen.deleteEvent(id);
+          };
+          item.appendChild(delBtn);
+          list.appendChild(item);
+        });
+      })
+      .catch(function (err) {
+        statusEl.textContent = '❌ Could not connect (' + err.message + ').';
+        list.innerHTML = '<div class="hint">Check the DB URL/path and your database rules.</div>';
+      });
+  },
+
+  deleteEvent: function (id) {
+    if (!confirm('Remove this event? This cannot be undone.')) return;
+    fetch(this.fbBase() + '/' + id + '.json', { method: 'DELETE' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); Gen.refreshManageList(); })
+      .catch(function (err) { alert('Could not remove event: ' + err.message); });
+  },
+
+  // ============================================================
+  //  STREAM SCRAPER (prog.txt + ddkaqiu.com)
+  // ============================================================
+
+  // ---- Utility: CORS proxy fetch with fallback ----
+  scrFetch: function (url) {
+    // Multiple CORS proxy strategies with increasing timeout
+    var proxies = [
+      // Direct fetch (works if target allows CORS)
+      { url: url, label: 'direct' },
+      // cors.sh — reliable, supports GET with ?url= param
+      { url: 'https://cors.sh/?url=' + encodeURIComponent(url), label: 'cors.sh' },
+      // corsproxy.io — encoded format
+      { url: 'https://corsproxy.io/?' + encodeURIComponent(url), label: 'corsproxy.io' },
+      // api.allorigins.win — /raw mode
+      { url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url), label: 'allorigins' },
+      // codetabs proxy
+      { url: 'https://proxy.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url), label: 'codetabs' }
+    ];
+    var TIMEOUT = 15000;
+    var tryProxy = function (i) {
+      if (i >= proxies.length) return Promise.reject(new Error('All proxies failed'));
+      var p = proxies[i];
+      return fetch(p.url, { signal: AbortSignal.timeout(TIMEOUT), headers: { 'Accept': 'text/html,text/plain,*/*' } })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status + ' from ' + p.label); return r.text(); })
+        .catch(function (err) {
+          console.warn('[scrFetch] ' + p.label + ' failed: ' + err.message);
+          return tryProxy(i + 1);
+        });
+    };
+    return tryProxy(0);
+  },
+
+  // ---- Utility: normalize team name for matching ----
+  scrNormTeam: function (name) {
+    return (name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/\b(fc|afc|rfc|sc|cf|ac|as|bsc|rcd|rgb|vfb|vfl|1\.fc)\b/g, '')
+      .replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+  },
+  scrPairKey: function (a, b) {
+    return [Gen.scrNormTeam(a), Gen.scrNormTeam(b)].sort().join('|');
+  },
+
+  // ---- Chinese → English team name mapping ----
+  ZH_EN: {
+    '马德里竞技':'Atletico Madrid','巴塞罗那':'Barcelona','皇家马德里':'Real Madrid',
+    '南安普顿':'Southampton','阿森纳':'Arsenal','切尔西':'Chelsea',
+    '曼城':'Manchester City','曼联':'Manchester United','利物浦':'Liverpool',
+    '热刺':'Tottenham Hotspur','纽卡斯尔':'Newcastle United','阿斯顿维拉':'Aston Villa',
+    '西汉姆联':'West Ham United','埃弗顿':'Everton','富勒姆':'Fulham',
+    '布莱顿':'Brighton','水晶宫':'Crystal Palace','伯恩利':'Burnley',
+    '沃尔弗汉普顿':'Wolverhampton','莱斯特城':'Leicester City',
+    '里尔':'Lille','巴黎圣日耳曼':'PSG','马赛':'Marseille','里昂':'Lyon','摩纳哥':'Monaco',
+    '拉齐奥':'Lazio','罗马':'Roma','国际米兰':'Internazionale','米兰':'AC Milan',
+    '尤文图斯':'Juventus','那不勒斯':'Napoli','亚特兰大':'Atalanta',
+    '拜仁慕尼黑':'Bayern Munich','多特蒙德':'Borussia Dortmund','莱比锡':'RB Leipzig',
+    '法兰克福':'Eintracht Frankfurt','科隆':'FC Cologne','弗莱堡':'Freiburg',
+    '沃尔夫斯堡':'Wolfsburg','斯图加特':'Stuttgart',
+    '波尔图':'Porto','本菲卡':'Benfica','体育里斯本':'Sporting CP',
+    '赫塔费':'Getafe','毕尔巴鄂竞技':'Athletic Club','瓦伦西亚':'Valencia',
+    '塞尔塔':'Celta Vigo','塞维利亚':'Sevilla','贝蒂斯':'Real Betis',
+    '维拉雷尔':'Villarreal','马洛卡':'Real Mallorca','奥萨苏纳':'Osasuna',
+    '皇家社会':'Real Sociedad','阿贾克斯':'Ajax','特温特':'Twente','费耶诺德':'Feyenoord',
+    '马刺':'San Antonio Spurs','掘金':'Denver Nuggets','热火':'Miami Heat',
+    '湖人':'Los Angeles Lakers','勇士':'Golden State Warriors','快船':'LA Clippers',
+    '火箭':'Houston Rockets','独行侠':'Dallas Mavericks','雷霆':'Oklahoma City Thunder',
+    '骑士':'Cleveland Cavaliers','公牛':'Chicago Bulls','凯尔特人':'Boston Celtics',
+    '尼克斯':'New York Knicks','篮网':'Brooklyn Nets','雄鹿':'Milwaukee Bucks',
+    '利雅得新月':'Al Hilal','利雅得胜利':'Al Nassr',
+    // More Chinese teams
+    '北京国安':'Beijing Guoan','上海海港':'Shanghai Port','上海申花':'Shanghai Shenhua',
+    '武汉三镇':'Wuhan Three Towns','山东泰山':'Shandong Taishan','成都蓉城':'Chengdu Rongcheng',
+    '重庆铜梁龙':'Chongqing Tonglianglong','青岛西海岸':'Qingdao West Coast','青岛海牛':'Qingdao Hainiu',
+    '深圳新鹏城':'Shenzhen Xinpengcheng','河南':'Henan','大连英博':'Dalian Yingbo',
+    '云南玉昆':'Yunnan Yukun','兰州陇原竞技':'Lanzhou Longyuan','陕西联合':'Shaanxi Union',
+    '大连可为':'Dalian Kewei','济州SK':'Jeju SK','江原FC':'Gangwon FC',
+    '全北现代':'Jeonbuk Hyundai','大田市民':'Daejeon Citizen','蔚山现代':'Ulsan Hyundai',
+    '仁川联':'Incheon United','光州FC':'Gwangju FC','金泉尚武':'Gimcheon Sangmu',
+    '富川FC':'Bucheon FC','安养FC':'Anyang FC','首尔FC':'Seoul FC','浦项制铁':'Pohang Steelers',
+    '阿拉特亚美尼亚':'Alashtert Armenia','沙姆洛克流浪':'Shamrock Rovers',
+    '沙巴巴库':'Sabah Baku','库普斯':'KuPS','米亚尔比':'Mjallby',
+    '林肯红魔':'Lincoln Red Imps','萨布塔洛':'Saburtalo','布拉迪斯拉发':'Bratislava',
+    '奥胡斯':'Aarhus','波兹南莱赫':'Lech Poznan','图恩':'Thun',
+    '萨格勒布迪纳摩':'Dinamo Zagreb','费内巴切':'Fenerbahce','扎布热矿工':'Gornik Zabrze',
+    '格拉茨风暴':'Sturm Graz','哈茨':'Hearts','卡拉卡斯维克':'Karaasvik',
+    '考诺萨基列斯':'Kano Sakiries','拉恩':'Larne','贝尔格莱德红星':'Red Star Belgrade',
+    '雷克雅未克维京古尔':'Vikingur Reykjavik','贝尔谢巴夏普尔':'Hapoel Beer Sheva',
+    '米内罗竞技':'Atletico Mineiro','巴伊亚':'Bahia','蓝十字':'Cruz Azul',
+    '普埃布拉':'Puebla','托卢卡':'Toluca','墨西哥美洲狮':'Pumas UNAM',
+    '费雷拉':'Ferreira','体育':'Sporting','埃斯托里尔':'Estoril',
+    '国米':'Internazionale','那不勒斯':'Napoli','亚特兰大':'Atalanta',
+    '费城联合':'Philadelphia Union','亚特兰大联':'Atlanta United',
+    '纳什维尔':'Nashville SC','纽约城':'New York City FC',
+    '费城':'Philadelphia','亚特兰大':'Atlanta',
+    '纳什维尔':'Nashville','纽约城':'NYC FC'
+  },
+  zhToEn: function (name) {
+    return Gen.ZH_EN[name] || name;
+  },
+
+  // ---- PROG.TXT PARSING ----
+  scrParseProgTxt: function (text) {
+    var map = {};
+    var lines = (text || '').split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line || line.startsWith('#') || !line.includes('|')) continue;
+      // Skip channel headers and info lines
+      if (line.startsWith('HD') && line.match(/^[A-Z\d]+\s+[A-Z]/)) continue;
+      if (line.startsWith('BR') && line.match(/^[A-Z\d]+\s+[A-Z]/)) continue;
+      if (line.startsWith('MONDAY') || line.startsWith('TUESDAY') || line.startsWith('WEDNESDAY') ||
+          line.startsWith('THURSDAY') || line.startsWith('FRIDAY') || line.startsWith('SATURDAY') || line.startsWith('SUNDAY')) continue;
+
+      var parts = line.split('|').map(function (p) { return p.trim(); }).filter(Boolean);
+      if (parts.length < 2) continue;
+
+      var matchStr = parts[0].replace(/^\d{1,2}:\d{2}\s+/, '').replace(/\s*(W)\s*$/i, '').trim();
+      var urls = parts.slice(1).filter(function (u) { return u.startsWith('http'); });
+      if (!urls.length) continue;
+
+      // Find team separator
+      var sepMatch = matchStr.match(/ (x|vs\.?|–|-|VS) /i);
+      if (!sepMatch) continue;
+      var sep = sepMatch[0];
+      var idx = matchStr.toLowerCase().indexOf(sep.toLowerCase());
+      if (idx < 0) continue;
+      var teamA = matchStr.substring(0, idx).trim();
+      var teamB = matchStr.substring(idx + sep.length).trim();
+      if (!teamA || !teamB) continue;
+
+      // Clean team names (remove "Tennis:", "Darts:" etc. prefix)
+      teamA = teamA.replace(/^(Tennis|Darts|Cricket|Basketball|Football|Hockey|Baseball|Rugby|Golf|Billiards|AFL|UFC|MMA|MotoGP|NASCAR|Cycling):?\s*/i, '');
+      teamB = teamB.replace(/^(Tennis|Darts|Cricket|Basketball|Football|Hockey|Baseball|Rugby|Golf|Billiards|AFL|UFC|MMA|MotoGP|NASCAR|Cycling):?\s*/i, '');
+
+      var key = Gen.scrPairKey(teamA, teamB);
+      if (!map[key]) map[key] = [];
+      for (var j = 0; j < urls.length; j++) {
+        map[key].push({ url: urls[j], type: 'embed', source: 'prog.txt' });
+      }
+    }
+    return map;
+  },
+
+  // ---- Load prog.txt ----
+  scraperLoadProgTxt: function () {
+    var url = document.getElementById('scr-prog-url').value || 'https://sportsonline.st/prog.txt';
+    var statusEl = document.getElementById('scr-prog-status');
+    var matchesEl = document.getElementById('scr-prog-matches');
+    statusEl.style.display = 'block';
+    statusEl.className = 'scraper-status loading';
+    statusEl.textContent = 'Loading prog.txt…';
+    matchesEl.innerHTML = '';
+
+    Gen.scrFetch(url)
+      .then(function (text) {
+        Gen._progTxtMap = Gen.scrParseProgTxt(text);
+        var total = Object.keys(Gen._progTxtMap).length;
+        statusEl.className = 'scraper-status success';
+        statusEl.textContent = 'Loaded ' + total + ' match(es) from prog.txt';
+
+        matchesEl.innerHTML = '';
+        Object.keys(Gen._progTxtMap).sort().forEach(function (key) {
+          var sources = Gen._progTxtMap[key];
+          var teams = key.split('|');
+          var item = document.createElement('div');
+          item.className = 'scraper-match-item';
+          item.innerHTML =
+            '<div>' +
+              '<div class="scraper-match-title">' + Gen.esc(teams[0]) + ' vs ' + Gen.esc(teams[1]) + '</div>' +
+              '<div class="scraper-match-meta"><span class="scraper-source-tag prog-txt">prog.txt</span> ' + sources.length + ' stream(s)</div>' +
+            '</div>' +
+            '<div style="text-align:right;font-size:11px;color:var(--color-text-dim);">' + sources.length + ' src</div>';
+          item.addEventListener('click', function () {
+            document.querySelectorAll('.scraper-match-item').forEach(function (el) { el.classList.remove('selected'); });
+            item.classList.add('selected');
+            Gen._scrCurrentMatch = { home: teams[0], away: teams[1], sources: sources, source: 'prog.txt' };
+            Gen._scrCurrentSources = sources;
+            Gen.scrRenderCombinedSources(sources);
+          });
+          matchesEl.appendChild(item);
+        });
+      })
+      .catch(function (err) {
+        statusEl.className = 'scraper-status error';
+        statusEl.textContent = 'Failed: ' + err.message;
+      });
+  },
+
+  // ---- DDKAQIU.COM SCRAPING ----
+  scrParseDDKHome: function (html) {
+    var map = {};
+    // Match all zhibo links with team names
+    var cardRe = /<a[^>]+href="(\/zhibo\/\d+\.html)"[^>]*>([\s\S]*?)<\/a>/g;
+    var m;
+    while ((m = cardRe.exec(html)) !== null) {
+      var zhiBoPath = m[1];
+      var inner = m[2];
+
+      // Try multiple selectors for team names
+      var homeM = inner.match(/class="left-team">([^<]+)<\/span>/) ||
+                  inner.match(/class="match-left-team">([^<]+)<\/span>/) ||
+                  inner.match(/alt="([^"]+)"[^>]*class="home"/) ||
+                  inner.match(/alt="([^"]+)"[^>]*left/);
+      var awayM = inner.match(/class="right-team">([^<]+)<\/span>/) ||
+                  inner.match(/class="match-right-team">([^<]+)<\/span>/) ||
+                  inner.match(/alt="([^"]+)"[^>]*class="away"/) ||
+                  inner.match(/alt="([^"]+)"[^>]*right/);
+
+      if (!homeM || !awayM) continue;
+      var zhHome = homeM[1].trim();
+      var zhAway = awayM[1].trim();
+      var enHome = Gen.zhToEn(zhHome);
+      var enAway = Gen.zhToEn(zhAway);
+      var key = Gen.scrPairKey(enHome, enAway);
+      if (!map[key]) {
+        map[key] = {
+          zhibo: 'https://ddkaqiu.com' + zhiBoPath,
+          zhHome: zhHome, zhAway: zhAway,
+          enHome: enHome, enAway: enAway
+        };
+      }
+    }
+    return map;
+  },
+
+  scraperLoadDDKHome: function () {
+    if (!document.getElementById('scr-enable-ddk').checked) {
+      var statusEl = document.getElementById('scr-ddk-status');
+      statusEl.style.display = 'block';
+      statusEl.className = 'scraper-status warning';
+      statusEl.textContent = 'Enable ddkaqiu scraping checkbox first';
+      return;
+    }
+
+    var statusEl = document.getElementById('scr-ddk-status');
+    var matchesEl = document.getElementById('scr-ddk-matches');
+    statusEl.style.display = 'block';
+    statusEl.className = 'scraper-status loading';
+    statusEl.textContent = 'Scraping ddkaqiu.com…';
+    matchesEl.innerHTML = '';
+
+    // Try multiple ddkaqiu domain variants
+    var urls = ['https://ddkaqiu.com/', 'https://ddkaqiu.com'];
+    var tryDDK = function (i) {
+      if (i >= urls.length) {
+        statusEl.className = 'scraper-status error';
+        statusEl.textContent = 'Failed to load ddkaqiu.com from all URLs';
+        return;
+      }
+      Gen.scrFetch(urls[i])
+        .then(function (html) {
+          Gen._ddkHomeMap = Gen.scrParseDDKHome(html);
+          var count = Object.keys(Gen._ddkHomeMap).length;
+          if (count === 0) { tryDDK(i + 1); return; }
+
+          statusEl.className = 'scraper-status success';
+          statusEl.textContent = 'Scraped ' + count + ' match(es) from ddkaqiu.com';
+
+          matchesEl.innerHTML = '';
+          Object.keys(Gen._ddkHomeMap).sort().forEach(function (key) {
+            var entry = Gen._ddkHomeMap[key];
+            var item = document.createElement('div');
+            item.className = 'scraper-match-item';
+            item.innerHTML =
+              '<div>' +
+                '<div class="scraper-match-title">' + Gen.esc(entry.enHome) + ' vs ' + Gen.esc(entry.enAway) + '</div>' +
+                '<div class="scraper-match-meta"><span class="scraper-source-tag ddkaqiu">ddkaqiu</span> ' + Gen.esc(entry.zhHome) + ' vs ' + Gen.esc(entry.zhAway) + '</div>' +
+              '</div>' +
+              '<div style="text-align:right;font-size:11px;color:var(--color-text-dim);">1 src</div>';
+            item.addEventListener('click', function () {
+              document.querySelectorAll('.scraper-match-item').forEach(function (el) { el.classList.remove('selected'); });
+              item.classList.add('selected');
+              var sources = [{ url: entry.zhibo, type: 'embed', source: 'ddkaqiu' }];
+              Gen._scrCurrentMatch = { home: entry.enHome, away: entry.enAway, sources: sources, source: 'ddkaqiu' };
+              Gen._scrCurrentSources = sources;
+              Gen.scrRenderCombinedSources(sources);
+            });
+            matchesEl.appendChild(item);
+          });
+        })
+        .catch(function () {
+          tryDDK(i + 1);
+        });
+    };
+    tryDDK(0);
+  },
+
+  // ---- DDKAQIU SEARCH ----
+  scraperScrapeDDKSearch: function (home, away) {
+    var q = encodeURIComponent(home + ' ' + away);
+    var searchUrls = [
+      'https://ddkaqiu.com/search?keyword=' + q,
+      'https://ddkaqiu.com/search/?keyword=' + q
+    ];
+    return Promise.all(searchUrls.map(function (url) {
+      return Gen.scrFetch(url).catch(function () { return null; });
+    })).then(function (results) {
+      for (var i = 0; i < results.length; i++) {
+        var html = results[i];
+        if (!html) continue;
+        var m = html.match(/href="(\/zhibo\/(\d+)\.html)"/);
+        if (m) return 'https://ddkaqiu.com' + m[1];
+      }
+      return null;
+    });
+  },
+
+  // ---- COMBINED STREAM LOOKUP ----
+  scraperLookupStreams: function () {
+    var home = document.getElementById('scr-home-name').value.trim();
+    var away = document.getElementById('scr-away-name').value.trim();
+    var statusEl = document.getElementById('scr-combined-status');
+    var sourcesEl = document.getElementById('scr-combined-sources');
+
+    if (!home && !away) {
+      statusEl.style.display = 'block';
+      statusEl.className = 'scraper-status warning';
+      statusEl.textContent = 'Enter team names or select a match from the lists above.';
+      return;
+    }
+
+    statusEl.style.display = 'block';
+    statusEl.className = 'scraper-status loading';
+    statusEl.textContent = 'Looking up streams from all sources…';
+    sourcesEl.innerHTML = '';
+
+    var key = Gen.scrPairKey(home, away);
+    var allSources = [];
+
+    // 1. Check prog.txt
+    if (Gen._progTxtMap[key]) {
+      allSources = allSources.concat(Gen._progTxtMap[key]);
+    }
+
+    // 2. Check ddkaqiu home map
+    if (Gen._ddkHomeMap[key]) {
+      allSources.push({ url: Gen._ddkHomeMap[key].zhibo, type: 'embed', source: 'ddkaqiu' });
+    }
+
+    // 3. Try ddkaqiu search
+    var ddkPromise = Gen.scraperScrapeDDKSearch(home, away).then(function (url) {
+      if (url) {
+        // Avoid duplicate
+        if (!allSources.some(function (s) { return s.url === url; })) {
+          allSources.push({ url: url, type: 'embed', source: 'ddkaqiu-search' });
+        }
+      }
+    }).catch(function () {});
+
+    ddkPromise.then(function () {
+      Gen._scrCurrentSources = allSources;
+      Gen._scrCurrentMatch = { home: home, away: away, sources: allSources, source: 'combined' };
+      statusEl.className = 'scraper-status success';
+      statusEl.textContent = 'Found ' + allSources.length + ' stream(s) from all sources';
+      Gen.scrRenderCombinedSources(allSources);
+    });
+  },
+
+  // ---- Render combined sources ----
+  scrRenderCombinedSources: function (sources) {
+    var el = document.getElementById('scr-combined-sources');
+    el.innerHTML = '';
+    if (!sources || !sources.length) {
+      el.innerHTML = '<div class="hint">No streams found for this match.</div>';
+      return;
+    }
+    sources.forEach(function (s) {
+      var row = document.createElement('div');
+      row.className = 'scraper-source-entry';
+      var tagClass = s.source === 'prog.txt' ? 'prog-txt' : 'ddkaqiu';
+      row.innerHTML =
+        '<span class="scraper-source-tag ' + tagClass + '">' + Gen.esc(s.source || 'stream') + '</span>' +
+        '<span class="src-url">' + Gen.esc(s.url) + '</span>';
+      el.appendChild(row);
+    });
+
+    var statusEl = document.getElementById('scr-combined-status');
+    if (statusEl) statusEl.className = 'scraper-status success';
+  },
+
+  // ---- Fill event form from scraper sources ----
+  scraperFillForm: function () {
+    var home = document.getElementById('scr-home-name').value.trim();
+    var away = document.getElementById('scr-away-name').value.trim();
+    var match = Gen._scrCurrentMatch;
+    var statusEl = document.getElementById('scr-fill-status');
+
+    if (match) {
+      home = match.home;
+      away = match.away;
+    }
+
+    if (!home) {
+      statusEl.textContent = 'Enter team names or select a match first.';
+      return;
+    }
+
+    // Fill form
+    var today = new Date().toISOString().slice(0, 10);
+    document.getElementById('ev-date').value = today;
+    document.getElementById('ev-time').value = new Date().toTimeString().slice(0, 5);
+    document.getElementById('ev-league').value = home + ' vs ' + away;
+    document.getElementById('ev-category').value = 'football';
+    document.getElementById('ev-home-name').value = home;
+    document.getElementById('ev-home-logo').value = '';
+    document.getElementById('ev-away-name').value = away;
+    document.getElementById('ev-away-logo').value = '';
+
+    // Add streams
+    var container = document.getElementById('ev-channel-rows');
+    container.innerHTML = '';
+    var sources = Gen._scrCurrentSources || [];
+    if (sources.length > 0) {
+      sources.forEach(function (s, i) {
+        Gen.addChannelRow('ev-channel-rows', (s.source || 'Stream') + ' #' + (i + 1), s.url || '');
+      });
+    } else {
+      Gen.addChannelRow('ev-channel-rows', 'Stream 1', '');
+    }
+
+    statusEl.textContent = 'Form filled with ' + sources.length + ' stream(s). Go to Event Card tab to preview.';
+    statusEl.className = 'auto-push-note';
+
+    setTimeout(function () {
+      var eventTabBtn = document.querySelector('[data-tab="event-tab"]');
+      Gen.showTab(eventTabBtn, 'event-tab');
+      Gen.buildEventCard();
+    }, 800);
+  },
+
+  // ---- Save/Load scraper config ----
+  scraperSaveConfig: function () {
+    try {
+      var cfg = {
+        progUrl: document.getElementById('scr-prog-url').value,
+        enableProg: document.getElementById('scr-enable-prog').checked,
+        enableDdk: document.getElementById('scr-enable-ddk').checked
+      };
+      localStorage.setItem('scr-scraper-cfg', JSON.stringify(cfg));
+    } catch (e) {}
+  },
+  scraperLoadConfig: function () {
+    try {
+      var raw = localStorage.getItem('scr-scraper-cfg');
+      if (!raw) return;
+      var cfg = JSON.parse(raw);
+      if (cfg.progUrl) document.getElementById('scr-prog-url').value = cfg.progUrl;
+      if (cfg.enableProg !== undefined) document.getElementById('scr-enable-prog').checked = cfg.enableProg;
+      if (cfg.enableDdk !== undefined) document.getElementById('scr-enable-ddk').checked = cfg.enableDdk;
+    } catch (e) {}
+  }
+};
+
+// seed today's date and an initial preview
+document.getElementById('ev-date').value = new Date().toISOString().slice(0, 10);
+Gen.addChannelRow('ev-channel-rows');
+Gen.buildEventCard();
+Gen.buildChannelButton();
+
+// Load scraper config from localStorage
+try { Gen.scraperLoadConfig(); } catch (e) {}
+
+// Override showTab to auto-load prog.txt on scraper tab
+var origShowTab = Gen.showTab;
+Gen.showTab = function (btn, id) {
+  origShowTab(btn, id);
+  if (id === 'scraper-tab') {
+    if (document.getElementById('scr-enable-prog').checked && !Object.keys(Gen._progTxtMap).length) {
+      Gen.scraperLoadProgTxt();
+    }
+    if (document.getElementById('scr-enable-ddk').checked && !Object.keys(Gen._ddkHomeMap).length) {
+      Gen.scraperLoadDDKHome();
+    }
+  }
+};
+//]]>
+</script>
+</body>
+</html>
