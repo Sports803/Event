@@ -9,7 +9,7 @@
   --color-primary: #e0102a;
   --color-primary-dark: #9c0a1d;
   --color-secondary: #f6b93b;
-  --color-bg: #0a0c12;
+  --color-bg: #090a10;
   --color-bg-alt: #10131c;
   --color-panel: #161925;
   --color-panel-alt: #1d2130;
@@ -18,6 +18,7 @@
   --color-text-dim: #9aa1b2;
   --color-success: #2ecc71;
   --color-live: #ff3b52;
+  --color-edit: #f6b93b;
   --font-heading: 'Poppins', Arial, sans-serif;
   --font-body: 'Inter', Arial, sans-serif;
   --radius-lg: 18px;
@@ -28,32 +29,55 @@
   --gradient-brand: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
   --gradient-gold: linear-gradient(135deg, var(--color-secondary), #e08e1d);
   --gradient-streamed: linear-gradient(135deg, #6c5ce7, #a29bfe);
+  --gradient-bg-glow: radial-gradient(1200px 500px at 15% -10%, rgba(224,16,42,.16), transparent 60%),
+                      radial-gradient(900px 480px at 100% 0%, rgba(108,92,231,.14), transparent 55%);
 }
 * { box-sizing: border-box; }
 body {
-  margin: 0; background: var(--color-bg); color: var(--color-text);
-  font-family: var(--font-body); padding: 20px;
+  margin: 0; background: var(--color-bg) var(--gradient-bg-glow); background-attachment: fixed;
+  color: var(--color-text);
+  font-family: var(--font-body); padding: 22px; max-width: 1280px; margin: 0 auto;
 }
-h1 { font-family: var(--font-heading); font-size: 20px; margin-bottom: 2px; }
-p.sub { color: var(--color-text-dim); font-size: 13px; margin-top: 0 0 18px; }
+::selection { background: rgba(224,16,42,.35); }
+
+.app-header {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 22px; padding-bottom: 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+.app-header .logo-mark {
+  width: 42px; height: 42px; border-radius: 12px; background: var(--gradient-brand);
+  display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
+  box-shadow: 0 8px 20px rgba(224,16,42,.35);
+}
+h1 {
+  font-family: var(--font-heading); font-size: 21px; margin: 0; font-weight: 700; letter-spacing: -.2px;
+  background: linear-gradient(135deg, #fff, #c7cbdb); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+p.sub { color: var(--color-text-dim); font-size: 13px; margin: 3px 0 0; }
 
 .tabs-nav { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
 .tabs-nav button {
   padding: 9px 18px; border-radius: 999px; border: 1px solid var(--color-border);
   background: var(--color-panel); color: var(--color-text-dim);
   font-family: var(--font-body); font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: transform .12s ease, border-color .15s, color .15s, box-shadow .15s;
 }
-.tabs-nav button.is-active { background: var(--gradient-brand); color: #fff; border-color: transparent; }
-.tabs-nav button[data-tab="streamed-tab"].is-active { background: var(--gradient-streamed); }
-.tab-panel { display: none; }
+.tabs-nav button:hover { border-color: rgba(255,255,255,.22); color: #fff; transform: translateY(-1px); }
+.tabs-nav button.is-active { background: var(--gradient-brand); color: #fff; border-color: transparent; box-shadow: 0 8px 18px rgba(224,16,42,.3); }
+.tabs-nav button[data-tab="streamed-tab"].is-active { background: var(--gradient-streamed); box-shadow: 0 8px 18px rgba(108,92,231,.35); }
+.tab-panel { display: none; animation: fade-in .25s ease; }
 .tab-panel.is-active { display: block; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-@media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .layout { grid-template-columns: 1fr; } body { padding: 14px; } }
 
 .panel {
-  background: var(--color-panel); border: 1px solid var(--color-border);
-  border-radius: var(--radius-md); padding: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.025), transparent 40%), var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: 18px;
+  box-shadow: var(--shadow-soft);
+  transition: border-color .2s;
 }
 .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--color-text-dim); margin: 0 0 14px; }
 
@@ -63,6 +87,10 @@ p.sub { color: var(--color-text-dim); font-size: 13px; margin-top: 0 0 18px; }
   width: 100%; padding: 9px 10px; border-radius: var(--radius-sm);
   border: 1px solid var(--color-border); background: var(--color-panel-alt);
   color: var(--color-text); font-family: var(--font-body); font-size: 13px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.field input:focus, .field select:focus, .filter-row input:focus, .filter-row select:focus {
+  outline: none; border-color: #6c5ce7; box-shadow: 0 0 0 3px rgba(108,92,231,.15);
 }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
@@ -71,40 +99,86 @@ p.sub { color: var(--color-text-dim); font-size: 13px; margin-top: 0 0 18px; }
 .icon-btn {
   background: var(--color-panel-alt); border: 1px solid var(--color-border); color: var(--color-text);
   border-radius: var(--radius-sm); cursor: pointer; padding: 7px 10px; font-size: 12px;
+  transition: border-color .15s, transform .12s;
 }
-.icon-btn:hover { border-color: var(--color-secondary); }
+.icon-btn:hover { border-color: var(--color-secondary); transform: translateY(-1px); }
+
+.btn-primary, .btn-secondary, .btn-streamed, .btn-scraper, .btn-edit, .btn-danger {
+  transition: transform .12s ease, box-shadow .15s, opacity .15s, filter .15s;
+}
+.btn-primary:hover, .btn-streamed:hover, .btn-scraper:hover, .btn-edit:hover, .btn-danger:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.btn-primary:active, .btn-secondary:active, .btn-streamed:active, .btn-scraper:active, .btn-edit:active, .btn-danger:active { transform: translateY(0); }
+.btn-primary:disabled, .btn-secondary:disabled, .btn-streamed:disabled, .btn-scraper:disabled { opacity: .5; cursor: not-allowed; transform: none; }
 
 .btn-primary {
   background: var(--gradient-brand); color: #fff; border: none; border-radius: var(--radius-sm);
   padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer; margin-top: 6px;
+  box-shadow: 0 6px 16px rgba(224,16,42,.25);
 }
 .btn-secondary {
   background: var(--color-panel-alt); color: var(--color-text); border: 1px solid var(--color-border);
   border-radius: var(--radius-sm); padding: 9px 14px; font-weight: 700; font-size: 12px; cursor: pointer;
 }
+.btn-secondary:hover { border-color: rgba(255,255,255,.25); }
 .btn-streamed {
   background: var(--gradient-streamed); color: #fff; border: none; border-radius: var(--radius-sm);
   padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer; margin-top: 6px;
+  box-shadow: 0 6px 16px rgba(108,92,231,.28);
 }
+.btn-edit {
+  background: linear-gradient(135deg, #f6b93b, #e08e1d); color: #1a1300; border: none; border-radius: var(--radius-sm);
+  padding: 7px 12px; font-weight: 700; font-size: 11.5px; cursor: pointer;
+}
+.btn-danger {
+  background: rgba(231,76,60,.14); color: #ff6b6b; border: 1px solid rgba(231,76,60,.35); border-radius: var(--radius-sm);
+  padding: 7px 12px; font-weight: 700; font-size: 11.5px; cursor: pointer;
+}
+.btn-danger:hover { background: rgba(231,76,60,.22); }
+
+/* -- bulk selection bar & checkboxes -- */
+.bulk-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--color-panel-alt); border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  padding: 8px 10px; margin: 10px 0; font-size: 12px;
+}
+.bulk-bar .bulk-count { color: var(--color-text-dim); margin-right: auto; }
+.select-all-row { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--color-text-dim); cursor: pointer; user-select: none; }
+.select-all-row input[type=checkbox] { width: 15px; height: 15px; accent-color: #6c5ce7; cursor: pointer; }
+.pick-checkbox { width: 16px; height: 16px; accent-color: #6c5ce7; cursor: pointer; flex-shrink: 0; margin-right: 8px; }
+
+/* -- edit-mode banner -- */
+.edit-banner {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: linear-gradient(135deg, rgba(246,185,59,.16), rgba(246,185,59,.06));
+  border: 1px solid rgba(246,185,59,.4); border-radius: var(--radius-sm);
+  padding: 10px 12px; margin-bottom: 14px; font-size: 12.5px; color: var(--color-secondary); font-weight: 600;
+}
+.edit-banner button { margin-left: auto; }
 
 /* -- fixture picker -- */
 .fixture-list { max-height: 220px; overflow-y: auto; margin-top: 10px; border-top: 1px solid var(--color-border); padding-top: 10px; }
 .fixture-item {
   display: flex; justify-content: space-between; align-items: center;
   padding: 8px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12px;
+  transition: background .12s;
 }
 .fixture-item:hover { background: var(--color-panel-alt); }
 .fixture-item span.time { color: var(--color-text-dim); }
+.fixture-item .fixture-main { display: flex; align-items: center; flex: 1; min-width: 0; }
+.fixture-item .fixture-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* -- streamed.pk specific -- */
 .sport-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
 .sport-chip {
-  padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  padding: 6px 10px 6px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
   background: var(--color-panel-alt); border: 1px solid var(--color-border);
   color: var(--color-text-dim); cursor: pointer; transition: all .15s;
+  display: inline-flex; align-items: center; gap: 6px;
 }
 .sport-chip:hover { border-color: #a29bfe; color: #fff; }
 .sport-chip.is-active { background: var(--gradient-streamed); color: #fff; border-color: transparent; }
+.sport-chip.is-picked { box-shadow: 0 0 0 2px #f6b93b inset; }
+.sport-chip .chip-check { width: 13px; height: 13px; accent-color: #f6b93b; cursor: pointer; margin: 0; }
 .sport-chip .count { font-size: 10px; opacity: .7; margin-left: 4px; }
 
 .streamed-match-item {
@@ -237,12 +311,31 @@ textarea.code-out {
 .scraper-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
 .scraper-toggle input[type=checkbox] { accent-color: #00b894; }
 .scraper-divider { height: 1px; background: linear-gradient(to right, transparent, var(--color-border), transparent); margin: 16px 0; }
+.day-badge {
+  font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 700;
+  background: rgba(9,132,227,.18); color: #59a8ea; margin-right: 5px;
+}
+
+/* -- manage tab -- */
+.manage-item {
+  display: flex; align-items: center; gap: 4px;
+  padding: 10px; border-radius: var(--radius-sm); font-size: 12px;
+  border: 1px solid var(--color-border); margin-bottom: 6px; transition: border-color .15s;
+}
+.manage-item:hover { border-color: rgba(255,255,255,.2); }
+.manage-item .manage-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.manage-item .manage-actions { display: flex; gap: 6px; margin-left: 8px; flex-shrink: 0; }
 </style>
 </head>
 <body>
 
-<h1>Event &amp; Live TV Code Generator</h1>
-<p class="sub">Fill in the form, push it straight to Firebase — your Blogger theme reads it live, no HTML editing needed.</p>
+<div class="app-header">
+  <div class="logo-mark">📡</div>
+  <div>
+    <h1>Event &amp; Live TV Code Generator</h1>
+    <p class="sub">Fill in the form, push it straight to Firebase — your Blogger theme reads it live, no HTML editing needed.</p>
+  </div>
+</div>
 
 <div class="panel" style="margin-bottom:18px;">
   <h2>Firebase connection</h2>
@@ -274,6 +367,10 @@ textarea.code-out {
 <div class="tab-panel is-active" id="event-tab">
   <div class="layout">
     <div class="panel">
+      <div class="edit-banner" id="edit-banner" style="display:none;">
+        ✏️ Editing <span id="edit-banner-label"></span> — pushing will update this event in place.
+        <button class="icon-btn" onclick="Gen.cancelEditEvent()">Cancel — new event instead</button>
+      </div>
       <h2>1. Optional: pull a real fixture</h2>
       <div class="field-row">
         <div class="field">
@@ -325,15 +422,18 @@ textarea.code-out {
           </select>
         </div>
         <div class="field">
-          <label>Day</label>
-          <select id="fx-day">
-            <option value="0">Today</option>
-            <option value="1">Tomorrow</option>
-          </select>
+          <label>Date (any past or future date)</label>
+          <input type="date" id="fx-day"/>
         </div>
       </div>
       <button class="btn-secondary" onclick="Gen.fetchFixtures()">Fetch fixtures</button>
+      <div class="bulk-bar" id="fixture-bulk-bar" style="display:none;">
+        <label class="select-all-row"><input type="checkbox" id="fixture-select-all" onchange="Gen.toggleFixtureSelectAll(this.checked)"/> Select all</label>
+        <span class="bulk-count" id="fixture-bulk-count">0 selected</span>
+        <button class="btn-streamed" style="margin:0;padding:8px 12px;font-size:12px;" onclick="Gen.pushSelectedFixtures()">🔥 Push selected to Firebase</button>
+      </div>
       <div class="fixture-list" id="fixture-list"></div>
+      <p class="hint" id="fixture-push-status"></p>
       <p class="hint">Cycling, motocross/supercross, cricket, and other niche sports now covered via the <strong>Streamed.pk Auto-Fetch</strong> tab — use that tab to auto-pull matches with live stream links.</p>
 
       <h2 style="margin-top:20px;">2. Match / event details</h2>
@@ -397,7 +497,7 @@ textarea.code-out {
 
       <br/>
       <button class="btn-primary" onclick="Gen.buildEventCard()">Preview</button>
-      <button class="btn-primary" style="background:var(--gradient-gold); color:#1a1300;" onclick="Gen.pushEventToFirebase()">🔥 Push to Firebase</button>
+      <button class="btn-primary" id="push-btn" style="background:var(--gradient-gold); color:#1a1300;" onclick="Gen.pushEventToFirebase()">🔥 Push to Firebase</button>
       <p class="hint" id="push-status"></p>
     </div>
 
@@ -467,7 +567,12 @@ textarea.code-out {
         <button class="btn-secondary" onclick="Gen.loadStreamedSports()" style="margin:0;">↻ Refresh</button>
       </div>
 
+      <p class="hint">Tick a chip's checkbox to include it in a bulk push across multiple sports at once — click the chip label itself to browse its matches below.</p>
       <div id="streamed-sport-chips" class="sport-grid"></div>
+      <div class="bulk-bar" id="sport-bulk-bar" style="display:none;">
+        <label class="select-all-row"><input type="checkbox" id="sport-select-all" onchange="Gen.toggleSportSelectAll(this.checked)"/> Select all sports</label>
+        <span class="bulk-count" id="sport-bulk-count">0 selected</span>
+      </div>
 
       <div class="section-divider"></div>
       <h2 id="streamed-match-header">Select a sport above</h2>
@@ -496,9 +601,13 @@ textarea.code-out {
         <p class="hint" style="margin-top:12px;">Then click <strong>"Push to Firebase"</strong> on the Event Card tab to publish it live.</p>
       </div>
       <h2 style="margin-top:20px;">Auto-push all matches to Firebase</h2>
-      <p class="hint">Push every match from the selected sport directly to Firebase in one click. Streams are auto-resolved for each match.</p>
-      <button class="btn-streamed" onclick="Gen.pushAllStreamedMatches()" style="width:100%;">🔥 Push All Matches to Firebase</button>
+      <p class="hint">Push every match from the sport you're currently browsing above.</p>
+      <button class="btn-streamed" onclick="Gen.pushAllStreamedMatches()" style="width:100%;">🔥 Push Matches for Current Sport</button>
       <p class="hint" id="auto-push-status"></p>
+
+      <p class="hint" style="margin-top:14px;">Or push matches from every sport you've <strong>ticked</strong> above (checkbox on each chip) in one go.</p>
+      <button class="btn-streamed" style="width:100%;background:linear-gradient(135deg,#f6b93b,#e08e1d);color:#1a1300;" onclick="Gen.pushSelectedSportsMatches()">🔥 Push ALL Matches for Selected Sports</button>
+      <p class="hint" id="multi-sport-push-status"></p>
 
       <h2 style="margin-top:20px;">Sports coverage on Streamed.pk</h2>
       <p class="hint" style="margin-bottom:10px;">This API covers sports that traditional free APIs (like ESPN) miss entirely:</p>
@@ -536,7 +645,9 @@ textarea.code-out {
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
         <button class="btn-scraper" onclick="Gen.scraperLoadProgTxt()">Load prog.txt</button>
         <label class="scraper-toggle"><input type="checkbox" id="scr-enable-prog" checked onchange="Gen.scraperSaveConfig()"/> Auto-load on tab open</label>
+        <label class="scraper-toggle"><input type="checkbox" id="scr-gmt-convert" checked onchange="Gen.scraperSaveConfig()"/> Times are GMT — convert to my local time</label>
       </div>
+      <p class="hint">prog.txt lists a whole week under <strong>MONDAY / TUESDAY / …</strong> headers — each match below is now tagged with the right day, and selecting one fills the correct date automatically instead of always defaulting to today.</p>
       <div id="scr-prog-status" class="scraper-status loading" style="display:none;"></div>
       <div id="scr-prog-matches" style="max-height:300px;overflow-y:auto;margin-top:8px;"></div>
 
@@ -597,8 +708,13 @@ textarea.code-out {
 <div class="tab-panel" id="manage-tab">
   <div class="panel">
     <h2>Events currently on Firebase</h2>
-    <p class="hint">This is exactly what your site is showing right now (past/finished events are already excluded here too). Delete one without touching the others.</p>
+    <p class="hint">This is exactly what your site is showing right now (past/finished events already excluded here too). Edit one to change details or streams, delete one or many.</p>
     <button class="btn-secondary" onclick="Gen.refreshManageList()">↻ Refresh</button>
+    <div class="bulk-bar" id="manage-bulk-bar" style="display:none;">
+      <label class="select-all-row"><input type="checkbox" id="manage-select-all" onchange="Gen.toggleManageSelectAll(this.checked)"/> Select all</label>
+      <span class="bulk-count" id="manage-bulk-count">0 selected</span>
+      <button class="btn-danger" onclick="Gen.deleteSelectedManageEvents()">🗑️ Delete selected</button>
+    </div>
     <div id="manage-list" class="fixture-list" style="max-height:520px;"></div>
   </div>
 </div>
@@ -615,10 +731,20 @@ var Gen = {
   _streamedCurrentStreams: null,
 
   // ---- Internal state for Stream Scraper ----
-  _progTxtMap: {},        // pairKey -> [{url, type}] from prog.txt
+  _progTxtMap: {},        // pairKey -> {weekday, time, sources:[{url, type}]} from prog.txt
   _ddkHomeMap: {},        // pairKey -> {zhibo, zhHome, zhAway, enHome, enAway}
   _scrCurrentMatch: null, // currently selected match from scraper
   _scrCurrentSources: [], // combined sources for selected match
+
+  // ---- Editing an already-pushed event ----
+  _editingEventId: null,
+
+  // ---- Multi-select state ----
+  _fetchedFixtures: [],     // [{label, dt, home, away, homeLogo, awayLogo, sport, isSingleEntrant}]
+  _selectedFixtureIdx: {},  // index -> true
+  _selectedSportIds: {},    // sportId -> true
+  _selectedManageIds: {},   // firebase key -> true
+  _manageDataCache: {},     // firebase key -> event object (for bulk delete confirm labels)
 
   // ---- Category mapping: Streamed.pk sport IDs -> our category values ----
   STREAMED_CATEGORY_MAP: {
@@ -637,6 +763,12 @@ var Gen = {
     'darts':            { category: 'other',       emoji: '🎯',  leagueId: 'darts' },
     'cricket':          { category: 'cricket',     emoji: '🏏',  leagueId: 'cricket' },
     'other':            { category: 'other',       emoji: '🏆',  leagueId: 'other' }
+  },
+
+  // ---- Map ESPN fixture-picker "sport" value -> our category value ----
+  ESPN_SPORT_CATEGORY: {
+    soccer: 'football', basketball: 'basketball', football: 'nfl',
+    hockey: 'hockey', baseball: 'baseball', racing: 'motorsport', mma: 'mma'
   },
 
   showTab: function (btn, id) {
@@ -663,40 +795,42 @@ var Gen = {
   fetchFixtures: function () {
     var val = document.getElementById('fx-league').value.split('|');
     var sport = val[0], league = val[1];
-    var dayOffset = parseInt(document.getElementById('fx-day').value, 10);
-    var d = new Date();
-    d.setDate(d.getDate() + dayOffset);
+    var leagueLabel = document.getElementById('fx-league').selectedOptions[0].textContent;
+    var dateVal = document.getElementById('fx-day').value; // YYYY-MM-DD, any date
+    var d = dateVal ? new Date(dateVal + 'T00:00:00') : new Date();
     var pad = function (n) { return String(n).padStart(2, '0'); };
     var dateParam = '' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate());
     var list = document.getElementById('fixture-list');
+    var bulkBar = document.getElementById('fixture-bulk-bar');
     list.innerHTML = 'Loading…';
+    bulkBar.style.display = 'none';
+    Gen._fetchedFixtures = [];
+    Gen._selectedFixtureIdx = {};
 
     fetch('https://site.api.espn.com/apis/site/v2/sports/' + sport + '/' + league + '/scoreboard?dates=' + dateParam)
       .then(function (r) { return r.json(); })
       .then(function (json) {
         var events = (json && json.events) || [];
-        if (!events.length) { list.innerHTML = '<div class="hint">No fixtures found for that day.</div>'; return; }
+        if (!events.length) { list.innerHTML = '<div class="hint">No fixtures found for that date.</div>'; return; }
         list.innerHTML = '';
         var isSingleEntrant = (sport === 'racing');
 
-        events.forEach(function (ev) {
+        var getName = function (c) {
+          if (!c) return null;
+          if (c.team) return c.team.shortDisplayName || c.team.displayName;
+          if (c.athlete) return c.athlete.displayName;
+          return null;
+        };
+        var getLogo = function (c) {
+          if (!c) return '';
+          if (c.team) return c.team.logo || '';
+          if (c.athlete) return c.athlete.headshot ? c.athlete.headshot.href : '';
+          return '';
+        };
+
+        events.forEach(function (ev, idx) {
           var comp = (ev.competitions && ev.competitions[0]) || {};
           var competitors = comp.competitors || [];
-          var getName = function (c) {
-            if (!c) return null;
-            if (c.team) return c.team.shortDisplayName || c.team.displayName;
-            if (c.athlete) return c.athlete.displayName;
-            return null;
-          };
-          var getLogo = function (c) {
-            if (!c) return '';
-            if (c.team) return c.team.logo || '';
-            if (c.athlete) return c.athlete.headshot ? c.athlete.headshot.href : '';
-            return '';
-          };
-
-          var item = document.createElement('div');
-          item.className = 'fixture-item';
           var dt = new Date(ev.date);
           var home, away, label;
 
@@ -709,29 +843,119 @@ var Gen = {
             label = (getName(home) || '?') + ' vs ' + (getName(away) || '?');
           }
 
-          item.innerHTML = '<span>' + label + '</span>' +
+          var fixture = {
+            label: label, dt: dt, sport: sport, leagueLabel: leagueLabel, isSingleEntrant: isSingleEntrant,
+            homeName: isSingleEntrant ? label : (getName(home) || 'Home'),
+            homeLogo: isSingleEntrant ? '' : getLogo(home),
+            awayName: isSingleEntrant ? '' : (getName(away) || 'Away'),
+            awayLogo: isSingleEntrant ? '' : getLogo(away)
+          };
+          Gen._fetchedFixtures.push(fixture);
+
+          var item = document.createElement('div');
+          item.className = 'fixture-item';
+          item.innerHTML =
+            '<span class="fixture-main">' +
+              '<input type="checkbox" class="pick-checkbox" data-idx="' + idx + '"/>' +
+              '<span class="fixture-label">' + Gen.esc(label) + '</span>' +
+            '</span>' +
             '<span class="time">' + dt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</span>';
 
+          var checkbox = item.querySelector('.pick-checkbox');
+          checkbox.addEventListener('click', function (e) { e.stopPropagation(); });
+          checkbox.addEventListener('change', function () {
+            if (checkbox.checked) Gen._selectedFixtureIdx[idx] = true; else delete Gen._selectedFixtureIdx[idx];
+            Gen.updateFixtureBulkBar();
+          });
+
           item.addEventListener('click', function () {
-            document.getElementById('ev-league').value = document.getElementById('fx-league').selectedOptions[0].textContent;
+            document.getElementById('ev-league').value = leagueLabel;
             document.getElementById('ev-date').value = dt.toISOString().slice(0, 10);
             document.getElementById('ev-time').value = dt.toTimeString().slice(0, 5);
-            if (isSingleEntrant) {
-              document.getElementById('ev-home-name').value = label;
-              document.getElementById('ev-home-logo').value = '';
-              document.getElementById('ev-away-name').value = '';
-              document.getElementById('ev-away-logo').value = '';
-            } else {
-              document.getElementById('ev-home-name').value = getName(home) || 'Home';
-              document.getElementById('ev-home-logo').value = getLogo(home);
-              document.getElementById('ev-away-name').value = getName(away) || 'Away';
-              document.getElementById('ev-away-logo').value = getLogo(away);
-            }
+            document.getElementById('ev-home-name').value = fixture.homeName;
+            document.getElementById('ev-home-logo').value = fixture.homeLogo;
+            document.getElementById('ev-away-name').value = fixture.awayName;
+            document.getElementById('ev-away-logo').value = fixture.awayLogo;
           });
           list.appendChild(item);
         });
+
+        bulkBar.style.display = 'flex';
+        document.getElementById('fixture-select-all').checked = false;
+        Gen.updateFixtureBulkBar();
       })
       .catch(function () { list.innerHTML = '<div class="hint">Couldn\'t load fixtures right now — you can still fill the form manually.</div>'; });
+  },
+
+  toggleFixtureSelectAll: function (checked) {
+    document.querySelectorAll('#fixture-list .pick-checkbox').forEach(function (cb, idx) {
+      cb.checked = checked;
+      if (checked) Gen._selectedFixtureIdx[idx] = true; else delete Gen._selectedFixtureIdx[idx];
+    });
+    Gen.updateFixtureBulkBar();
+  },
+
+  updateFixtureBulkBar: function () {
+    var n = Object.keys(Gen._selectedFixtureIdx).length;
+    document.getElementById('fixture-bulk-count').textContent = n + ' selected';
+  },
+
+  // Build a Firebase payload for one fetched ESPN fixture, using the current form's category/duration as defaults
+  buildFixturePayload: function (fixture) {
+    var category = Gen.ESPN_SPORT_CATEGORY[fixture.sport] || 'other';
+    var meta = Gen.CATEGORY_META[category] || Gen.CATEGORY_META.other;
+    return {
+      kickoff: fixture.dt.toISOString(),
+      sport: meta.sport,
+      isRacing: fixture.isSingleEntrant,
+      homeName: fixture.homeName || 'Home',
+      homeLogo: fixture.homeLogo || '',
+      awayName: fixture.awayName || '',
+      awayLogo: fixture.awayLogo || '',
+      score: '- -', scoreHome: '', scoreAway: '',
+      statusType: 'STATUS_SCHEDULED',
+      leagueName: fixture.leagueLabel,
+      leagueEmoji: meta.leagueEmoji,
+      leagueId: meta.leagueId,
+      postUrl: '', channelKey: '', channelName: '',
+      venue: '',
+      updatedAt: Date.now(),
+      duration: parseInt(document.getElementById('ev-duration').value, 10) || 120,
+      category: category,
+      channels: []
+    };
+  },
+
+  pushSelectedFixtures: function () {
+    var statusEl = document.getElementById('fixture-push-status');
+    var idxs = Object.keys(Gen._selectedFixtureIdx);
+    if (!idxs.length) { statusEl.textContent = '❌ Select at least one fixture first.'; return; }
+
+    statusEl.textContent = 'Pushing ' + idxs.length + ' fixture(s)…';
+    var body = {};
+    idxs.forEach(function (idxStr) {
+      var fixture = Gen._fetchedFixtures[parseInt(idxStr, 10)];
+      if (!fixture) return;
+      var key = 'match_' + Date.now() + '_' + idxStr;
+      body[key] = Gen.buildFixturePayload(fixture);
+    });
+
+    fetch(Gen.fbBase() + '.json', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw new Error('401 Permission Denied — this path isn\'t writable under your current database rules');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function () {
+        statusEl.textContent = '✅ Pushed ' + idxs.length + ' fixture(s) to Firebase. Streams weren\'t set — add them via Manage → Edit if needed.';
+      })
+      .catch(function (err) {
+        statusEl.textContent = '❌ Could not push (' + err.message + ').';
+      });
   },
 
   // ============================================================
@@ -742,6 +966,7 @@ var Gen = {
   loadStreamedSports: function () {
     var chipsContainer = document.getElementById('streamed-sport-chips');
     chipsContainer.innerHTML = '<span class="loading-spinner"></span>Loading sports…';
+    Gen._selectedSportIds = {};
 
     fetch('https://streamed.pk/api/sports')
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -752,8 +977,25 @@ var Gen = {
         sports.forEach(function (sport) {
           var chip = document.createElement('span');
           chip.className = 'sport-chip';
-          chip.textContent = sport.name;
           chip.dataset.sportId = sport.id;
+
+          var check = document.createElement('input');
+          check.type = 'checkbox';
+          check.className = 'chip-check';
+          check.title = 'Include in bulk push';
+          check.addEventListener('click', function (e) { e.stopPropagation(); });
+          check.addEventListener('change', function () {
+            if (check.checked) { Gen._selectedSportIds[sport.id] = true; chip.classList.add('is-picked'); }
+            else { delete Gen._selectedSportIds[sport.id]; chip.classList.remove('is-picked'); }
+            Gen.updateSportBulkBar();
+          });
+
+          var label = document.createElement('span');
+          label.textContent = sport.name;
+
+          chip.appendChild(check);
+          chip.appendChild(label);
+
           chip.addEventListener('click', function () {
             document.querySelectorAll('.sport-chip').forEach(function (c) { c.classList.remove('is-active'); });
             chip.classList.add('is-active');
@@ -762,10 +1004,88 @@ var Gen = {
           });
           chipsContainer.appendChild(chip);
         });
+
+        document.getElementById('sport-bulk-bar').style.display = sports.length ? 'flex' : 'none';
+        var selAll = document.getElementById('sport-select-all');
+        if (selAll) selAll.checked = false;
+        Gen.updateSportBulkBar();
       })
       .catch(function (err) {
         chipsContainer.innerHTML = '<div class="hint">Could not load sports: ' + err.message + '</div>';
       });
+  },
+
+  toggleSportSelectAll: function (checked) {
+    document.querySelectorAll('#streamed-sport-chips .sport-chip').forEach(function (chip) {
+      var check = chip.querySelector('.chip-check');
+      var sportId = chip.dataset.sportId;
+      check.checked = checked;
+      if (checked) { Gen._selectedSportIds[sportId] = true; chip.classList.add('is-picked'); }
+      else { delete Gen._selectedSportIds[sportId]; chip.classList.remove('is-picked'); }
+    });
+    Gen.updateSportBulkBar();
+  },
+
+  updateSportBulkBar: function () {
+    var n = Object.keys(Gen._selectedSportIds).length;
+    document.getElementById('sport-bulk-count').textContent = n + ' selected';
+  },
+
+  // Push every match from every ticked sport chip, in one go
+  pushSelectedSportsMatches: function () {
+    var statusEl = document.getElementById('multi-sport-push-status');
+    var sportIds = Object.keys(Gen._selectedSportIds);
+    if (!sportIds.length) { statusEl.textContent = '❌ Tick at least one sport chip first.'; return; }
+
+    statusEl.textContent = 'Loading matches for ' + sportIds.length + ' sport(s)…';
+
+    var loadAll = sportIds.map(function (sportId) {
+      if (Gen._streamedMatches[sportId]) return Promise.resolve();
+      return fetch('https://streamed.pk/api/matches/' + sportId)
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (matches) { Gen._streamedMatches[sportId] = matches; })
+        .catch(function () { Gen._streamedMatches[sportId] = []; });
+    });
+
+    Promise.all(loadAll).then(function () {
+      var allMatches = [];
+      sportIds.forEach(function (sportId) {
+        (Gen._streamedMatches[sportId] || []).forEach(function (m) { allMatches.push(m); });
+      });
+
+      if (!allMatches.length) { statusEl.textContent = '❌ No matches found for the selected sports.'; return; }
+
+      statusEl.textContent = 'Processing ' + allMatches.length + ' match(es) across ' + sportIds.length + ' sport(s)…';
+      var completed = 0, failed = 0;
+      var total = allMatches.length;
+
+      allMatches.forEach(function (match) {
+        Gen.fetchStreamsForAutoPush(match).then(function (streams) {
+          var payload = Gen.buildAutoPayload(match, streams);
+          var key = 'match_' + match.category + '_' + String(match.id || Date.now()).replace(/[^a-zA-Z0-9]/g, '_');
+          var body = {};
+          body[key] = payload;
+          return fetch(Gen.fbBase() + '.json', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          }).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          });
+        }).then(function () {
+          completed++;
+          if (completed + failed === total) {
+            statusEl.textContent = '✅ ' + completed + ' match(es) pushed. ' + (failed ? failed + ' failed.' : '');
+          }
+        }).catch(function () {
+          failed++;
+          if (completed + failed === total) {
+            statusEl.textContent = '✅ ' + completed + ' pushed, ❌ ' + failed + ' failed.';
+          }
+        });
+      });
+    });
   },
 
   // Load matches for a specific sport
@@ -1293,8 +1613,31 @@ awayTeamBlock +
 
   pushEventToFirebase: function () {
     var statusEl = document.getElementById('push-status');
-    statusEl.textContent = 'Pushing…';
     var payload = this.buildEventPayload();
+    var editingId = Gen._editingEventId;
+
+    if (editingId) {
+      statusEl.textContent = 'Saving changes…';
+      fetch(this.fbBase() + '/' + editingId + '.json', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(function (r) {
+          if (r.status === 401 || r.status === 403) throw new Error('401 Permission Denied — this path isn\'t writable under your current database rules');
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function () {
+          statusEl.textContent = '✅ Updated ' + editingId + ' — changes (including streams) are live.';
+        })
+        .catch(function (err) {
+          statusEl.textContent = '❌ Could not save changes (' + err.message + ').';
+        });
+      return;
+    }
+
+    statusEl.textContent = 'Pushing…';
     var key = 'match_' + Date.now();
     var body = {};
     body[key] = payload;
@@ -1317,17 +1660,66 @@ awayTeamBlock +
       });
   },
 
+  // ---- Load an already-pushed event back into the form for editing ----
+  editEvent: function (id, ev) {
+    Gen._editingEventId = id;
+
+    document.getElementById('ev-league').value = ev.leagueName || '';
+    if (ev.kickoff) {
+      var dt = new Date(ev.kickoff);
+      document.getElementById('ev-date').value = dt.toISOString().slice(0, 10);
+      document.getElementById('ev-time').value = dt.toTimeString().slice(0, 5);
+    }
+    document.getElementById('ev-duration').value = ev.duration || 120;
+    document.getElementById('ev-category').value = ev.category || 'football';
+    document.getElementById('ev-home-name').value = ev.homeName || '';
+    document.getElementById('ev-home-logo').value = ev.homeLogo || '';
+    document.getElementById('ev-away-name').value = ev.awayName || '';
+    document.getElementById('ev-away-logo').value = ev.awayLogo || '';
+
+    var container = document.getElementById('ev-channel-rows');
+    container.innerHTML = '';
+    var channels = ev.channels || [];
+    if (channels.length) {
+      channels.forEach(function (ch) { Gen.addChannelRow('ev-channel-rows', ch.label, ch.src); });
+    } else {
+      Gen.addChannelRow('ev-channel-rows');
+    }
+
+    var banner = document.getElementById('edit-banner');
+    document.getElementById('edit-banner-label').textContent = (ev.homeName || '') + (ev.awayName ? ' vs ' + ev.awayName : '') + ' (' + id + ')';
+    banner.style.display = 'flex';
+    document.getElementById('push-btn').textContent = '💾 Save changes';
+    document.getElementById('push-status').textContent = '';
+
+    var eventTabBtn = document.querySelector('[data-tab="event-tab"]');
+    Gen.showTab(eventTabBtn, 'event-tab');
+    Gen.buildEventCard();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  },
+
+  cancelEditEvent: function () {
+    Gen._editingEventId = null;
+    document.getElementById('edit-banner').style.display = 'none';
+    document.getElementById('push-btn').textContent = '🔥 Push to Firebase';
+    document.getElementById('push-status').textContent = '';
+  },
+
   refreshManageList: function () {
     var list = document.getElementById('manage-list');
     var statusEl = document.getElementById('fb-status');
+    var bulkBar = document.getElementById('manage-bulk-bar');
     list.innerHTML = 'Loading…';
     statusEl.textContent = 'Connecting…';
+    bulkBar.style.display = 'none';
+    Gen._selectedManageIds = {};
 
     fetch(this.fbBase() + '.json')
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (data) {
         statusEl.textContent = '✅ Connected.';
         list.innerHTML = '';
+        Gen._manageDataCache = data || {};
         if (!data) { list.innerHTML = '<div class="hint">No events saved yet.</div>'; return; }
 
         var ids = Object.keys(data).sort(function (a, b) {
@@ -1341,28 +1733,85 @@ awayTeamBlock +
           var label = (ev.homeName || '') + (ev.awayName ? ' vs ' + ev.awayName : '') || (ev.leagueName || 'Event');
 
           var item = document.createElement('div');
-          item.className = 'fixture-item';
+          item.className = 'manage-item';
           item.style.opacity = isPast ? '0.5' : '1';
-          item.innerHTML =
-            '<span>' + (ev.leagueName ? '[' + ev.leagueName + '] ' : '') + label +
-            (isPast ? ' (finished — hidden on site)' : '') + '</span>' +
-            '<span class="time">' + (dt ? dt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '') + '</span>';
+
+          var checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.className = 'pick-checkbox';
+          checkbox.addEventListener('change', function () {
+            if (checkbox.checked) Gen._selectedManageIds[id] = true; else delete Gen._selectedManageIds[id];
+            Gen.updateManageBulkBar();
+          });
+          item.appendChild(checkbox);
+
+          var labelSpan = document.createElement('span');
+          labelSpan.className = 'manage-label';
+          labelSpan.textContent = (ev.leagueName ? '[' + ev.leagueName + '] ' : '') + label +
+            (isPast ? ' (finished — hidden on site)' : '') +
+            (dt ? ' · ' + dt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
+          item.appendChild(labelSpan);
+
+          var actions = document.createElement('span');
+          actions.className = 'manage-actions';
+
+          var editBtn = document.createElement('button');
+          editBtn.className = 'btn-edit';
+          editBtn.textContent = '✏️ Edit';
+          editBtn.onclick = function (e) { e.stopPropagation(); Gen.editEvent(id, ev); };
+          actions.appendChild(editBtn);
 
           var delBtn = document.createElement('button');
-          delBtn.className = 'icon-btn';
-          delBtn.textContent = '🗑️ Remove';
-          delBtn.style.marginLeft = '8px';
-          delBtn.onclick = function (e) {
-            e.stopPropagation();
-            Gen.deleteEvent(id);
-          };
-          item.appendChild(delBtn);
+          delBtn.className = 'btn-danger';
+          delBtn.textContent = '🗑️';
+          delBtn.onclick = function (e) { e.stopPropagation(); Gen.deleteEvent(id); };
+          actions.appendChild(delBtn);
+
+          item.appendChild(actions);
           list.appendChild(item);
         });
+
+        bulkBar.style.display = 'flex';
+        document.getElementById('manage-select-all').checked = false;
+        Gen.updateManageBulkBar();
       })
       .catch(function (err) {
         statusEl.textContent = '❌ Could not connect (' + err.message + ').';
         list.innerHTML = '<div class="hint">Check the DB URL/path and your database rules.</div>';
+      });
+  },
+
+  toggleManageSelectAll: function (checked) {
+    document.querySelectorAll('#manage-list .pick-checkbox').forEach(function (cb) { cb.checked = checked; cb.dispatchEvent(new Event('change')); });
+  },
+
+  updateManageBulkBar: function () {
+    var n = Object.keys(Gen._selectedManageIds).length;
+    document.getElementById('manage-bulk-count').textContent = n + ' selected';
+  },
+
+  deleteSelectedManageEvents: function () {
+    var ids = Object.keys(Gen._selectedManageIds);
+    if (!ids.length) { alert('Select at least one event first.'); return; }
+    if (!confirm('Remove ' + ids.length + ' event(s)? This cannot be undone.')) return;
+
+    var statusEl = document.getElementById('fb-status');
+    statusEl.textContent = 'Deleting ' + ids.length + ' event(s)…';
+    var body = {};
+    ids.forEach(function (id) { body[id] = null; });
+
+    fetch(this.fbBase() + '.json', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function () {
+        statusEl.textContent = '✅ Deleted ' + ids.length + ' event(s).';
+        Gen.refreshManageList();
+      })
+      .catch(function (err) {
+        statusEl.textContent = '❌ Could not delete selected events (' + err.message + ').';
       });
   },
 
@@ -1474,20 +1923,34 @@ awayTeamBlock +
   },
 
   // ---- PROG.TXT PARSING ----
+  // prog.txt lists a whole week of matches grouped under MONDAY/TUESDAY/... section headers.
+  // Each entry in the returned map is: { weekday, time, sources: [{url, type, source}] }
+  WEEKDAY_NAMES: ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'],
+
   scrParseProgTxt: function (text) {
     var map = {};
     var lines = (text || '').split('\n');
+    var currentWeekday = null;
+
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
-      if (!line || line.startsWith('#') || !line.includes('|')) continue;
+      if (!line) continue;
+
+      // Weekday section header (no "|" on these lines) — remember it for the matches that follow
+      var upper = line.toUpperCase();
+      var headerMatch = Gen.WEEKDAY_NAMES.filter(function (w) { return upper.indexOf(w) === 0; })[0];
+      if (headerMatch && line.indexOf('|') === -1) { currentWeekday = headerMatch; continue; }
+
+      if (line.startsWith('#') || !line.includes('|')) continue;
       // Skip channel headers and info lines
       if (line.startsWith('HD') && line.match(/^[A-Z\d]+\s+[A-Z]/)) continue;
       if (line.startsWith('BR') && line.match(/^[A-Z\d]+\s+[A-Z]/)) continue;
-      if (line.startsWith('MONDAY') || line.startsWith('TUESDAY') || line.startsWith('WEDNESDAY') ||
-          line.startsWith('THURSDAY') || line.startsWith('FRIDAY') || line.startsWith('SATURDAY') || line.startsWith('SUNDAY')) continue;
 
       var parts = line.split('|').map(function (p) { return p.trim(); }).filter(Boolean);
       if (parts.length < 2) continue;
+
+      var timeMatch = parts[0].match(/^(\d{1,2}):(\d{2})/);
+      var timeStr = timeMatch ? (timeMatch[1].length < 2 ? '0' + timeMatch[1] : timeMatch[1]) + ':' + timeMatch[2] : null;
 
       var matchStr = parts[0].replace(/^\d{1,2}:\d{2}\s+/, '').replace(/\s*(W)\s*$/i, '').trim();
       var urls = parts.slice(1).filter(function (u) { return u.startsWith('http'); });
@@ -1508,12 +1971,42 @@ awayTeamBlock +
       teamB = teamB.replace(/^(Tennis|Darts|Cricket|Basketball|Football|Hockey|Baseball|Rugby|Golf|Billiards|AFL|UFC|MMA|MotoGP|NASCAR|Cycling):?\s*/i, '');
 
       var key = Gen.scrPairKey(teamA, teamB);
-      if (!map[key]) map[key] = [];
+      if (!map[key]) map[key] = { weekday: currentWeekday, time: timeStr, sources: [] };
       for (var j = 0; j < urls.length; j++) {
-        map[key].push({ url: urls[j], type: 'embed', source: 'prog.txt' });
+        map[key].sources.push({ url: urls[j], type: 'embed', source: 'prog.txt' });
       }
     }
     return map;
+  },
+
+  // Nearest upcoming date (today or within the next 6 days) that falls on the given weekday name.
+  // If gmtToLocal is true, treats hh:mm as UTC and rolls the date forward/back a day if the
+  // local conversion crosses midnight.
+  scrWeekdayToDate: function (weekdayName, timeStr, gmtToLocal) {
+    var now = new Date();
+    var idx = Gen.WEEKDAY_NAMES.indexOf(weekdayName);
+    var h = 0, m = 0;
+    if (timeStr) {
+      var t = timeStr.split(':');
+      h = parseInt(t[0], 10) || 0;
+      m = parseInt(t[1], 10) || 0;
+    }
+
+    var base;
+    if (idx < 0) {
+      base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else {
+      var diff = (idx - now.getDay() + 7) % 7;
+      base = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff);
+    }
+
+    if (gmtToLocal) {
+      // Interpret h:m as UTC time on that date, then convert to local
+      var utcMs = Date.UTC(base.getFullYear(), base.getMonth(), base.getDate(), h, m);
+      return new Date(utcMs);
+    }
+    base.setHours(h, m, 0, 0);
+    return base;
   },
 
   // ---- Load prog.txt ----
@@ -1535,20 +2028,23 @@ awayTeamBlock +
 
         matchesEl.innerHTML = '';
         Object.keys(Gen._progTxtMap).sort().forEach(function (key) {
-          var sources = Gen._progTxtMap[key];
+          var entry = Gen._progTxtMap[key];
+          var sources = entry.sources || [];
           var teams = key.split('|');
+          var dayLabel = entry.weekday ? entry.weekday.slice(0, 3) : '?';
+          var timeLabel = entry.time || '';
           var item = document.createElement('div');
           item.className = 'scraper-match-item';
           item.innerHTML =
             '<div>' +
-              '<div class="scraper-match-title">' + Gen.esc(teams[0]) + ' vs ' + Gen.esc(teams[1]) + '</div>' +
+              '<div class="scraper-match-title"><span class="day-badge">' + dayLabel + (timeLabel ? ' ' + timeLabel : '') + '</span>' + Gen.esc(teams[0]) + ' vs ' + Gen.esc(teams[1]) + '</div>' +
               '<div class="scraper-match-meta"><span class="scraper-source-tag prog-txt">prog.txt</span> ' + sources.length + ' stream(s)</div>' +
             '</div>' +
             '<div style="text-align:right;font-size:11px;color:var(--color-text-dim);">' + sources.length + ' src</div>';
           item.addEventListener('click', function () {
             document.querySelectorAll('.scraper-match-item').forEach(function (el) { el.classList.remove('selected'); });
             item.classList.add('selected');
-            Gen._scrCurrentMatch = { home: teams[0], away: teams[1], sources: sources, source: 'prog.txt' };
+            Gen._scrCurrentMatch = { home: teams[0], away: teams[1], sources: sources, source: 'prog.txt', weekday: entry.weekday, time: entry.time };
             Gen._scrCurrentSources = sources;
             Gen.scrRenderCombinedSources(sources);
           });
@@ -1701,10 +2197,11 @@ awayTeamBlock +
 
     var key = Gen.scrPairKey(home, away);
     var allSources = [];
+    var progEntry = Gen._progTxtMap[key];
 
     // 1. Check prog.txt
-    if (Gen._progTxtMap[key]) {
-      allSources = allSources.concat(Gen._progTxtMap[key]);
+    if (progEntry) {
+      allSources = allSources.concat(progEntry.sources || []);
     }
 
     // 2. Check ddkaqiu home map
@@ -1724,7 +2221,10 @@ awayTeamBlock +
 
     ddkPromise.then(function () {
       Gen._scrCurrentSources = allSources;
-      Gen._scrCurrentMatch = { home: home, away: away, sources: allSources, source: 'combined' };
+      Gen._scrCurrentMatch = {
+        home: home, away: away, sources: allSources, source: 'combined',
+        weekday: progEntry ? progEntry.weekday : null, time: progEntry ? progEntry.time : null
+      };
       statusEl.className = 'scraper-status success';
       statusEl.textContent = 'Found ' + allSources.length + ' stream(s) from all sources';
       Gen.scrRenderCombinedSources(allSources);
@@ -1770,10 +2270,11 @@ awayTeamBlock +
       return;
     }
 
-    // Fill form
-    var today = new Date().toISOString().slice(0, 10);
-    document.getElementById('ev-date').value = today;
-    document.getElementById('ev-time').value = new Date().toTimeString().slice(0, 5);
+    // Fill form — use the parsed weekday/time from prog.txt when we have it, otherwise today/now
+    var gmtConvert = document.getElementById('scr-gmt-convert') && document.getElementById('scr-gmt-convert').checked;
+    var eventDt = (match && match.weekday) ? Gen.scrWeekdayToDate(match.weekday, match.time, gmtConvert) : new Date();
+    document.getElementById('ev-date').value = eventDt.toISOString().slice(0, 10);
+    document.getElementById('ev-time').value = eventDt.toTimeString().slice(0, 5);
     document.getElementById('ev-league').value = home + ' vs ' + away;
     document.getElementById('ev-category').value = 'football';
     document.getElementById('ev-home-name').value = home;
@@ -1809,7 +2310,8 @@ awayTeamBlock +
       var cfg = {
         progUrl: document.getElementById('scr-prog-url').value,
         enableProg: document.getElementById('scr-enable-prog').checked,
-        enableDdk: document.getElementById('scr-enable-ddk').checked
+        enableDdk: document.getElementById('scr-enable-ddk').checked,
+        gmtConvert: document.getElementById('scr-gmt-convert') ? document.getElementById('scr-gmt-convert').checked : true
       };
       localStorage.setItem('scr-scraper-cfg', JSON.stringify(cfg));
     } catch (e) {}
@@ -1822,12 +2324,14 @@ awayTeamBlock +
       if (cfg.progUrl) document.getElementById('scr-prog-url').value = cfg.progUrl;
       if (cfg.enableProg !== undefined) document.getElementById('scr-enable-prog').checked = cfg.enableProg;
       if (cfg.enableDdk !== undefined) document.getElementById('scr-enable-ddk').checked = cfg.enableDdk;
+      if (cfg.gmtConvert !== undefined && document.getElementById('scr-gmt-convert')) document.getElementById('scr-gmt-convert').checked = cfg.gmtConvert;
     } catch (e) {}
   }
 };
 
 // seed today's date and an initial preview
 document.getElementById('ev-date').value = new Date().toISOString().slice(0, 10);
+document.getElementById('fx-day').value = new Date().toISOString().slice(0, 10);
 Gen.addChannelRow('ev-channel-rows');
 Gen.buildEventCard();
 Gen.buildChannelButton();
