@@ -182,7 +182,7 @@ p.sub { color: var(--color-text-dim); font-size: 13px; margin: 3px 0 0; }
 .sport-chip .count { font-size: 10px; opacity: .7; margin-left: 4px; }
 
 .streamed-match-item {
-  display: grid; grid-template-columns: 1fr auto; gap: 8px;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 8px;
   padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer;
   border: 1px solid var(--color-border); margin-bottom: 6px;
   transition: border-color .15s;
@@ -576,7 +576,13 @@ textarea.code-out {
 
       <div class="section-divider"></div>
       <h2 id="streamed-match-header">Select a sport above</h2>
+      <div class="bulk-bar" id="streamed-match-bulk-bar" style="display:none;">
+        <label class="select-all-row"><input type="checkbox" id="streamed-match-select-all" onchange="Gen.toggleStreamedMatchSelectAll(this.checked)"/> Select all</label>
+        <span class="bulk-count" id="streamed-match-bulk-count">0 selected</span>
+        <button class="btn-streamed" style="margin:0;padding:8px 12px;font-size:12px;" onclick="Gen.pushSelectedStreamedMatches()">🔥 Push selected matches</button>
+      </div>
       <div id="streamed-match-list" style="max-height:520px;overflow-y:auto;"></div>
+      <p class="hint" id="streamed-selected-push-status"></p>
 
       <div id="streamed-stream-info" class="stream-info-panel" style="display:none;">
         <h3>Available streams</h3>
@@ -598,14 +604,14 @@ textarea.code-out {
           <li>Category (auto-mapped from sport)</li>
           <li>Stream embed URLs (all sources fetched automatically)</li>
         </ul>
-        <p class="hint" style="margin-top:12px;">Then click <strong>"Push to Firebase"</strong> on the Event Card tab to publish it live.</p>
+        <p class="hint" style="margin-top:12px;">Then click <strong>"Push to Firebase"</strong> on the Event Card tab to publish it live — or use the bulk tools below/left to publish many matches in one go.</p>
       </div>
       <h2 style="margin-top:20px;">Auto-push all matches to Firebase</h2>
       <p class="hint">Push every match from the sport you're currently browsing above.</p>
-      <button class="btn-streamed" onclick="Gen.pushAllStreamedMatches()" style="width:100%;">🔥 Push Matches for Current Sport</button>
+      <button class="btn-streamed" onclick="Gen.pushAllStreamedMatches()" style="width:100%;">🔥 Push ALL Matches for Current Sport</button>
       <p class="hint" id="auto-push-status"></p>
 
-      <p class="hint" style="margin-top:14px;">Or push matches from every sport you've <strong>ticked</strong> above (checkbox on each chip) in one go.</p>
+      <p class="hint" style="margin-top:14px;">Or push matches from every sport you've <strong>ticked</strong> above (checkbox on each chip) in one go — this fetches each sport's matches first, so it may take a few seconds per sport.</p>
       <button class="btn-streamed" style="width:100%;background:linear-gradient(135deg,#f6b93b,#e08e1d);color:#1a1300;" onclick="Gen.pushSelectedSportsMatches()">🔥 Push ALL Matches for Selected Sports</button>
       <p class="hint" id="multi-sport-push-status"></p>
 
@@ -729,6 +735,7 @@ var Gen = {
   _streamedCurrentSport: null,
   _streamedCurrentMatch: null,
   _streamedCurrentStreams: null,
+  _selectedStreamedMatchKeys: {}, // "sportId::index" -> true, for bulk-pushing a subset of the current sport's matches
 
   // ---- Internal state for Stream Scraper ----
   _progTxtMap: {},        // pairKey -> {weekday, time, sources:[{url, type}]} from prog.txt
@@ -1000,6 +1007,7 @@ var Gen = {
             document.querySelectorAll('.sport-chip').forEach(function (c) { c.classList.remove('is-active'); });
             chip.classList.add('is-active');
             Gen._streamedCurrentSport = sport.id;
+            Gen._selectedStreamedMatchKeys = {};
             Gen.loadStreamedMatches(sport.id);
           });
           chipsContainer.appendChild(chip);
@@ -1040,10 +1048,12 @@ var Gen = {
     statusEl.textContent = 'Loading matches for ' + sportIds.length + ' sport(s)…';
 
     var loadAll = sportIds.map(function (sportId) {
-      if (Gen._streamedMatches[sportId]) return Promise.resolve();
       return fetch('https://streamed.pk/api/matches/' + sportId)
         .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(function (matches) { Gen._streamedMatches[sportId] = matches; })
+        .then(function (matches) {
+          matches.forEach(function (m) { m._sportId = sportId; });
+          Gen._streamedMatches[sportId] = matches;
+        })
         .catch(function () { Gen._streamedMatches[sportId] = []; });
     });
 
@@ -1062,7 +1072,7 @@ var Gen = {
       allMatches.forEach(function (match) {
         Gen.fetchStreamsForAutoPush(match).then(function (streams) {
           var payload = Gen.buildAutoPayload(match, streams);
-          var key = 'match_' + match.category + '_' + String(match.id || Date.now()).replace(/[^a-zA-Z0-9]/g, '_');
+          var key = 'match_' + (match._sportId || match.category || 'x') + '_' + String(match.id || Date.now()).replace(/[^a-zA-Z0-9]/g, '_');
           var body = {};
           body[key] = payload;
           return fetch(Gen.fbBase() + '.json', {
@@ -1075,6 +1085,7 @@ var Gen = {
           });
         }).then(function () {
           completed++;
+          statusEl.textContent = 'Pushed ' + completed + '/' + total + (failed ? (' (' + failed + ' failed)') : '') + '…';
           if (completed + failed === total) {
             statusEl.textContent = '✅ ' + completed + ' match(es) pushed. ' + (failed ? failed + ' failed.' : '');
           }
@@ -1085,6 +1096,8 @@ var Gen = {
           }
         });
       });
+    }).catch(function (err) {
+      statusEl.textContent = '❌ Could not load matches for the selected sports (' + err.message + ').';
     });
   },
 
@@ -1092,12 +1105,15 @@ var Gen = {
   loadStreamedMatches: function (sportId) {
     var listEl = document.getElementById('streamed-match-list');
     var headerEl = document.getElementById('streamed-match-header');
+    var bulkBar = document.getElementById('streamed-match-bulk-bar');
     listEl.innerHTML = '<span class="loading-spinner"></span>Loading matches…';
     headerEl.textContent = 'Loading ' + sportId + '…';
+    bulkBar.style.display = 'none';
 
     fetch('https://streamed.pk/api/matches/' + sportId)
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (matches) {
+        matches.forEach(function (m) { m._sportId = sportId; });
         Gen._streamedMatches[sportId] = matches;
         headerEl.textContent = sportId + ' — ' + matches.length + ' match(es)';
         Gen.filterStreamedMatches();
@@ -1114,6 +1130,7 @@ var Gen = {
     var sportId = Gen._streamedCurrentSport;
     var matches = Gen._streamedMatches[sportId] || [];
     var listEl = document.getElementById('streamed-match-list');
+    var bulkBar = document.getElementById('streamed-match-bulk-bar');
     var now = Date.now();
 
     var filtered = matches.filter(function (m) {
@@ -1133,19 +1150,30 @@ var Gen = {
     });
 
     listEl.innerHTML = '';
+    Gen._selectedStreamedMatchKeys = {};
+    Gen.updateStreamedMatchBulkBar();
 
     if (filtered.length === 0) {
       listEl.innerHTML = '<div class="hint">No matches match your filter.</div>';
+      bulkBar.style.display = 'none';
       return;
     }
 
-    filtered.forEach(function (match) {
+    bulkBar.style.display = 'flex';
+    var selAllCb = document.getElementById('streamed-match-select-all');
+    if (selAllCb) selAllCb.checked = false;
+
+    filtered.forEach(function (match, filteredIdx) {
+      var matchKey = sportId + '::' + (match.id != null ? match.id : filteredIdx);
       var item = document.createElement('div');
       item.className = 'streamed-match-item';
+      item.dataset.matchKey = matchKey;
 
       var isLive = match.date > 0 && match.date <= now + 120000;
       var matchDate = match.date > 0 ? new Date(match.date) : null;
       var timeStr = matchDate ? matchDate.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'TBD';
+
+      var checkboxHtml = '<input type="checkbox" class="pick-checkbox" style="margin:2px 0 0 0;"/>';
 
       var html = '<div>';
       html += '<div class="streamed-match-header">';
@@ -1171,11 +1199,16 @@ var Gen = {
       }
       html += '</div>';
 
-      // Source count badge
-      html += '<div style="text-align:right;font-size:11px;color:var(--color-text-dim);">' +
+      item.innerHTML = checkboxHtml + html +
+        '<div style="text-align:right;font-size:11px;color:var(--color-text-dim);">' +
         (match.sources ? match.sources.length + ' src' : '—') + '</div>';
 
-      item.innerHTML = html;
+      var checkbox = item.querySelector('.pick-checkbox');
+      checkbox.addEventListener('click', function (e) { e.stopPropagation(); });
+      checkbox.addEventListener('change', function () {
+        if (checkbox.checked) Gen._selectedStreamedMatchKeys[matchKey] = match; else delete Gen._selectedStreamedMatchKeys[matchKey];
+        Gen.updateStreamedMatchBulkBar();
+      });
 
       item.addEventListener('click', function () {
         document.querySelectorAll('.streamed-match-item').forEach(function (el) { el.classList.remove('selected'); });
@@ -1185,6 +1218,59 @@ var Gen = {
       });
 
       listEl.appendChild(item);
+    });
+  },
+
+  toggleStreamedMatchSelectAll: function (checked) {
+    document.querySelectorAll('#streamed-match-list .pick-checkbox').forEach(function (cb) {
+      cb.checked = checked;
+      cb.dispatchEvent(new Event('change'));
+    });
+  },
+
+  updateStreamedMatchBulkBar: function () {
+    var n = Object.keys(Gen._selectedStreamedMatchKeys).length;
+    var el = document.getElementById('streamed-match-bulk-count');
+    if (el) el.textContent = n + ' selected';
+  },
+
+  // Push only the ticked matches (checkboxes) from the currently-browsed sport's match list
+  pushSelectedStreamedMatches: function () {
+    var statusEl = document.getElementById('streamed-selected-push-status');
+    var keys = Object.keys(Gen._selectedStreamedMatchKeys);
+    if (!keys.length) { statusEl.textContent = '❌ Tick at least one match first.'; return; }
+
+    statusEl.textContent = 'Pushing ' + keys.length + ' match(es)…';
+    var completed = 0, failed = 0;
+    var total = keys.length;
+
+    keys.forEach(function (key) {
+      var match = Gen._selectedStreamedMatchKeys[key];
+      Gen.fetchStreamsForAutoPush(match).then(function (streams) {
+        var payload = Gen.buildAutoPayload(match, streams);
+        var fbKey = 'match_' + (match._sportId || match.category || 'x') + '_' + String(match.id || Date.now()).replace(/[^a-zA-Z0-9]/g, '_');
+        var body = {};
+        body[fbKey] = payload;
+        return fetch(Gen.fbBase() + '.json', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }).then(function (r) {
+          if (r.status === 401 || r.status === 403) throw new Error('401 Permission Denied');
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        });
+      }).then(function () {
+        completed++;
+        if (completed + failed === total) {
+          statusEl.textContent = '✅ ' + completed + ' match(es) pushed to Firebase.' + (failed ? ' ' + failed + ' failed.' : '');
+        }
+      }).catch(function (err) {
+        failed++;
+        if (completed + failed === total) {
+          statusEl.textContent = '✅ ' + completed + ' pushed, ❌ ' + failed + ' failed (' + err.message + ').';
+        }
+      });
     });
   },
 
@@ -1353,7 +1439,7 @@ var Gen = {
     matches.forEach(function (match) {
       Gen.fetchStreamsForAutoPush(match, sportId).then(function (streams) {
         var payload = Gen.buildAutoPayload(match, streams);
-        var key = 'match_' + match.category + '_' + (match.id || Date.now()).replace(/[^a-zA-Z0-9]/g, '_');
+        var key = 'match_' + (match._sportId || sportId) + '_' + String(match.id || Date.now()).replace(/[^a-zA-Z0-9]/g, '_');
         var body = {};
         body[key] = payload;
 
@@ -1363,11 +1449,11 @@ var Gen = {
           body: JSON.stringify(body)
         }).then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
-          completed++;
           return r.json();
         });
       }).then(function () {
-        if (++completed + failed === matches.length) {
+        completed++;
+        if (completed + failed === matches.length) {
           statusEl.textContent = '✅ ' + completed + ' match(es) pushed to Firebase. ' + (failed ? failed + ' failed.' : '');
         }
       }).catch(function (err) {
@@ -1400,7 +1486,8 @@ var Gen = {
 
   // Build Firebase payload from Streamed.pk match data
   buildAutoPayload: function (match, streams) {
-    var catMap = Gen.STREAMED_CATEGORY_MAP[match.category] || Gen.STREAMED_CATEGORY_MAP.other;
+    var sportKey = match._sportId || match.category || 'other';
+    var catMap = Gen.STREAMED_CATEGORY_MAP[sportKey] || Gen.STREAMED_CATEGORY_MAP.other;
     var matchDate = match.date > 0 ? new Date(match.date) : new Date();
     var isoDateTime = matchDate.toISOString();
 
@@ -1433,7 +1520,7 @@ var Gen = {
       scoreHome: '',
       scoreAway: '',
       statusType: match.date > 0 && match.date <= Date.now() + 120000 ? 'STATUS_LIVE' : 'STATUS_SCHEDULED',
-      leagueName: match.title.split(' - ')[0] || match.category.toUpperCase(),
+      leagueName: match.title.split(' - ')[0] || sportKey.toUpperCase(),
       leagueEmoji: catMap.emoji,
       leagueId: catMap.leagueId,
       postUrl: '',
@@ -1441,7 +1528,7 @@ var Gen = {
       channelName: '',
       venue: '',
       updatedAt: Date.now(),
-      duration: match.category === 'motor-sports' ? 180 : (match.category === 'football' ? 110 : 120),
+      duration: sportKey === 'motor-sports' ? 180 : (sportKey === 'football' ? 110 : 120),
       category: catMap.category,
       channels: channels
     };
