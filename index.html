@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -1587,7 +1587,11 @@ var Gen = {
     if (streams.length > 0) {
       streams.forEach(function (stream) {
         var label = (stream._sourceName || stream.source || 'Stream') + ' #' + stream.streamNo + ' - ' + (stream.language || '');
-        Gen.addChannelRow('ev-channel-rows', label, stream.embedUrl || '');
+        var url = stream.embedUrl || '';
+        if (url && !url.startsWith('https://sports803.github.io/player/')) {
+          url = 'https://sports803.github.io/player/?embed=' + url;
+        }
+        Gen.addChannelRow('ev-channel-rows', label, url);
       });
     } else {
       // No streams — add placeholder
@@ -1680,9 +1684,13 @@ var Gen = {
     var isoDateTime = matchDate.toISOString();
 
     var channels = (streams || []).map(function (s) {
+      var url = s.embedUrl || '';
+      if (url && !url.startsWith('https://sports803.github.io/player/')) {
+        url = 'https://sports803.github.io/player/?embed=' + url;
+      }
       return {
         label: (s._sourceName || s.source || 'Stream') + ' #' + s.streamNo + ' - ' + (s.language || ''),
-        src: s.embedUrl || ''
+        src: url
       };
     });
 
@@ -3077,7 +3085,13 @@ awayTeamBlock +
     var sources = Gen._scrCurrentSources || [];
     if (sources.length > 0) {
       sources.forEach(function (s, i) {
-        Gen.addChannelRow('ev-channel-rows', (s.source || 'Stream') + ' #' + (i + 1), s.url || '');
+        var url = s.url || '';
+        if (url && (s.source === 'ddkaqiu' || s.source === 'ddkaqiu-search')) {
+          if (!url.startsWith('https://sports803.github.io/player/')) {
+            url = 'https://sports803.github.io/player/?mora=' + url;
+          }
+        }
+        Gen.addChannelRow('ev-channel-rows', (s.source || 'Stream') + ' #' + (i + 1), url);
       });
     } else {
       Gen.addChannelRow('ev-channel-rows', 'Stream 1', '');
