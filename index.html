@@ -325,6 +325,54 @@ textarea.code-out {
 .manage-item:hover { border-color: rgba(255,255,255,.2); }
 .manage-item .manage-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .manage-item .manage-actions { display: flex; gap: 6px; margin-left: 8px; flex-shrink: 0; }
+
+/* -- MANUS: Toast notifications -- */
+.toast-container { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+.s803-toast { background: var(--color-panel); border: 1px solid var(--color-border); border-left: 4px solid var(--color-success); border-radius: var(--radius-sm); padding: 12px 18px; font-size: 13px; font-weight: 600; color: var(--color-text); box-shadow: 0 8px 24px rgba(0,0,0,.5); animation: toast-in .25s ease; min-width: 260px; }
+.s803-toast.error { border-left-color: #e74c3c; }
+.s803-toast.warning { border-left-color: #f6b93b; }
+@keyframes toast-in { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+
+/* -- MANUS: Progress bar -- */
+.progress-bar-wrap { height: 6px; background: var(--color-panel-alt); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+.progress-bar-fill { height: 100%; background: var(--gradient-brand); border-radius: 3px; transition: width .3s ease; width: 0%; }
+
+/* -- MANUS: Channel Manager styles -- */
+.channel-mgr-item { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); margin-bottom: 6px; font-size: 12px; }
+.channel-mgr-item:hover { border-color: rgba(255,255,255,.2); }
+.channel-mgr-item img { width: 32px; height: 32px; border-radius: 6px; object-fit: contain; background: #fff; padding: 2px; }
+.channel-mgr-item .ch-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.channel-mgr-item .ch-key { color: var(--color-text-dim); font-family: monospace; font-size: 11px; }
+
+/* -- MANUS: Calendar styles -- */
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 12px; }
+.calendar-cell { min-height: 72px; padding: 6px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); font-size: 11px; cursor: pointer; transition: border-color .15s; }
+.calendar-cell:hover { border-color: var(--color-primary); }
+.calendar-cell.today { border-color: var(--color-secondary); background: rgba(246,185,59,.06); }
+.calendar-cell .cell-date { font-weight: 700; color: var(--color-text-dim); font-size: 10px; margin-bottom: 4px; }
+.calendar-cell .cell-event { background: var(--color-panel-alt); border-radius: 4px; padding: 2px 5px; margin-bottom: 3px; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-header-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 11px; font-weight: 700; color: var(--color-text-dim); text-align: center; margin-bottom: 4px; }
+.calendar-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.calendar-nav button { background: var(--color-panel-alt); border: 1px solid var(--color-border); color: var(--color-text); border-radius: var(--radius-sm); padding: 6px 12px; font-size: 12px; cursor: pointer; }
+.calendar-nav .cal-title { font-size: 14px; font-weight: 700; }
+
+/* -- MANUS: Bulk operations bar -- */
+.bulk-channel-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.bulk-channel-bar select { padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); background: var(--color-panel-alt); color: var(--color-text); font-size: 12px; }
+
+/* -- MANUS: Score updater panel -- */
+.score-updater-panel { background: var(--color-panel-alt); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 12px; margin-top: 12px; }
+.score-updater-panel .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.score-updater-panel .toggle-row input { accent-color: var(--color-success); width: 16px; height: 16px; }
+.score-updater-panel .status-text { font-size: 11px; color: var(--color-text-dim); margin-top: 6px; }
+
+/* -- MANUS: Help panel -- */
+.help-panel { background: var(--color-panel-alt); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 14px; font-size: 12px; color: var(--color-text-dim); line-height: 1.7; margin-top: 12px; }
+.help-panel h3 { color: var(--color-text); font-size: 13px; margin: 0 0 8px; }
+.help-panel code { background: var(--color-bg-alt); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+
+/* -- MANUS: Responsive improvements -- */
+@media (max-width: 600px) { body { padding: 10px; } .field-row { grid-template-columns: 1fr; } .channel-row { grid-template-columns: 1fr; } .btn-primary, .btn-secondary, .btn-streamed { width: 100%; text-align: center; } }
 </style>
 </head>
 <body>
@@ -359,6 +407,9 @@ textarea.code-out {
   <button data-tab="streamed-tab" onclick="Gen.showTab(this,'streamed-tab'); Gen.loadStreamedSports();">Streamed.pk Auto-Fetch</button>
   <button data-tab="scraper-tab" onclick="Gen.showTab(this,'scraper-tab');">Stream Scraper</button>
   <button data-tab="manage-tab" onclick="Gen.showTab(this,'manage-tab'); Gen.refreshManageList();">Manage Events</button>
+  <button data-tab="channels-tab" onclick="Gen.showTab(this,'channels-tab'); Gen.loadChannels();">Channel Manager</button>
+  <button data-tab="calendar-tab" onclick="Gen.showTab(this,'calendar-tab'); Gen.renderCalendar();">Calendar</button>
+  <button data-tab="io-tab" onclick="Gen.showTab(this,'io-tab');">Import / Export</button>
 </div>
 
 <!-- ============================================================
@@ -715,15 +766,126 @@ textarea.code-out {
   <div class="panel">
     <h2>Events currently on Firebase</h2>
     <p class="hint">This is exactly what your site is showing right now (past/finished events already excluded here too). Edit one to change details or streams, delete one or many.</p>
-    <button class="btn-secondary" onclick="Gen.refreshManageList()">↻ Refresh</button>
-    <div class="bulk-bar" id="manage-bulk-bar" style="display:none;">
-      <label class="select-all-row"><input type="checkbox" id="manage-select-all" onchange="Gen.toggleManageSelectAll(this.checked)"/> Select all</label>
-      <span class="bulk-count" id="manage-bulk-count">0 selected</span>
-      <button class="btn-danger" onclick="Gen.deleteSelectedManageEvents()">🗑️ Delete selected</button>
-    </div>
+      <button class="btn-secondary" onclick="Gen.refreshManageList()">↻ Refresh</button>
+      <button class="btn-secondary" onclick="Gen.autoArchiveFinished()" style="margin-left:8px;">Archive finished</button>
+      <div class="bulk-bar" id="manage-bulk-bar" style="display:none;">
+        <label class="select-all-row"><input type="checkbox" id="manage-select-all" onchange="Gen.toggleManageSelectAll(this.checked)"/> Select all</label>
+        <span class="bulk-count" id="manage-bulk-count">0 selected</span>
+        <button class="btn-danger" onclick="Gen.deleteSelectedManageEvents()">🗑️ Delete selected</button>
+        <button class="btn-edit" onclick="Gen.bulkAddChannel()">Add channel to selected</button>
+      </div>
+
+      <!-- Score Updater Panel -->
+      <div class="score-updater-panel">
+        <h2 style="font-size:12px; margin:0 0 8px;">Live Score Updater</h2>
+        <div class="toggle-row">
+          <input type="checkbox" id="score-updater-toggle" onchange="Gen.toggleScoreUpdater()"/>
+          <span>Enable auto score fetching for LIVE events (every 2 min)</span>
+        </div>
+        <p class="status-text" id="score-updater-status">Disabled — toggle to start.</p>
+      </div>
     <div id="manage-list" class="fixture-list" style="max-height:520px;"></div>
   </div>
 </div>
+
+<!-- ============================================================
+     CHANNEL MANAGER TAB
+     ============================================================ -->
+<div class="tab-panel" id="channels-tab">
+  <div class="layout">
+    <div class="panel">
+      <h2>Global Channel Manager</h2>
+      <p class="hint">Manage your <code>livetv/channels</code> node. Each channel has a unique key, name, logo, and embed URL. When you select a channel in the Event Card form, its source URL is automatically used.</p>
+
+      <h2 style="margin-top:16px;">Add / Edit channel</h2>
+      <div class="field"><label>Channel key</label><input id="ch-key" placeholder="e.g. sky-sports-premier-league"/></div>
+      <div class="field"><label>Channel name</label><input id="ch-name" placeholder="e.g. Sky Sports Premier League"/></div>
+      <div class="field"><label>Logo URL</label><input id="ch-logo" placeholder="https://..."/></div>
+      <div class="field"><label>Source URL (embed)</label><input id="ch-src" placeholder="https://your-embed-source.example/channel"/></div>
+      <button class="btn-primary" onclick="Gen.saveChannel()">Save channel</button>
+      <button class="btn-secondary" onclick="Gen.resetChannelForm()" style="margin-left:8px;">Reset form</button>
+      <p class="hint" id="ch-status"></p>
+
+      <h2 style="margin-top:16px;">All channels</h2>
+      <button class="btn-secondary" onclick="Gen.loadChannels()">Refresh</button>
+      <div id="channels-list" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Channel in event form</h2>
+      <p class="hint">When editing an event, use the channel dropdown below to replace manual stream rows with a channel reference. Pushing will write the channel's src/label into the event's <code>channels</code> array and also set <code>channelKey</code> for server-side resolution.</p>
+      <div class="field">
+        <label>Channel (select or type a custom key)</label>
+        <select id="ch-dropdown"></select>
+      </div>
+      <p class="hint">Or manually type a custom channel key below:</p>
+      <div class="field"><input id="ch-custom-key" placeholder="Custom channel key"/></div>
+      <button class="btn-secondary" onclick="Gen.addChannelFromDropdown()">Add channel to event streams</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     CALENDAR TAB
+     ============================================================ -->
+<div class="tab-panel" id="calendar-tab">
+  <div class="panel">
+    <h2>Calendar View — All scheduled events</h2>
+    <div class="calendar-nav">
+      <button onclick="Gen.calPrev()">&lt; Prev</button>
+      <span class="cal-title" id="cal-title">July 2026</span>
+      <button onclick="Gen.calNext()">Next &gt;</button>
+    </div>
+    <div class="calendar-header-row">
+      <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+    </div>
+    <div class="calendar-grid" id="calendar-grid"></div>
+    <p class="hint" style="margin-top:12px;">Click a day cell to jump to that date in the Manage tab. The calendar pulls all events from Firebase and groups them by day.</p>
+  </div>
+</div>
+
+<!-- ============================================================
+     IMPORT / EXPORT TAB
+     ============================================================ -->
+<div class="tab-panel" id="io-tab">
+  <div class="layout">
+    <div class="panel">
+      <h2>Export events</h2>
+      <p class="hint">Download all events from Firebase as a JSON backup file.</p>
+      <button class="btn-primary" onclick="Gen.exportEvents()">Export all events as JSON</button>
+      <p class="hint" id="export-status"></p>
+    </div>
+
+    <div class="panel">
+      <h2>Import events</h2>
+      <p class="hint">Upload a previously exported JSON file to restore or add many events at once. Each key in the JSON becomes a match ID on Firebase.</p>
+      <div class="field">
+        <label>JSON backup file</label>
+        <input type="file" id="import-file" accept=".json" style="padding:8px;"/>
+      </div>
+      <button class="btn-primary" onclick="Gen.importEvents()">Import from file</button>
+      <div class="progress-bar-wrap" id="import-progress-wrap" style="display:none;"><div class="progress-bar-fill" id="import-progress-fill"></div></div>
+      <p class="hint" id="import-status"></p>
+    </div>
+  </div>
+
+  <div class="help-panel" style="margin-top:16px;">
+    <h3>Theme field reference</h3>
+    <p>The Blogger theme reads events from <code>s803config/todaysMatches</code>. Key fields the theme uses:</p>
+    <p><code>kickoff</code> — ISO date string, used for countdown timers.</p>
+    <p><code>homeName / awayName / homeLogo / awayLogo</code> — team display.</p>
+    <p><code>leagueName / leagueEmoji / leagueId</code> — competition badge.</p>
+    <p><code>channels</code> — array of <code>{label, src}</code> objects for stream buttons.</p>
+    <p><code>channelKey / channelName</code> — server-side channel resolution via <code>livetv/channels</code>.</p>
+    <p><code>statusType</code> — <code>STATUS_SCHEDULED</code>, <code>STATUS_LIVE</code>, <code>STATUS_FINAL</code>.</p>
+    <p><code>score / scoreHome / scoreAway</code> — live score placeholders.</p>
+    <p><code>category</code> — one of: football, basketball, nfl, hockey, baseball, f1, nascar, motorsport, boxing, mma, cycling, cricket, other.</p>
+    <p><code>duration</code> — minutes, controls the live window length.</p>
+    <p><code>isRacing</code> — boolean, hides away-team markup for single-entrant events.</p>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
 
 <script>
 //<![CDATA[
@@ -752,6 +914,23 @@ var Gen = {
   _selectedSportIds: {},    // sportId -> true
   _selectedManageIds: {},   // firebase key -> true
   _manageDataCache: {},     // firebase key -> event object (for bulk delete confirm labels)
+
+  // ---- MANUS: Channel Manager state ----
+  _channels: {},            // channelKey -> {name, logo, src}
+  _editingChannelKey: null, // channel being edited (null = creating new)
+
+  // ---- MANUS: Score Updater state ----
+  _scoreUpdaterEnabled: false,
+  _scoreUpdaterTimer: null,
+  _scoreUpdaterInterval: 120000, // 2 minutes
+
+  // ---- MANUS: Calendar state ----
+  _calYear: null,
+  _calMonth: null,
+  _calEvents: {},           // dateKey -> [event, ...]
+
+  // ---- MANUS: Toast state ----
+  _toastQueue: [],
 
   // ---- Category mapping: Streamed.pk sport IDs -> our category values ----
   STREAMED_CATEGORY_MAP: {
@@ -890,6 +1069,15 @@ var Gen = {
         bulkBar.style.display = 'flex';
         document.getElementById('fixture-select-all').checked = false;
         Gen.updateFixtureBulkBar();
+
+        // MANUS: Cache the result
+        try {
+          Gen._fxCache[val + '|' + dateVal] = {
+            sport: sport, leagueLabel: leagueLabel,
+            fixtures: Gen._fetchedFixtures.slice(),
+            ts: Date.now()
+          };
+        } catch (e) {}
       })
       .catch(function () { list.innerHTML = '<div class="hint">Couldn\'t load fixtures right now — you can still fill the form manually.</div>'; });
   },
@@ -1842,11 +2030,29 @@ awayTeamBlock +
           var actions = document.createElement('span');
           actions.className = 'manage-actions';
 
-          var editBtn = document.createElement('button');
+           var editBtn = document.createElement('button');
           editBtn.className = 'btn-edit';
           editBtn.textContent = '✏️ Edit';
           editBtn.onclick = function (e) { e.stopPropagation(); Gen.editEvent(id, ev); };
           actions.appendChild(editBtn);
+
+          var cloneBtn = document.createElement('button');
+          cloneBtn.className = 'btn-secondary';
+          cloneBtn.style.cssText = 'font-size:11px;padding:5px 8px;';
+          cloneBtn.textContent = '📋 Clone';
+          cloneBtn.onclick = function (e) { e.stopPropagation(); Gen.cloneEvent(id, ev); };
+          actions.appendChild(cloneBtn);
+
+          // Test stream button if channels exist
+          var channels = ev.channels || [];
+          if (channels.length) {
+            var testBtn = document.createElement('button');
+            testBtn.className = 'btn-secondary';
+            testBtn.style.cssText = 'font-size:11px;padding:5px 8px;';
+            testBtn.textContent = '🔗 Test';
+            testBtn.onclick = function (e) { e.stopPropagation(); Gen.testStream(channels[0].src); };
+            actions.appendChild(testBtn);
+          }
 
           var delBtn = document.createElement('button');
           delBtn.className = 'btn-danger';
@@ -1907,6 +2113,502 @@ awayTeamBlock +
     fetch(this.fbBase() + '/' + id + '.json', { method: 'DELETE' })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); Gen.refreshManageList(); })
       .catch(function (err) { alert('Could not remove event: ' + err.message); });
+  },
+
+  // ---- MANUS: Clone an event ----
+  cloneEvent: function (id, ev) {
+    if (!confirm('Clone this event? A new copy will be created with a (clone) suffix.')) return;
+    var payload = JSON.parse(JSON.stringify(ev));
+    payload.kickoff = new Date().toISOString();
+    payload.updatedAt = Date.now();
+    payload.statusType = 'STATUS_SCHEDULED';
+    var cloneKey = id + '_clone_' + Date.now();
+    var body = {};
+    body[cloneKey] = payload;
+    fetch(this.fbBase() + '.json', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function () { Gen.toast('Cloned successfully as ' + cloneKey); Gen.refreshManageList(); })
+      .catch(function (err) { Gen.toast('Clone failed: ' + err.message, 'error'); });
+  },
+
+  // ---- MANUS: Bulk add channel to selected events ----
+  bulkAddChannel: function () {
+    var chKey = document.getElementById('ch-custom-key').value.trim();
+    if (!chKey) { Gen.toast('Enter a channel key first.', 'warning'); return; }
+    var ids = Object.keys(Gen._selectedManageIds);
+    if (!ids.length) { Gen.toast('Select at least one event first.', 'warning'); return; }
+
+    var chData = Gen._channels[chKey] || { name: chKey, src: '', logo: '' };
+    var body = {};
+    ids.forEach(function (id) {
+      var ev = Gen._manageDataCache[id];
+      if (!ev) return;
+      var channels = ev.channels || [];
+      // Avoid duplicate
+      if (!channels.some(function (c) { return c.src === chData.src && c.label === chData.name; })) {
+        channels.push({ label: chData.name || chKey, src: chData.src || '' });
+      }
+      body[id] = Object.assign({}, ev, { channels: channels, channelKey: chKey, channelName: chData.name || chKey });
+    });
+
+    if (!Object.keys(body).length) { Gen.toast('No updates needed.', 'warning'); return; }
+    fetch(this.fbBase() + '.json', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function () { Gen.toast('Channel added to ' + ids.length + ' event(s).'); Gen.refreshManageList(); })
+      .catch(function (err) { Gen.toast('Bulk add failed: ' + err.message, 'error'); });
+  },
+
+  // ---- MANUS: Auto-archive finished events ----
+  autoArchiveFinished: function () {
+    var graceHours = 4;
+    var now = Date.now();
+    var body = {};
+    var data = Gen._manageDataCache;
+    var archived = 0;
+    Object.keys(data).forEach(function (id) {
+      var ev = data[id];
+      if (!ev || !ev.kickoff) return;
+      var endMs = new Date(ev.kickoff).getTime() + (parseInt(ev.duration, 10) || 120) * 60000 + graceHours * 3600000;
+      if (ev.statusType === 'STATUS_SCHEDULED' || ev.statusType === 'STATUS_LIVE') {
+        if (now > endMs) {
+          body[id + '/statusType'] = 'STATUS_FINAL';
+          body[id + '/archived'] = true;
+          archived++;
+        }
+      }
+    });
+
+    if (!Object.keys(body).length) return Promise.resolve();
+    return fetch(this.fbBase() + '.json', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function () { if (archived) Gen.toast(archived + ' event(s) auto-archived.'); });
+  },
+
+  // ---- MANUS: Live Score Updater ----
+  toggleScoreUpdater: function () {
+    Gen._scoreUpdaterEnabled = !Gen._scoreUpdaterEnabled;
+    var toggleEl = document.getElementById('score-updater-toggle');
+    var statusEl = document.getElementById('score-updater-status');
+    if (Gen._scoreUpdaterEnabled) {
+      if (toggleEl) toggleEl.checked = true;
+      if (statusEl) statusEl.textContent = 'Score updater active — fetching every ' + (Gen._scoreUpdaterInterval / 1000) + 's.';
+      Gen._scoreUpdaterTimer = setInterval(Gen.fetchLiveScores.bind(Gen), Gen._scoreUpdaterInterval);
+      Gen.toast('Score updater enabled.');
+    } else {
+      if (toggleEl) toggleEl.checked = false;
+      if (statusEl) statusEl.textContent = 'Score updater stopped.';
+      clearInterval(Gen._scoreUpdaterTimer);
+      Gen._scoreUpdaterTimer = null;
+      Gen.toast('Score updater disabled.');
+    }
+    try { localStorage.setItem('score-updater-enabled', Gen._scoreUpdaterEnabled ? '1' : '0'); } catch (e) {}
+  },
+
+  fetchLiveScores: function () {
+    var data = Gen._manageDataCache;
+    var liveIds = Object.keys(data).filter(function (id) {
+      var ev = data[id];
+      if (!ev || ev.statusType !== 'STATUS_LIVE') return false;
+      if (!ev.kickoff || !ev.leagueId) return false;
+      return true;
+    });
+
+    if (!liveIds.length) return;
+    var completed = 0;
+    liveIds.forEach(function (id) {
+      var ev = data[id];
+      var dt = new Date(ev.kickoff);
+      var dateParam = '' + dt.getFullYear() + String(dt.getMonth() + 1).padStart(2, '0') + String(dt.getDate()).padStart(2, '0');
+      // Try to map our leagueId to an ESPN league path
+      var leaguePath = Gen._scoreLeaguePath(ev.leagueId);
+      if (!leaguePath) { completed++; return; }
+
+      fetch('https://site.api.espn.com/apis/site/v2/sports/' + leaguePath + '/scoreboard?dates=' + dateParam)
+        .then(function (r) { return r.json(); })
+        .then(function (json) {
+          var events = (json && json.events) || [];
+          // Match by team names
+          var match = events.find(function (e) {
+            var comps = (e.competitions && e.competitions[0]) || {};
+            var comp = comps.competitors || [];
+            var home = comp.find(function (c) { return c.homeAway === 'home'; }) || comp[0];
+            return home && home.team && home.team.displayName && Gen.scrNormTeam(home.team.displayName) === Gen.scrNormTeam(ev.homeName);
+          });
+          if (!match) { completed++; return; }
+          var comps = (match.competitions && match.competitions[0]) || {};
+          var comp = comps.competitors || [];
+          var home = comp.find(function (c) { return c.homeAway === 'home'; }) || comp[0];
+          var away = comp.find(function (c) { return c.homeAway === 'away'; }) || comp[1];
+          var scoreHome = (home && home.score) || '';
+          var scoreAway = (away && away.score) || '';
+          if (scoreHome || scoreAway) {
+            var statusEl = comps.status ? comps.status.type : {};
+            var body = {};
+            body[id + '/scoreHome'] = scoreHome;
+            body[id + '/scoreAway'] = scoreAway;
+            body[id + '/score'] = scoreHome + ' - ' + scoreAway;
+            if (statusEl.shortDetail && (statusEl.shortDetail.indexOf('Final') >= 0 || statusEl.shortDetail.indexOf('End') >= 0)) {
+              body[id + '/statusType'] = 'STATUS_FINAL';
+            }
+            return fetch(Gen.fbBase() + '.json', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+          }
+          completed++;
+        })
+        .catch(function () { completed++; })
+        .then(function () { completed++; });
+    });
+  },
+
+  _scoreLeaguePath: function (leagueId) {
+    // Map our leagueId values to ESPN's sport/league paths
+    var map = {
+      'custom.football': 'soccer/fifa.friendly',
+      'custom.basketball': 'basketball/nba',
+      'nfl': 'football/nfl',
+      'nhl': 'hockey/nhl',
+      'mlb': 'baseball/mlb',
+      'f1': 'racing/f1',
+      'nascar-cup': 'racing/nascar-premier',
+      'motogp': 'racing/motogp',
+      'mma-ufc': 'mma/ufc'
+    };
+    return map[leagueId] || null;
+  },
+
+  // ---- MANUS: Channel Manager methods ----
+  loadChannels: function () {
+    var fbUrl = document.getElementById('fb-url').value.replace(/\/$/, '');
+    var statusEl = document.getElementById('ch-status');
+    var listEl = document.getElementById('channels-list');
+    if (statusEl) statusEl.textContent = 'Loading channels…';
+    listEl.innerHTML = '<span class="loading-spinner"></span>';
+
+    fetch(fbUrl + '/livetv/channels.json')
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (data) {
+        Gen._channels = data || {};
+        if (statusEl) statusEl.textContent = '';
+        Gen.renderChannels();
+        Gen.populateChannelDropdown();
+      })
+      .catch(function (err) {
+        if (statusEl) statusEl.textContent = 'Could not load channels: ' + err.message;
+        listEl.innerHTML = '';
+        Gen._channels = {};
+      });
+  },
+
+  renderChannels: function () {
+    var listEl = document.getElementById('channels-list');
+    listEl.innerHTML = '';
+    var keys = Object.keys(Gen._channels);
+    if (!keys.length) {
+      listEl.innerHTML = '<p class="hint">No channels saved yet. Add one above.</p>';
+      return;
+    }
+    keys.sort().forEach(function (key) {
+      var ch = Gen._channels[key];
+      var item = document.createElement('div');
+      item.className = 'channel-mgr-item';
+      item.innerHTML =
+        (ch.logo ? '<img src="' + Gen.esc(ch.logo) + '" onerror="this.style.display=\'none\'"/>' : '') +
+        '<div class="ch-label"><strong>' + Gen.esc(ch.name || key) + '</strong><br/><span class="ch-key">' + Gen.esc(key) + '</span></div>' +
+        '<button class="btn-edit" data-key="' + Gen.esc(key) + '">Edit</button>' +
+        '<button class="btn-danger" data-key="' + Gen.esc(key) + '">Delete</button>';
+      item.querySelector('.btn-edit').addEventListener('click', function () { Gen.editChannel(key); });
+      item.querySelector('.btn-danger').addEventListener('click', function () { Gen.deleteChannel(key); });
+      listEl.appendChild(item);
+    });
+  },
+
+  saveChannel: function () {
+    var key = document.getElementById('ch-key').value.trim();
+    var name = document.getElementById('ch-name').value.trim();
+    var logo = document.getElementById('ch-logo').value.trim();
+    var src = document.getElementById('ch-src').value.trim();
+    var statusEl = document.getElementById('ch-status');
+
+    if (!key) { if (statusEl) statusEl.textContent = 'Channel key is required.'; return; }
+
+    var fbUrl = document.getElementById('fb-url').value.replace(/\/$/, '');
+    var body = { name: name || key, logo: logo, src: src };
+
+    fetch(fbUrl + '/livetv/channels/' + key + '.json', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function () {
+        Gen._channels[key] = body;
+        Gen.renderChannels();
+        Gen.populateChannelDropdown();
+        if (statusEl) statusEl.textContent = '';
+        Gen.toast('Channel "' + key + '" saved.');
+        Gen.resetChannelForm();
+      })
+      .catch(function (err) {
+        if (statusEl) statusEl.textContent = 'Save failed: ' + err.message;
+        Gen.toast('Channel save failed: ' + err.message, 'error');
+      });
+  },
+
+  editChannel: function (key) {
+    var ch = Gen._channels[key];
+    if (!ch) return;
+    document.getElementById('ch-key').value = key;
+    document.getElementById('ch-name').value = ch.name || '';
+    document.getElementById('ch-logo').value = ch.logo || '';
+    document.getElementById('ch-src').value = ch.src || '';
+    Gen._editingChannelKey = key;
+    Gen.toast('Editing channel: ' + key);
+  },
+
+  deleteChannel: function (key) {
+    if (!confirm('Delete channel "' + key + '"?')) return;
+    var fbUrl = document.getElementById('fb-url').value.replace(/\/$/, '');
+    fetch(fbUrl + '/livetv/channels/' + key + '.json', { method: 'DELETE' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); })
+      .then(function () {
+        delete Gen._channels[key];
+        Gen.renderChannels();
+        Gen.populateChannelDropdown();
+        Gen.toast('Channel "' + key + '" deleted.');
+      })
+      .catch(function (err) { Gen.toast('Delete failed: ' + err.message, 'error'); });
+  },
+
+  resetChannelForm: function () {
+    document.getElementById('ch-key').value = '';
+    document.getElementById('ch-name').value = '';
+    document.getElementById('ch-logo').value = '';
+    document.getElementById('ch-src').value = '';
+    Gen._editingChannelKey = null;
+  },
+
+  populateChannelDropdown: function () {
+    var sel = document.getElementById('ch-dropdown');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Select a channel --</option>';
+    Object.keys(Gen._channels).sort().forEach(function (key) {
+      var ch = Gen._channels[key];
+      var opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = ch.name || key;
+      sel.appendChild(opt);
+    });
+  },
+
+  addChannelFromDropdown: function () {
+    var key = document.getElementById('ch-dropdown').value || document.getElementById('ch-custom-key').value.trim();
+    if (!key) { Gen.toast('Select or type a channel key.', 'warning'); return; }
+    var ch = Gen._channels[key] || { name: key, src: '', logo: '' };
+    Gen.addChannelRow('ev-channel-rows', ch.name || key, ch.src || '');
+    Gen.toast('Channel "' + key + '" added to event streams.');
+  },
+
+  // ---- MANUS: Toast notification helper ----
+  toast: function (message, type) {
+    type = type || 'success';
+    var container = document.getElementById('toast-container');
+    if (!container) return;
+    var el = document.createElement('div');
+    el.className = 's803-toast ' + type;
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(function () { el.style.opacity = '0'; el.style.transform = 'translateX(30px)'; el.style.transition = 'opacity .3s, transform .3s'; }, 2500);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 3000);
+  },
+
+  // ---- MANUS: Calendar methods ----
+  calPrev: function () {
+    if (Gen._calMonth === 0) { Gen._calMonth = 11; Gen._calYear--; }
+    else { Gen._calMonth--; }
+    Gen.renderCalendar();
+  },
+  calNext: function () {
+    if (Gen._calMonth === 11) { Gen._calMonth = 0; Gen._calYear++; }
+    else { Gen._calMonth++; }
+    Gen.renderCalendar();
+  },
+  renderCalendar: function () {
+    var now = new Date();
+    if (Gen._calYear === null) { Gen._calYear = now.getFullYear(); Gen._calMonth = now.getMonth(); }
+    var y = Gen._calYear, m = Gen._calMonth;
+    var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    document.getElementById('cal-title').textContent = monthNames[m] + ' ' + y;
+
+    var grid = document.getElementById('calendar-grid');
+    grid.innerHTML = '';
+
+    var firstDay = new Date(y, m, 1).getDay();
+    var daysInMonth = new Date(y, m + 1, 0).getDate();
+
+    // Empty cells before first day
+    for (var i = 0; i < firstDay; i++) {
+      var empty = document.createElement('div');
+      empty.className = 'calendar-cell';
+      empty.style.opacity = '0.3';
+      grid.appendChild(empty);
+    }
+
+    // Day cells
+    var calData = Gen._calEvents || {};
+    for (var d = 1; d <= daysInMonth; d++) {
+      var dateKey = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      var cell = document.createElement('div');
+      cell.className = 'calendar-cell';
+      if (y === now.getFullYear() && m === now.getMonth() && d === now.getDate()) cell.classList.add('today');
+
+      cell.innerHTML = '<div class="cell-date">' + d + '</div>';
+      var events = calData[dateKey] || [];
+      events.forEach(function (ev) {
+        var badge = document.createElement('div');
+        badge.className = 'cell-event';
+        badge.textContent = ev.homeName || ev.leagueName || 'Event';
+        badge.title = (ev.homeName || '') + ' vs ' + (ev.awayName || '') + ' — ' + (ev.leagueName || '');
+        badge.addEventListener('click', function (e) {
+          e.stopPropagation();
+          // Find the event ID and open it for editing
+          var key = ev._key || ev._id;
+          if (key) {
+            var eventTabBtn = document.querySelector('[data-tab="event-tab"]');
+            Gen.showTab(eventTabBtn, 'event-tab');
+            Gen.editEvent(key, ev);
+          }
+        });
+        cell.appendChild(badge);
+      });
+      grid.appendChild(cell);
+    }
+  },
+
+  loadCalendarData: function () {
+    fetch(Gen.fbBase() + '.json')
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (data) {
+        Gen._calEvents = {};
+        if (!data) return;
+        Object.keys(data).forEach(function (key) {
+          var ev = data[key];
+          if (!ev || !ev.kickoff) return;
+          var dt = new Date(ev.kickoff);
+          var dateKey = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+          ev._key = key;
+          ev._id = key;
+          if (!Gen._calEvents[dateKey]) Gen._calEvents[dateKey] = [];
+          Gen._calEvents[dateKey].push(ev);
+        });
+        Gen.renderCalendar();
+      })
+      .catch(function () {});
+  },
+
+  // ---- MANUS: Export / Import ----
+  exportEvents: function () {
+    var statusEl = document.getElementById('export-status');
+    if (statusEl) statusEl.textContent = 'Fetching events…';
+    fetch(Gen.fbBase() + '.json')
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (data) {
+        var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'events-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        if (statusEl) statusEl.textContent = '';
+        Gen.toast('Events exported successfully.');
+      })
+      .catch(function (err) {
+        if (statusEl) statusEl.textContent = 'Export failed: ' + err.message;
+        Gen.toast('Export failed: ' + err.message, 'error');
+      });
+  },
+
+  importEvents: function () {
+    var fileInput = document.getElementById('import-file');
+    var statusEl = document.getElementById('import-status');
+    var progressWrap = document.getElementById('import-progress-wrap');
+    var progressFill = document.getElementById('import-progress-fill');
+
+    if (!fileInput.files.length) { Gen.toast('Select a JSON file first.', 'warning'); return; }
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        var data = JSON.parse(e.target.result);
+        if (typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid format — expected a JSON object with match keys.');
+        var keys = Object.keys(data);
+        if (!keys.length) throw new Error('No events in file.');
+
+        if (statusEl) statusEl.textContent = 'Importing ' + keys.length + ' event(s)…';
+        if (progressWrap) progressWrap.style.display = 'block';
+
+        var completed = 0, failed = 0;
+        var total = keys.length;
+
+        keys.forEach(function (key) {
+          var body = {};
+          body[key] = data[key];
+          fetch(Gen.fbBase() + '.json', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          })
+            .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function () {
+              completed++;
+              if (progressFill) progressFill.style.width = ((completed / total) * 100) + '%';
+              if (completed + failed === total) {
+                if (statusEl) statusEl.textContent = '';
+                Gen.toast('Imported ' + completed + ' event(s).' + (failed ? ' ' + failed + ' failed.' : ''));
+                if (progressWrap) progressWrap.style.display = 'none';
+              }
+            })
+            .catch(function (err) {
+              failed++;
+              if (completed + failed === total) {
+                if (statusEl) statusEl.textContent = '';
+                Gen.toast('Imported ' + completed + ', ' + failed + ' failed.', failed ? 'error' : 'success');
+                if (progressWrap) progressWrap.style.display = 'none';
+              }
+            });
+        });
+      } catch (err) {
+        Gen.toast('Parse error: ' + err.message, 'error');
+      }
+    };
+    reader.readAsText(fileInput.files[0]);
+  },
+
+  // ---- MANUS: Stream URL validator ----
+  validateStreamUrl: function (url) {
+    if (!url || !url.startsWith('http')) return 'warning';
+    // Lightweight check — just verify it's a non-empty URL
+    try { new URL(url); return 'ok'; } catch (e) { return 'warning'; }
+  },
+
+  // ---- MANUS: Test stream button ----
+  testStream: function (url) {
+    if (!url) { Gen.toast('No stream URL to test.', 'warning'); return; }
+    window.open(url, '_blank');
+    Gen.toast('Opened stream in new tab for testing.');
   },
 
   // ============================================================
@@ -2439,6 +3141,101 @@ Gen.showTab = function (btn, id) {
     }
   }
 }; 
+
+// ---- MANUS: Calendar tab hook ----
+var origShowTab2 = Gen.showTab;
+Gen.showTab = function (btn, id) {
+  origShowTab2(btn, id);
+  if (id === 'calendar-tab') {
+    Gen.loadCalendarData();
+  }
+  if (id === 'channels-tab') {
+    Gen.loadChannels();
+  }
+};
+
+// ---- MANUS: Restore score updater state ----
+try {
+  if (localStorage.getItem('score-updater-enabled') === '1') {
+    Gen._scoreUpdaterEnabled = true;
+    document.getElementById('score-updater-toggle').checked = true;
+    var suStatus = document.getElementById('score-updater-status');
+    if (suStatus) suStatus.textContent = 'Score updater active — fetching every ' + (Gen._scoreUpdaterInterval / 1000) + 's.';
+    Gen._scoreUpdaterTimer = setInterval(Gen.fetchLiveScores.bind(Gen), Gen._scoreUpdaterInterval);
+  }
+} catch (e) {}
+
+// ---- MANUS: Remember last used form values ----
+(function rememberDefaults() {
+  try {
+    var saved = localStorage.getItem('gen-last-defaults');
+    if (saved) {
+      var d = JSON.parse(saved);
+      if (d.league) document.getElementById('ev-league').value = d.league;
+      if (d.category) document.getElementById('ev-category').value = d.category;
+      if (d.duration) document.getElementById('ev-duration').value = d.duration;
+    }
+    // Save on change
+    var saveDefaults = function () {
+      try {
+        localStorage.setItem('gen-last-defaults', JSON.stringify({
+          league: document.getElementById('ev-league').value,
+          category: document.getElementById('ev-category').value,
+          duration: document.getElementById('ev-duration').value
+        }));
+      } catch (e) {}
+    };
+    document.getElementById('ev-league').addEventListener('change', saveDefaults);
+    document.getElementById('ev-category').addEventListener('change', saveDefaults);
+    document.getElementById('ev-duration').addEventListener('change', saveDefaults);
+  } catch (e) {}
+})();
+
+//---- MANUS: ESPN fixture cache (1-hour TTL) ----
+Gen._fxCache = {};
+var origFetchFixtures = Gen.fetchFixtures;
+Gen.fetchFixtures = function () {
+  var val = document.getElementById('fx-league').value;
+  var dateVal = document.getElementById('fx-day').value;
+  var cacheKey = val + '|' + dateVal;
+  var cached = Gen._fxCache[cacheKey];
+  if (cached && (Date.now() - cached.ts < 3600000)) {
+    // Use cached data — re-render
+    var list = document.getElementById('fixture-list');
+    list.innerHTML = '';
+    var isSingleEntrant = (cached.sport === 'racing');
+    cached.fixtures.forEach(function (fixture, idx) {
+      var item = document.createElement('div');
+      item.className = 'fixture-item';
+      item.innerHTML =
+        '<span class="fixture-main">' +
+          '<input type="checkbox" class="pick-checkbox" data-idx="' + idx + '"/>' +
+          '<span class="fixture-label">' + Gen.esc(fixture.label) + '</span>' +
+        '</span>' +
+        '<span class="time">' + fixture.dt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' <small style="color:var(--color-success);">(cached)</small></span>';
+      var checkbox = item.querySelector('.pick-checkbox');
+      checkbox.addEventListener('click', function (e) { e.stopPropagation(); });
+      checkbox.addEventListener('change', function () {
+        if (checkbox.checked) Gen._selectedFixtureIdx[idx] = true; else delete Gen._selectedFixtureIdx[idx];
+        Gen.updateFixtureBulkBar();
+      });
+      item.addEventListener('click', function () {
+        document.getElementById('ev-league').value = cached.leagueLabel;
+        document.getElementById('ev-date').value = fixture.dt.toISOString().slice(0, 10);
+        document.getElementById('ev-time').value = fixture.dt.toTimeString().slice(0, 5);
+        document.getElementById('ev-home-name').value = fixture.homeName;
+        document.getElementById('ev-home-logo').value = fixture.homeLogo;
+        document.getElementById('ev-away-name').value = fixture.awayName;
+        document.getElementById('ev-away-logo').value = fixture.awayLogo;
+      });
+      list.appendChild(item);
+    });
+    document.getElementById('fixture-bulk-bar').style.display = 'flex';
+    return;
+  }
+  origFetchFixtures();
+};
+
 //]]>
 </script>
 </body>
