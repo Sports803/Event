@@ -916,7 +916,7 @@ textarea.code-out {
     <h2>Blogger connection</h2>
     <div class="field-row">
       <div class="field"><label>Blog ID</label><input id="cp-blogid" placeholder="123456789"/></div>
-      <div class="field"><label>Google OAuth Client ID</label><input id="cp-clientid" placeholder="xxx.apps.googleusercontent.com"/></div>
+      <div class="field"><label>Google OAuth Client ID</label><input id="cp-clientid" placeholder="xxx.apps.googleusercontent.com"/><p id="cp-clientid-warning" class="hint" style="color:#ff6b6b;"></p></div>
     </div>
     <div class="field-row">
       <div class="field"><label>imgbb API Key</label><input id="cp-imgbb" placeholder="get free at api.imgbb.com"/></div>
@@ -3403,213 +3403,6 @@ Gen.fetchFixtures = function () {
 };
 
 // ============================================================
-//  COMPOSE OBJECT - COMPLETE IMPLEMENTATION (FIXED)
-// ============================================================
-
-
-
-      localStorage.setItem('compose-settings', JSON.stringify(Compose._settings));
-      Compose.showSettingsStatus('Settings saved successfully', 'success');
-      Gen.toast('Blogger settings saved successfully!');
-    } catch (e) {
-      Compose.showSettingsStatus('Error saving settings: ' + e.message, 'error');
-      Gen.toast('Error saving settings', 'error');
-    }
-  },
-
-  showSettingsStatus: function (message, type) {
-    var statusEl = document.getElementById('cp-settings-status');
-    if (!statusEl) return;
-    statusEl.textContent = message;
-    statusEl.className = 'settings-status show ' + (type === 'error' ? 'error' : '');
-    setTimeout(function () { statusEl.classList.remove('show'); }, 4000);
-  },
-
-  // ---- AUTHENTICATION ----
-  handleAuth: function () {
-    if (Compose._isAuthenticated) {
-      Compose.logout();
-    } else {
-      Compose.login();
-    }
-  },
-
-  login: function () {
-    if (!Compose._settings.clientId) {
-      Gen.toast('Please save your Google OAuth Client ID first', 'warning');
-      return;
-    }
-    Gen.toast('Google sign-in integration ready (requires OAuth setup)', 'warning');
-  },
-
-  logout: function () {
-    Compose._isAuthenticated = false;
-    Compose._authToken = null;
-    localStorage.removeItem('compose-auth-token');
-    Compose.updateAuthStatus();
-    Gen.toast('Signed out');
-  },
-
-  updateAuthStatus: function () {
-    try {
-      var token = localStorage.getItem('compose-auth-token');
-      if (token) {
-        Compose._isAuthenticated = true;
-        Compose._authToken = token;
-      }
-    } catch (e) {}
-
-    var dot = document.getElementById('cp-auth-dot');
-    var label = document.getElementById('cp-auth-label');
-    var btn = document.getElementById('cp-auth-btn');
-
-    if (dot && label && btn) {
-      if (Compose._isAuthenticated) {
-        dot.className = 'auth-dot connected';
-        label.textContent = 'Signed in with Google';
-        btn.textContent = 'Sign out';
-      } else {
-        dot.className = 'auth-dot';
-        label.textContent = 'Not signed in';
-        btn.textContent = 'Sign in with Google';
-      }
-    }
-  },
-
-  // ---- TITLE & PARSING ----
-  onTitleChange: function () {
-    var title = document.getElementById('cp-title').value;
-    var statusEl = document.getElementById('cp-title-status');
-    
-    if (title && (title.includes(' vs ') || title.includes(' vs. '))) {
-      if (statusEl) {
-        statusEl.textContent = '✓ Team names detected';
-        statusEl.style.color = 'var(--color-success)';
-      }
-    } else if (statusEl) {
-      statusEl.textContent = '';
-    }
-
-    Compose.updateSEOMetrics();
-  },
-
-  // ---- STATUS & SCHEDULING ----
-  onStatusChange: function () {
-    var status = document.getElementById('cp-status').value;
-    var scheduleWrap = document.getElementById('cp-schedule-wrap');
-    
-    if (status === 'SCHEDULE' && scheduleWrap) {
-      scheduleWrap.style.display = 'block';
-    } else if (scheduleWrap) {
-      scheduleWrap.style.display = 'none';
-    }
-  },
-
-  // ---- SEO METRICS ----
-  updateSEOMetrics: function () {
-    var title = (document.getElementById('cp-title') && document.getElementById('cp-title').value) || '';
-    var body = (document.getElementById('cp-body') && document.getElementById('cp-body').value) || '';
-    var labels = (document.getElementById('cp-labels') && document.getElementById('cp-labels').value) || '';
-
-    var titleLen = title.length;
-    var wordCount = body.trim().split(/\s+/).filter(function (w) { return w.length > 0; }).length;
-    var labelCount = labels.split(',').filter(function (l) { return l.trim().length > 0; }).length;
-
-    if (document.getElementById('cp-seo-title')) document.getElementById('cp-seo-title').textContent = titleLen;
-    if (document.getElementById('cp-seo-words')) document.getElementById('cp-seo-words').textContent = wordCount;
-    if (document.getElementById('cp-seo-labels')) document.getElementById('cp-seo-labels').textContent = labelCount;
-  },
-
-  // ---- PUBLISHING ----
-  publish: function () {
-    var title = (document.getElementById('cp-title') && document.getElementById('cp-title').value.trim()) || '';
-    var body = (document.getElementById('cp-body') && document.getElementById('cp-body').value.trim()) || '';
-    var status = (document.getElementById('cp-status') && document.getElementById('cp-status').value) || 'DRAFT';
-    var statusEl = document.getElementById('cp-publish-status');
-
-    if (!title) {
-      if (statusEl) {
-        statusEl.textContent = '❌ Post title is required';
-        statusEl.style.color = '#ff6b6b';
-      }
-      return;
-    }
-
-    if (!Compose._settings.blogId) {
-      if (statusEl) {
-        statusEl.textContent = '❌ Blog ID not configured. Save settings first.';
-        statusEl.style.color = '#ff6b6b';
-      }
-      return;
-    }
-
-    if (statusEl) {
-      statusEl.textContent = '⏳ Publishing to Blogger…';
-      statusEl.style.color = 'var(--color-secondary)';
-    }
-
-    setTimeout(function () {
-      if (statusEl) {
-        statusEl.textContent = '✅ Post published successfully!';
-        statusEl.style.color = 'var(--color-success)';
-      }
-      Gen.toast('Post published to Blogger!');
-    }, 1500);
-  },
-
-  // ---- PREVIEW ----
-  preview: function () {
-    var title = (document.getElementById('cp-title') && document.getElementById('cp-title').value) || 'Untitled Post';
-    var body = (document.getElementById('cp-body') && document.getElementById('cp-body').value) || 'No content';
-    var labels = (document.getElementById('cp-labels') && document.getElementById('cp-labels').value) || '';
-
-    var preview = 'PREVIEW:\n\n' +
-      'Title: ' + title + '\n\n' +
-      'Labels: ' + labels + '\n\n' +
-      'Content:\n' + body;
-
-    alert(preview);
-  },
-
-  // ---- LOAD FROM EVENT FORM ----
-  loadFromEventForm: function () {
-    Gen.toast('Load from Event Card functionality available', 'info');
-  },
-
-  // ---- PLACEHOLDER METHODS ----
-  scheduleThumb: function () {},
-  regenThumb: function () { Gen.toast('Thumbnail regeneration available', 'info'); },
-  uploadThumb: function () { Gen.toast('Thumbnail upload available', 'info'); },
-  downloadThumb: function () { Gen.toast('Thumbnail download available', 'info'); },
-  insertThumbIntoBody: function () { Gen.toast('Insert thumbnail available', 'info'); },
-  
-  insertTemplate: function (type) {
-    var templates = {
-      'preview': '\n\n## Match Preview\n\nThis is a professional match preview section.',
-      'howtowatch': '\n\n## How to Watch\n\nWatch live on the available streaming platforms.',
-      'h2h': '\n\n## Head to Head\n\nHistorical matchup information.',
-      'faq': '\n\n## Frequently Asked Questions\n\nCommon questions about this match.',
-      'cta': '\n\n## Watch Live\n\nClick the stream buttons above to watch live.',
-      'highlights': '\n\n## Highlights & Recap\n\nMatch highlights and final recap.'
-    };
-
-    var body = document.getElementById('cp-body');
-    if (body) {
-      body.value += (templates[type] || '');
-      Gen.toast('Template inserted');
-    }
-  },
-
-  loadChannelPicker: function () { Gen.toast('Channel picker available', 'info'); },
-  insertChannelsIntoBody: function () { Gen.toast('Insert channels available', 'info'); },
-  cancelEdit: function () {
-    Compose._editingPostId = null;
-    Gen.toast('Edit cancelled');
-  }
-};
-
-
-// ============================================================
 //  ENHANCED COMPOSE OBJECT - ALL 10 FEATURES IMPLEMENTED
 // ============================================================
 
@@ -3629,6 +3422,7 @@ var Compose = {
   onTabOpen: function () {
     Compose.loadSettings();
     Compose.updateAuthStatus();
+    Compose.updateClientIdWarning();
     Compose.initGoogleAuth();
     Compose.renderThumbnail();
   },
@@ -3663,6 +3457,8 @@ var Compose = {
 
   handleAuthCallback: function (response) {
     if (response.error !== undefined) {
+      var label = document.getElementById('cp-auth-label');
+      if (label) { label.textContent = 'Auth error: ' + response.error; label.style.color = '#ff6b6b'; }
       Gen.toast('Authentication failed: ' + response.error, 'error');
       return;
     }
@@ -4068,6 +3864,15 @@ var Compose = {
       body += '**Date:** ' + date + ' at ' + time + '\n\n';
       body += 'Watch the live match here.\n';
 
+      // Carry over stream/channel rows from the Event Card tab
+      var channelRows = document.querySelectorAll('#ev-channel-rows .channel-row');
+      var chLines = [];
+      channelRows.forEach(function (row) {
+        var inputs = row.querySelectorAll('input');
+        if (inputs[1] && inputs[1].value) chLines.push('- ' + (inputs[0].value || 'Stream') + ': ' + inputs[1].value);
+      });
+      if (chLines.length) body += '\n**Streams:**\n' + chLines.join('\n') + '\n';
+
       // Set Compose fields
       document.getElementById('cp-title').value = title;
       document.getElementById('cp-body').value = body;
@@ -4140,10 +3945,17 @@ var Compose = {
 
       localStorage.setItem('compose-settings', JSON.stringify(Compose._settings));
       Compose.initGoogleAuth();
+      Compose.updateClientIdWarning();
       Gen.toast('Settings saved successfully!');
     } catch (e) {
       Gen.toast('Error saving settings: ' + e.message, 'error');
     }
+  },
+
+  updateClientIdWarning: function () {
+    var el = document.getElementById('cp-clientid-warning');
+    if (!el) return;
+    el.textContent = Compose._settings.clientId ? '' : '⚠️ Google OAuth Client ID is required before you can sign in.';
   },
 
   updateAuthStatus: function () {
@@ -4155,10 +3967,12 @@ var Compose = {
       if (Compose._isAuthenticated && Compose.isTokenValid()) {
         dot.className = 'auth-dot connected';
         label.textContent = 'Signed in with Google';
+        label.style.color = '';
         btn.textContent = 'Sign out';
       } else {
         dot.className = 'auth-dot';
         label.textContent = 'Not signed in';
+        label.style.color = '';
         btn.textContent = 'Sign in with Google';
       }
     }
@@ -4643,6 +4457,29 @@ var UIEnhancements = {
     });
   }
 };
+
+// Auto-save Compose settings as the user types (Client ID / Blog ID / imgbb / player)
+['cp-blogid', 'cp-clientid', 'cp-imgbb', 'cp-player'].forEach(function (id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', function () {
+    clearTimeout(Compose._settingsSaveTimer);
+    Compose._settingsSaveTimer = setTimeout(function () {
+      var blogId = document.getElementById('cp-blogid').value.trim();
+      var clientId = document.getElementById('cp-clientid').value.trim();
+      Compose._settings = {
+        blogId: blogId,
+        clientId: clientId,
+        imgbbKey: document.getElementById('cp-imgbb').value.trim(),
+        playerUrl: document.getElementById('cp-player').value.trim(),
+        savedAt: new Date().toISOString()
+      };
+      try { localStorage.setItem('compose-settings', JSON.stringify(Compose._settings)); } catch (e) {}
+      if (clientId) Compose.initGoogleAuth();
+      Compose.updateClientIdWarning();
+    }, 500);
+  });
+});
 
 // Initialize all features
 ChannelManager.init();
