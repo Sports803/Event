@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -65,6 +65,7 @@ p.sub { color: var(--color-text-dim); font-size: 13px; margin: 3px 0 0; }
 .tabs-nav button:hover { border-color: rgba(255,255,255,.22); color: #fff; transform: translateY(-1px); }
 .tabs-nav button.is-active { background: var(--gradient-brand); color: #fff; border-color: transparent; box-shadow: 0 8px 18px rgba(224,16,42,.3); }
 .tabs-nav button[data-tab="streamed-tab"].is-active { background: var(--gradient-streamed); box-shadow: 0 8px 18px rgba(108,92,231,.35); }
+.tabs-nav button[data-tab="compose-tab"].is-active { background: linear-gradient(135deg,#7209b7,#4cc9f0); box-shadow: 0 8px 18px rgba(114,9,183,.35); }
 .tab-panel { display: none; animation: fade-in .25s ease; }
 .tab-panel.is-active { display: block; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
@@ -83,13 +84,13 @@ p.sub { color: var(--color-text-dim); font-size: 13px; margin: 3px 0 0; }
 
 .field { margin-bottom: 12px; }
 .field label { display: block; font-size: 12px; font-weight: 700; color: var(--color-text-dim); margin-bottom: 5px; }
-.field input, .field select {
+.field input, .field select, .field textarea {
   width: 100%; padding: 9px 10px; border-radius: var(--radius-sm);
   border: 1px solid var(--color-border); background: var(--color-panel-alt);
   color: var(--color-text); font-family: var(--font-body); font-size: 13px;
   transition: border-color .15s, box-shadow .15s;
 }
-.field input:focus, .field select:focus, .filter-row input:focus, .filter-row select:focus {
+.field input:focus, .field select:focus, .field textarea:focus, .filter-row input:focus, .filter-row select:focus {
   outline: none; border-color: #6c5ce7; box-shadow: 0 0 0 3px rgba(108,92,231,.15);
 }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -103,12 +104,12 @@ p.sub { color: var(--color-text-dim); font-size: 13px; margin: 3px 0 0; }
 }
 .icon-btn:hover { border-color: var(--color-secondary); transform: translateY(-1px); }
 
-.btn-primary, .btn-secondary, .btn-streamed, .btn-scraper, .btn-edit, .btn-danger {
+.btn-primary, .btn-secondary, .btn-streamed, .btn-scraper, .btn-edit, .btn-danger, .btn-compose {
   transition: transform .12s ease, box-shadow .15s, opacity .15s, filter .15s;
 }
-.btn-primary:hover, .btn-streamed:hover, .btn-scraper:hover, .btn-edit:hover, .btn-danger:hover { transform: translateY(-1px); filter: brightness(1.08); }
-.btn-primary:active, .btn-secondary:active, .btn-streamed:active, .btn-scraper:active, .btn-edit:active, .btn-danger:active { transform: translateY(0); }
-.btn-primary:disabled, .btn-secondary:disabled, .btn-streamed:disabled, .btn-scraper:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.btn-primary:hover, .btn-streamed:hover, .btn-scraper:hover, .btn-edit:hover, .btn-danger:hover, .btn-compose:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.btn-primary:active, .btn-secondary:active, .btn-streamed:active, .btn-scraper:active, .btn-edit:active, .btn-danger:active, .btn-compose:active { transform: translateY(0); }
+.btn-primary:disabled, .btn-secondary:disabled, .btn-streamed:disabled, .btn-scraper:disabled, .btn-compose:disabled { opacity: .5; cursor: not-allowed; transform: none; }
 
 .btn-primary {
   background: var(--gradient-brand); color: #fff; border: none; border-radius: var(--radius-sm);
@@ -124,6 +125,11 @@ p.sub { color: var(--color-text-dim); font-size: 13px; margin: 3px 0 0; }
   background: var(--gradient-streamed); color: #fff; border: none; border-radius: var(--radius-sm);
   padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer; margin-top: 6px;
   box-shadow: 0 6px 16px rgba(108,92,231,.28);
+}
+.btn-compose {
+  background: linear-gradient(135deg,#7209b7,#4cc9f0); color: #fff; border: none; border-radius: var(--radius-sm);
+  padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer; margin-top: 6px;
+  box-shadow: 0 6px 16px rgba(114,9,183,.28);
 }
 .btn-edit {
   background: linear-gradient(135deg, #f6b93b, #e08e1d); color: #1a1300; border: none; border-radius: var(--radius-sm);
@@ -371,8 +377,22 @@ textarea.code-out {
 .help-panel h3 { color: var(--color-text); font-size: 13px; margin: 0 0 8px; }
 .help-panel code { background: var(--color-bg-alt); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
 
+/* -- COMPOSE tab -- */
+.thumb-wrap { background: var(--color-panel-alt); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 10px; text-align: center; }
+.thumb-wrap canvas { max-width: 100%; border-radius: 7px; background: #000; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+.gen-status { font-size: 11.5px; color: var(--color-text-dim); text-align: center; margin-top: 6px; min-height: 14px; }
+.tpl-btn-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.tpl-btn { background: var(--color-panel-alt); border: 1px solid var(--color-border); color: var(--color-text); border-radius: var(--radius-sm); padding: 7px 10px; font-size: 11.5px; cursor: pointer; }
+.tpl-btn:hover { border-color: #4cc9f0; }
+.auth-row { display: flex; align-items: center; gap: 10px; }
+.auth-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-dim); flex-shrink: 0; }
+.auth-dot.on { background: var(--color-success); box-shadow: 0 0 6px var(--color-success); }
+.channel-pick-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; border-bottom: 1px solid var(--color-border); }
+.channel-pick-row:last-child { border-bottom: none; }
+.channel-pick-row input[type=checkbox] { accent-color: #4cc9f0; }
+
 /* -- MANUS: Responsive improvements -- */
-@media (max-width: 600px) { body { padding: 10px; } .field-row { grid-template-columns: 1fr; } .channel-row { grid-template-columns: 1fr; } .btn-primary, .btn-secondary, .btn-streamed { width: 100%; text-align: center; } }
+@media (max-width: 600px) { body { padding: 10px; } .field-row { grid-template-columns: 1fr; } .channel-row { grid-template-columns: 1fr; } .btn-primary, .btn-secondary, .btn-streamed, .btn-compose { width: 100%; text-align: center; } }
 </style>
 </head>
 <body>
@@ -409,6 +429,7 @@ textarea.code-out {
   <button data-tab="manage-tab" onclick="Gen.showTab(this,'manage-tab'); Gen.refreshManageList();">Manage Events</button>
   <button data-tab="channels-tab" onclick="Gen.showTab(this,'channels-tab'); Gen.loadChannels();">Channel Manager</button>
   <button data-tab="calendar-tab" onclick="Gen.showTab(this,'calendar-tab'); Gen.renderCalendar();">Calendar</button>
+  <button data-tab="compose-tab" onclick="Gen.showTab(this,'compose-tab'); Compose.onTabOpen();">✍️ Compose &amp; Post</button>
   <button data-tab="io-tab" onclick="Gen.showTab(this,'io-tab');">Import / Export</button>
 </div>
 
@@ -550,6 +571,7 @@ textarea.code-out {
       <button class="btn-primary" onclick="Gen.buildEventCard()">Preview</button>
       <button class="btn-primary" id="push-btn" style="background:var(--gradient-gold); color:#1a1300;" onclick="Gen.pushEventToFirebase()">🔥 Push to Firebase</button>
       <p class="hint" id="push-status"></p>
+      <button class="btn-compose" style="width:100%;" onclick="Compose.loadFromEventForm()">✍️ Send this event to Compose &amp; Post</button>
     </div>
 
     <div class="panel">
@@ -845,6 +867,114 @@ textarea.code-out {
 </div>
 
 <!-- ============================================================
+     COMPOSE & POST TAB  (NEW)
+     ============================================================ -->
+<div class="tab-panel" id="compose-tab">
+  <div class="panel" style="margin-bottom:18px;">
+    <h2>Blogger connection</h2>
+    <div class="field-row">
+      <div class="field"><label>Blog ID</label><input id="cp-blogid" placeholder="123456789"/></div>
+      <div class="field"><label>Google OAuth Client ID</label><input id="cp-clientid" placeholder="xxx.apps.googleusercontent.com"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>imgbb API Key</label><input id="cp-imgbb" placeholder="get free at api.imgbb.com"/></div>
+      <div class="field"><label>Player base URL (for stream embeds)</label><input id="cp-player" placeholder="https://sports803.github.io/player/"/></div>
+    </div>
+    <button class="btn-secondary" onclick="Compose.saveSettings()">💾 Save settings</button>
+    <div class="auth-row" style="margin-top:12px;">
+      <span class="auth-dot" id="cp-auth-dot"></span>
+      <span id="cp-auth-label" style="font-size:12.5px;color:var(--color-text-dim);">Not signed in</span>
+      <button class="btn-secondary" id="cp-auth-btn" onclick="Compose.handleAuth()" style="margin-left:auto;">Sign in with Google</button>
+    </div>
+    <p class="hint">Sign-in uses the <code>blogger</code> OAuth scope in your browser only — no keys are sent anywhere except Google &amp; imgbb.</p>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <h2>Post details</h2>
+      <div class="edit-banner" id="cp-edit-banner" style="display:none;">
+        ✏️ Editing existing post — publishing will update the live article.
+        <button class="icon-btn" onclick="Compose.cancelEdit()">Cancel — new post instead</button>
+      </div>
+      <div class="field">
+        <label>Post title — auto-parses "Team A vs Team B"</label>
+        <input id="cp-title" placeholder="e.g. Manchester City vs Arsenal – Premier League Live Stream" oninput="Compose.onTitleChange()"/>
+      </div>
+      <button class="btn-secondary" onclick="Compose.loadFromEventForm()">⬅ Pull details from Event Card tab</button>
+
+      <h2 style="margin-top:18px;">Thumbnail</h2>
+      <div class="thumb-wrap">
+        <canvas id="cp-canvas" width="800" height="450"></canvas>
+        <div class="gen-status" id="cp-thumb-status">Enter a title to auto-generate…</div>
+      </div>
+      <div class="field-row" style="margin-top:10px;">
+        <div class="field"><label>Home logo URL</label><input id="cp-home-logo" oninput="Compose.scheduleThumb()"/></div>
+        <div class="field"><label>Away logo URL</label><input id="cp-away-logo" oninput="Compose.scheduleThumb()"/></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>League / event label</label><input id="cp-league" oninput="Compose.scheduleThumb()"/></div>
+        <div class="field"><label>Date &amp; time label</label><input id="cp-datetime" oninput="Compose.scheduleThumb()"/></div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
+        <button class="btn-secondary" onclick="Compose.regenThumb()">🔄 Regenerate</button>
+        <button class="btn-secondary" onclick="Compose.uploadThumb()">☁️ Upload to imgbb</button>
+        <button class="btn-secondary" onclick="Compose.downloadThumb()">⬇️ Download</button>
+        <button class="btn-secondary" onclick="Compose.insertThumbIntoBody()">📎 Insert into post body</button>
+      </div>
+      <div class="field" style="margin-top:8px;"><label>Thumbnail URL (after upload)</label><input id="cp-thumb-url" readonly placeholder="Upload to get a hosted URL"/></div>
+
+      <h2 style="margin-top:18px;">Article body</h2>
+      <p class="hint">No AI key required — templates below fill in placeholders from the title/teams automatically. You can still edit anything after inserting.</p>
+      <div class="tpl-btn-row">
+        <button class="tpl-btn" onclick="Compose.insertTemplate('preview')">+ Match Preview</button>
+        <button class="tpl-btn" onclick="Compose.insertTemplate('howtowatch')">+ How To Watch</button>
+        <button class="tpl-btn" onclick="Compose.insertTemplate('h2h')">+ H2H Block</button>
+        <button class="tpl-btn" onclick="Compose.insertTemplate('faq')">+ FAQ (SEO)</button>
+        <button class="tpl-btn" onclick="Compose.insertTemplate('cta')">+ Stream CTA</button>
+        <button class="tpl-btn" onclick="Compose.insertTemplate('highlights')">+ Highlights Recap</button>
+      </div>
+      <div class="field"><textarea id="cp-body" rows="14" placeholder="Write or insert a template above…"></textarea></div>
+
+      <h2 style="margin-top:18px;">Channels for this post</h2>
+      <p class="hint">Pulled from your Channel Manager. Tick the ones to embed as a stream player + link list.</p>
+      <button class="btn-secondary" onclick="Compose.loadChannelPicker()">↻ Load channels</button>
+      <div id="cp-channel-picker" style="margin-top:8px;"></div>
+      <button class="btn-secondary" onclick="Compose.insertChannelsIntoBody()" style="margin-top:6px;">📎 Insert selected channels into post</button>
+
+      <h2 style="margin-top:18px;">Labels, status &amp; schedule</h2>
+      <div class="field"><label>Labels (comma separated)</label><input id="cp-labels" value="sports 803, live"/></div>
+      <div class="field-row">
+        <div class="field"><label>Status</label>
+          <select id="cp-status" onchange="Compose.onStatusChange()">
+            <option value="DRAFT">Draft (manual review)</option>
+            <option value="LIVE">Live now</option>
+            <option value="SCHEDULE">Schedule for later</option>
+          </select>
+        </div>
+        <div class="field" id="cp-schedule-wrap" style="display:none;"><label>Publish at</label><input id="cp-schedule-dt" type="datetime-local"/></div>
+      </div>
+
+      <button class="btn-compose" id="cp-publish-btn" onclick="Compose.publish()" style="width:100%;">📤 Publish to Blogger</button>
+      <button class="btn-secondary" onclick="Compose.preview()" style="width:100%;margin-top:6px;">👁 Preview</button>
+      <p class="hint" id="cp-publish-status"></p>
+    </div>
+
+    <div class="panel">
+      <h2>SEO meter</h2>
+      <div style="font-size:12px;color:var(--color-text-dim);">
+        <div>Title length: <span id="cp-seo-title">0</span> characters</div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="cp-seo-title-bar"></div></div>
+        <div style="margin-top:10px;">Word count: <span id="cp-seo-words">0</span></div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="cp-seo-words-bar"></div></div>
+        <div style="margin-top:10px;">Labels: <span id="cp-seo-labels">0</span></div>
+      </div>
+      <h2 style="margin-top:20px;">Live preview</h2>
+      <div id="cp-preview-box" style="font-size:12.5px; color: var(--color-text-dim); max-height:520px; overflow-y:auto; line-height:1.6;">Nothing to preview yet.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
      IMPORT / EXPORT TAB
      ============================================================ -->
 <div class="tab-panel" id="io-tab">
@@ -887,6 +1017,7 @@ textarea.code-out {
 
 <div class="toast-container" id="toast-container"></div>
 
+<script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 //<![CDATA[
 var Gen = {
@@ -2062,6 +2193,13 @@ awayTeamBlock +
             actions.appendChild(testBtn);
           }
 
+          var sendBtn = document.createElement('button');
+          sendBtn.className = 'btn-secondary';
+          sendBtn.style.cssText = 'font-size:11px;padding:5px 8px;';
+          sendBtn.textContent = '✍️ Compose';
+          sendBtn.onclick = function (e) { e.stopPropagation(); Gen.editEvent(id, ev); Compose.loadFromEventForm(); var b=document.querySelector('[data-tab="compose-tab"]'); Gen.showTab(b,'compose-tab'); };
+          actions.appendChild(sendBtn);
+
           var delBtn = document.createElement('button');
           delBtn.className = 'btn-danger';
           delBtn.textContent = '🗑️';
@@ -2720,8 +2858,6 @@ awayTeamBlock +
   },
 
   // ---- PROG.TXT PARSING ----
-  // prog.txt lists a whole week of matches grouped under MONDAY/TUESDAY/... section headers.
-  // Each entry in the returned map is: { weekday, time, sources: [{url, type, source}] }
   WEEKDAY_NAMES: ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'],
 
   scrParseProgTxt: function (text) {
@@ -2733,13 +2869,11 @@ awayTeamBlock +
       var line = lines[i].trim();
       if (!line) continue;
 
-      // Weekday section header (no "|" on these lines) — remember it for the matches that follow
       var upper = line.toUpperCase();
       var headerMatch = Gen.WEEKDAY_NAMES.filter(function (w) { return upper.indexOf(w) === 0; })[0];
       if (headerMatch && line.indexOf('|') === -1) { currentWeekday = headerMatch; continue; }
 
       if (line.startsWith('#') || !line.includes('|')) continue;
-      // Skip channel headers and info lines
       if (line.startsWith('HD') && line.match(/^[A-Z\d]+\s+[A-Z]/)) continue;
       if (line.startsWith('BR') && line.match(/^[A-Z\d]+\s+[A-Z]/)) continue;
 
@@ -2753,7 +2887,6 @@ awayTeamBlock +
       var urls = parts.slice(1).filter(function (u) { return u.startsWith('http'); });
       if (!urls.length) continue;
 
-      // Find team separator
       var sepMatch = matchStr.match(/ (x|vs\.?|–|-|VS) /i);
       if (!sepMatch) continue;
       var sep = sepMatch[0];
@@ -2763,7 +2896,6 @@ awayTeamBlock +
       var teamB = matchStr.substring(idx + sep.length).trim();
       if (!teamA || !teamB) continue;
 
-      // Clean team names (remove "Tennis:", "Darts:" etc. prefix)
       teamA = teamA.replace(/^(Tennis|Darts|Cricket|Basketball|Football|Hockey|Baseball|Rugby|Golf|Billiards|AFL|UFC|MMA|MotoGP|NASCAR|Cycling):?\s*/i, '');
       teamB = teamB.replace(/^(Tennis|Darts|Cricket|Basketball|Football|Hockey|Baseball|Rugby|Golf|Billiards|AFL|UFC|MMA|MotoGP|NASCAR|Cycling):?\s*/i, '');
 
@@ -2776,9 +2908,6 @@ awayTeamBlock +
     return map;
   },
 
-  // Nearest upcoming date (today or within the next 6 days) that falls on the given weekday name.
-  // If gmtToLocal is true, treats hh:mm as UTC and rolls the date forward/back a day if the
-  // local conversion crosses midnight.
   scrWeekdayToDate: function (weekdayName, timeStr, gmtToLocal) {
     var now = new Date();
     var idx = Gen.WEEKDAY_NAMES.indexOf(weekdayName);
@@ -2798,7 +2927,6 @@ awayTeamBlock +
     }
 
     if (gmtToLocal) {
-      // Interpret h:m as UTC time on that date, then convert to local
       var utcMs = Date.UTC(base.getFullYear(), base.getMonth(), base.getDate(), h, m);
       return new Date(utcMs);
     }
@@ -2806,7 +2934,6 @@ awayTeamBlock +
     return base;
   },
 
-  // ---- Load prog.txt ----
   scraperLoadProgTxt: function () {
     var url = document.getElementById('scr-prog-url').value || 'https://sportsonline.st/prog.txt';
     var statusEl = document.getElementById('scr-prog-status');
@@ -2854,17 +2981,14 @@ awayTeamBlock +
       });
   },
 
-  // ---- DDKAQIU.COM SCRAPING ----
   scrParseDDKHome: function (html) {
     var map = {};
-    // Match all zhibo links with team names
     var cardRe = /<a[^>]+href="(\/zhibo\/\d+\.html)"[^>]*>([\s\S]*?)<\/a>/g;
     var m;
     while ((m = cardRe.exec(html)) !== null) {
       var zhiBoPath = m[1];
       var inner = m[2];
 
-      // Try multiple selectors for team names
       var homeM = inner.match(/class="left-team">([^<]+)<\/span>/) ||
                   inner.match(/class="match-left-team">([^<]+)<\/span>/) ||
                   inner.match(/alt="([^"]+)"[^>]*class="home"/) ||
@@ -2907,7 +3031,6 @@ awayTeamBlock +
     statusEl.textContent = 'Scraping ddkaqiu.com…';
     matchesEl.innerHTML = '';
 
-    // Try multiple ddkaqiu domain variants
     var urls = ['https://ddkaqiu.com/', 'https://ddkaqiu.com'];
     var tryDDK = function (i) {
       if (i >= urls.length) {
@@ -2953,7 +3076,6 @@ awayTeamBlock +
     tryDDK(0);
   },
 
-  // ---- DDKAQIU SEARCH ----
   scraperScrapeDDKSearch: function (home, away) {
     var q = encodeURIComponent(home + ' ' + away);
     var searchUrls = [
@@ -2973,7 +3095,6 @@ awayTeamBlock +
     });
   },
 
-  // ---- COMBINED STREAM LOOKUP ----
   scraperLookupStreams: function () {
     var home = document.getElementById('scr-home-name').value.trim();
     var away = document.getElementById('scr-away-name').value.trim();
@@ -2996,20 +3117,16 @@ awayTeamBlock +
     var allSources = [];
     var progEntry = Gen._progTxtMap[key];
 
-    // 1. Check prog.txt
     if (progEntry) {
       allSources = allSources.concat(progEntry.sources || []);
     }
 
-    // 2. Check ddkaqiu home map
     if (Gen._ddkHomeMap[key]) {
       allSources.push({ url: Gen._ddkHomeMap[key].zhibo, type: 'embed', source: 'ddkaqiu' });
     }
 
-    // 3. Try ddkaqiu search
     var ddkPromise = Gen.scraperScrapeDDKSearch(home, away).then(function (url) {
       if (url) {
-        // Avoid duplicate
         if (!allSources.some(function (s) { return s.url === url; })) {
           allSources.push({ url: url, type: 'embed', source: 'ddkaqiu-search' });
         }
@@ -3028,7 +3145,6 @@ awayTeamBlock +
     });
   },
 
-  // ---- Render combined sources ----
   scrRenderCombinedSources: function (sources) {
     var el = document.getElementById('scr-combined-sources');
     el.innerHTML = '';
@@ -3050,7 +3166,6 @@ awayTeamBlock +
     if (statusEl) statusEl.className = 'scraper-status success';
   },
 
-  // ---- Fill event form from scraper sources ----
   scraperFillForm: function () {
     var home = document.getElementById('scr-home-name').value.trim();
     var away = document.getElementById('scr-away-name').value.trim();
@@ -3067,7 +3182,6 @@ awayTeamBlock +
       return;
     }
 
-    // Fill form — use the parsed weekday/time from prog.txt when we have it, otherwise today/now
     var gmtConvert = document.getElementById('scr-gmt-convert') && document.getElementById('scr-gmt-convert').checked;
     var eventDt = (match && match.weekday) ? Gen.scrWeekdayToDate(match.weekday, match.time, gmtConvert) : new Date();
     document.getElementById('ev-date').value = eventDt.toISOString().slice(0, 10);
@@ -3079,7 +3193,6 @@ awayTeamBlock +
     document.getElementById('ev-away-name').value = away;
     document.getElementById('ev-away-logo').value = '';
 
-    // Add streams
     var container = document.getElementById('ev-channel-rows');
     container.innerHTML = '';
     var sources = Gen._scrCurrentSources || [];
@@ -3107,7 +3220,6 @@ awayTeamBlock +
     }, 800);
   },
 
-  // ---- Save/Load scraper config ----
   scraperSaveConfig: function () {
     try {
       var cfg = {
@@ -3189,7 +3301,6 @@ try {
       if (d.category) document.getElementById('ev-category').value = d.category;
       if (d.duration) document.getElementById('ev-duration').value = d.duration;
     }
-    // Save on change
     var saveDefaults = function () {
       try {
         localStorage.setItem('gen-last-defaults', JSON.stringify({
@@ -3214,7 +3325,6 @@ Gen.fetchFixtures = function () {
   var cacheKey = val + '|' + dateVal;
   var cached = Gen._fxCache[cacheKey];
   if (cached && (Date.now() - cached.ts < 3600000)) {
-    // Use cached data — re-render
     var list = document.getElementById('fixture-list');
     list.innerHTML = '';
     var isSingleEntrant = (cached.sport === 'racing');
