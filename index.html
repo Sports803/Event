@@ -4,6 +4,9 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Event &amp; Live TV Code Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/>
 <style>
 :root {
   --color-primary: #e0102a;
@@ -975,7 +978,7 @@ textarea.code-out {
         <button class="tpl-btn" onclick="Compose.insertTemplate('cta')">+ Stream CTA</button>
         <button class="tpl-btn" onclick="Compose.insertTemplate('highlights')">+ Highlights Recap</button>
       </div>
-      <div class="field"><textarea id="cp-body" rows="14" placeholder="Write or insert a template above…"></textarea></div>
+      <div class="field"><textarea id="cp-body" rows="14" placeholder="Write or insert a template above…" oninput="Compose.onBodyChange()"></textarea></div>
 
       <h2 style="margin-top:18px;">Channels for this post</h2>
       <p class="hint">Pulled from your Channel Manager. Tick the ones to embed as a stream player + link list.</p>
@@ -984,7 +987,12 @@ textarea.code-out {
       <button class="btn-secondary" onclick="Compose.insertChannelsIntoBody()" style="margin-top:6px;">📎 Insert selected channels into post</button>
 
       <h2 style="margin-top:18px;">Labels, status &amp; schedule</h2>
-      <div class="field"><label>Labels (comma separated)</label><input id="cp-labels" value="sports 803, live"/></div>
+      <div class="field"><label>Labels (comma separated)</label><input id="cp-labels" value="sports 803, live" oninput="Compose.updateSEOMetrics()"/></div>
+      <div class="field">
+        <label>Search Description (for SEO)</label>
+        <textarea id="cp-meta-desc" rows="2" maxlength="160" placeholder="Auto-generated from your post body — edit if you like" oninput="Compose.updateSEOMetrics()"></textarea>
+        <p class="hint">Auto-fills from the article body (150–160 characters) whenever the title or body changes. Shown in Google search results and used as the Blogger post's meta description.</p>
+      </div>
       <div class="field-row">
         <div class="field"><label>Status</label>
           <select id="cp-status" onchange="Compose.onStatusChange()">
@@ -1009,6 +1017,8 @@ textarea.code-out {
         <div style="margin-top:10px;">Word count: <span id="cp-seo-words">0</span></div>
         <div class="progress-bar-wrap"><div class="progress-bar-fill" id="cp-seo-words-bar"></div></div>
         <div style="margin-top:10px;">Labels: <span id="cp-seo-labels">0</span></div>
+        <div style="margin-top:10px;">Meta description: <span id="cp-seo-meta">0</span> / 160 characters</div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="cp-seo-meta-bar"></div></div>
       </div>
       <h2 style="margin-top:20px;">Live preview</h2>
       <div id="cp-preview-box" style="font-size:12.5px; color: var(--color-text-dim); max-height:520px; overflow-y:auto; line-height:1.6;">Nothing to preview yet.</div>
@@ -3425,6 +3435,8 @@ var Compose = {
     Compose.updateClientIdWarning();
     Compose.initGoogleAuth();
     Compose.renderThumbnail();
+    Compose.autoGenerateMetaDescription();
+    Compose.updateSEOMetrics();
   },
 
   // ============================================================
@@ -3528,6 +3540,7 @@ var Compose = {
     var body = (document.getElementById('cp-body') && document.getElementById('cp-body').value.trim()) || '';
     var status = (document.getElementById('cp-status') && document.getElementById('cp-status').value) || 'DRAFT';
     var labels = (document.getElementById('cp-labels') && document.getElementById('cp-labels').value) || '';
+    var metaDescription = (document.getElementById('cp-meta-desc') && document.getElementById('cp-meta-desc').value.trim()) || '';
     var statusEl = document.getElementById('cp-publish-status');
 
     if (!title) {
@@ -3574,6 +3587,13 @@ var Compose = {
       labels: labelArray,
       status: status
     };
+
+    // Blogger API v3 supports a searchDescription field for SEO meta
+    // description; some integrations also key it as metaDescription.
+    if (metaDescription) {
+      postData.searchDescription = metaDescription;
+      postData.metaDescription = metaDescription;
+    }
 
     // Handle scheduled posts
     if (status === 'SCHEDULE') {
@@ -3683,76 +3703,279 @@ var Compose = {
   // FEATURE 3: IMGBB THUMBNAIL UPLOAD
   // ============================================================
 
+  // ============================================================
+  // PROFESSIONAL THUMBNAIL GENERATOR
+  // ============================================================
+
   renderThumbnail: function () {
     var canvas = document.getElementById('cp-canvas');
     if (!canvas) return;
+    var statusEl = document.getElementById('cp-thumb-status');
 
-    var title = document.getElementById('cp-title').value || 'Match';
-    var league = document.getElementById('cp-league').value || 'League';
-    var datetime = document.getElementById('cp-datetime').value || 'Date & Time';
-    var homeLogo = document.getElementById('cp-home-logo').value;
-    var awayLogo = document.getElementById('cp-away-logo').value;
+    var title = (document.getElementById('cp-title') && document.getElementById('cp-title').value) || 'Match';
+    var league = (document.getElementById('cp-league') && document.getElementById('cp-league').value) || 'League';
+    var datetime = (document.getElementById('cp-datetime') && document.getElementById('cp-datetime').value) || 'Date & Time';
+    var homeLogo = (document.getElementById('cp-home-logo') && document.getElementById('cp-home-logo').value) || '';
+    var awayLogo = (document.getElementById('cp-away-logo') && document.getElementById('cp-away-logo').value) || '';
 
-    var ctx = canvas.getContext('2d');
-    
-    // Background gradient
-    var grad = ctx.createLinearGradient(0, 0, 800, 450);
-    grad.addColorStop(0, '#e0102a');
-    grad.addColorStop(1, '#9c0a1d');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 800, 450);
+    var d = Compose.getTemplateData();
+    var isRacing = d.isRacing;
 
-    // Semi-transparent overlay
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(0, 0, 800, 450);
+    if (statusEl) statusEl.textContent = '⏳ Generating thumbnail…';
 
-    // Title
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 48px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(title, 400, 150);
+    // Track the request so a slower, older render can't clobber a newer one
+    var requestId = (Compose._thumbRequestId = (Compose._thumbRequestId || 0) + 1);
 
-    // League
-    ctx.font = '24px Arial';
-    ctx.fillStyle = '#f6b93b';
-    ctx.fillText(league, 400, 220);
+    var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready.catch(function () {}) : Promise.resolve();
 
-    // Date/Time
-    ctx.font = '20px Arial';
-    ctx.fillStyle = '#ccc';
-    ctx.fillText(datetime, 400, 380);
-
-    // Load and draw logos if provided
-    if (homeLogo || awayLogo) {
-      Compose.drawLogosOnCanvas(canvas, homeLogo, awayLogo);
-    }
-
-    Compose._cachedThumbnail = canvas.toDataURL('image/jpeg', 0.9);
-    document.getElementById('cp-thumb-status').textContent = '✓ Thumbnail generated';
+    Promise.all([
+      fontsReady,
+      Compose.loadImageSafe(homeLogo),
+      Compose.loadImageSafe(awayLogo)
+    ]).then(function (results) {
+      if (requestId !== Compose._thumbRequestId) return; // a newer render superseded this one
+      Compose.paintThumbnail(canvas, {
+        title: title,
+        league: league,
+        datetime: datetime,
+        homeImg: results[1],
+        awayImg: results[2],
+        isRacing: isRacing,
+        category: league
+      });
+      Compose._cachedThumbnail = canvas.toDataURL('image/jpeg', 0.92);
+      if (statusEl) statusEl.textContent = '✓ Thumbnail generated';
+    }).catch(function (err) {
+      if (statusEl) statusEl.textContent = '⚠️ Thumbnail issue: ' + (err && err.message ? err.message : 'could not render');
+    });
   },
 
-  drawLogosOnCanvas: function (canvas, homeLogo, awayLogo) {
+  // Loads an image for canvas use without ever rejecting — missing URLs,
+  // broken links, and CORS/network failures all just resolve to null so
+  // the thumbnail can still render gracefully without that logo.
+  loadImageSafe: function (url) {
+    return new Promise(function (resolve) {
+      if (!url) { resolve(null); return; }
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      var settled = false;
+      var done = function (val) { if (!settled) { settled = true; resolve(val); } };
+      img.onload = function () { done(img); };
+      img.onerror = function () { done(null); };
+      setTimeout(function () { done(null); }, 4000); // don't hang forever on a slow host
+      img.src = url;
+    });
+  },
+
+  // Picks a small sport emoji for racing/single-entrant events based on
+  // the league/category text (best-effort keyword match).
+  iconForCategory: function (text) {
+    var s = (text || '').toLowerCase();
+    if (/\bf1\b|formula\s?1|formula one/.test(s)) return '🏎️';
+    if (/motogp|moto\s?gp|superbike|motorcycle|motocross/.test(s)) return '🏍️';
+    if (/boxing/.test(s)) return '🥊';
+    if (/\bmma\b|ufc|cage/.test(s)) return '🥋';
+    if (/nascar|indycar|rally|touring car/.test(s)) return '🏁';
+    if (/golf/.test(s)) return '⛳';
+    if (/tennis/.test(s)) return '🎾';
+    if (/cricket/.test(s)) return '🏏';
+    if (/cycling|tour de/.test(s)) return '🚴';
+    if (/athletics|marathon|track/.test(s)) return '🏃';
+    return '🏁';
+  },
+
+  // Paints the full 800x450 thumbnail onto the canvas: dark navy-to-
+  // burgundy gradient with a soft centre glow, then either a two-team
+  // "VS" layout or a centred single-entrant (racing) layout.
+  paintThumbnail: function (canvas, opts) {
     var ctx = canvas.getContext('2d');
-    var logoSize = 80;
-    var logoY = 280;
+    var W = canvas.width || 800, H = canvas.height || 450;
+    var fontFamily = "'Inter','Poppins',Arial,sans-serif";
 
-    if (homeLogo) {
-      var homeImg = new Image();
-      homeImg.crossOrigin = 'anonymous';
-      homeImg.onload = function () {
-        ctx.drawImage(homeImg, 150, logoY, logoSize, logoSize);
-      };
-      homeImg.src = homeLogo;
+    ctx.clearRect(0, 0, W, H);
+
+    // Base gradient: deep navy -> burgundy
+    var bgGrad = ctx.createLinearGradient(0, 0, W, H);
+    bgGrad.addColorStop(0, '#0a0e27');
+    bgGrad.addColorStop(1, '#6b0f1a');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle radial glow at the centre for depth
+    var glow = ctx.createRadialGradient(W / 2, H / 2, 10, W / 2, H / 2, W * 0.62);
+    glow.addColorStop(0, 'rgba(244, 197, 66, 0.20)');
+    glow.addColorStop(1, 'rgba(244, 197, 66, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // Thin top/bottom vignette for a cleaner edge
+    var edgeGrad = ctx.createLinearGradient(0, 0, 0, H);
+    edgeGrad.addColorStop(0, 'rgba(0,0,0,0.25)');
+    edgeGrad.addColorStop(0.15, 'rgba(0,0,0,0)');
+    edgeGrad.addColorStop(0.85, 'rgba(0,0,0,0)');
+    edgeGrad.addColorStop(1, 'rgba(0,0,0,0.3)');
+    ctx.fillStyle = edgeGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+
+    if (!opts.isRacing) {
+      Compose.paintTeamLayout(ctx, W, H, fontFamily, opts);
+    } else {
+      Compose.paintRacingLayout(ctx, W, H, fontFamily, opts);
+    }
+  },
+
+  paintTeamLayout: function (ctx, W, H, fontFamily, opts) {
+    var centerX = W / 2;
+    var logoCY = H / 2 + 18;
+    var logoR = 76;
+    var homeCX = 172, awayCX = W - 172;
+
+    Compose.drawCircleLogo(ctx, opts.homeImg, homeCX, logoCY, logoR);
+    Compose.drawCircleLogo(ctx, opts.awayImg, awayCX, logoCY, logoR);
+
+    // Bold VS mark between the two logos
+    ctx.save();
+    ctx.font = "800 46px " + fontFamily;
+    ctx.fillStyle = '#f4c542';
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 12;
+    ctx.fillText('⚡ VS ⚡', centerX, logoCY + 15);
+    ctx.restore();
+
+    // Title, up to 2 lines, near the top
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "800 38px " + fontFamily;
+    Compose.fillWrappedText(ctx, opts.title, centerX, 72, W - 100, 44, 2);
+
+    // League name
+    ctx.font = "700 22px " + fontFamily;
+    ctx.fillStyle = '#f4c542';
+    ctx.fillText(opts.league, centerX, H - 76);
+
+    // Date / time
+    ctx.font = "500 18px " + fontFamily;
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.fillText(opts.datetime, centerX, H - 44);
+  },
+
+  paintRacingLayout: function (ctx, W, H, fontFamily, opts) {
+    var cx = W / 2;
+    var hasLogo = !!opts.homeImg;
+    var iconY, titleTopY;
+
+    if (hasLogo) {
+      Compose.drawCircleLogo(ctx, opts.homeImg, cx, 84, 52);
+      iconY = 178;
+      titleTopY = 226;
+    } else {
+      iconY = 92;
+      titleTopY = 150;
     }
 
-    if (awayLogo) {
-      var awayImg = new Image();
-      awayImg.crossOrigin = 'anonymous';
-      awayImg.onload = function () {
-        ctx.drawImage(awayImg, 570, logoY, logoSize, logoSize);
-      };
-      awayImg.src = awayLogo;
+    // Small sport icon based on category/league keywords
+    ctx.font = '38px Arial';
+    ctx.fillStyle = '#f4c542';
+    ctx.fillText(Compose.iconForCategory(opts.category), cx, iconY);
+
+    // Event/driver name, centred, up to 2 lines
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "800 40px " + fontFamily;
+    Compose.fillWrappedText(ctx, opts.title, cx, titleTopY, W - 140, 46, 2);
+
+    // League/event name
+    ctx.font = "700 22px " + fontFamily;
+    ctx.fillStyle = '#f4c542';
+    ctx.fillText(opts.league, cx, H - 76);
+
+    // Date / time
+    ctx.font = "500 18px " + fontFamily;
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.fillText(opts.datetime, cx, H - 44);
+  },
+
+  // Draws a circular, white-bordered logo centred at (cx, cy) with
+  // radius r. Falls back to a neutral placeholder disc when img is null
+  // so missing/broken logos never break the layout.
+  drawCircleLogo: function (ctx, img, cx, cy, r) {
+    ctx.save();
+
+    // White border ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Dark backing so transparent-background logos still look clean
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#111426';
+    ctx.fill();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+
+    if (img) {
+      var scale = Math.max((r * 2) / img.width, (r * 2) / img.height) || 1;
+      var iw = (img.width || r * 2) * scale, ih = (img.height || r * 2) * scale;
+      ctx.drawImage(img, cx - iw / 2, cy - ih / 2, iw, ih);
+    } else {
+      ctx.fillStyle = '#1c2140';
+      ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.font = 'bold 26px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('?', cx, cy);
+      ctx.textBaseline = 'alphabetic';
     }
+    ctx.restore();
+    ctx.restore();
+  },
+
+  // Word-wraps centred text across at most maxLines lines starting at
+  // topY, ellipsizing the final line if content overflows. Returns the
+  // number of lines actually drawn.
+  fillWrappedText: function (ctx, text, cx, topY, maxWidth, lineHeight, maxLines) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    var words = (text || '').trim().split(/\s+/).filter(Boolean);
+    var lines = [];
+    var current = '';
+
+    for (var i = 0; i < words.length; i++) {
+      var test = current ? current + ' ' + words[i] : words[i];
+      if (ctx.measureText(test).width > maxWidth && current) {
+        lines.push(current);
+        current = words[i];
+        if (lines.length === maxLines) { current = ''; break; }
+      } else {
+        current = test;
+      }
+    }
+    if (current && lines.length < maxLines) lines.push(current);
+
+    var consumedWords = lines.join(' ').split(/\s+/).filter(Boolean).length;
+    if (lines.length === maxLines && consumedWords < words.length) {
+      var last = lines[maxLines - 1];
+      while (ctx.measureText(last + '…').width > maxWidth && last.length > 1) {
+        last = last.slice(0, -1);
+      }
+      lines[maxLines - 1] = last + '…';
+    }
+
+    for (var j = 0; j < lines.length; j++) {
+      ctx.fillText(lines[j], cx, topY + j * lineHeight);
+    }
+    ctx.restore();
+    return lines.length;
   },
 
   scheduleThumb: function () {
@@ -3889,6 +4112,7 @@ var Compose = {
       document.getElementById('cp-labels').value = 'sports, live, ' + league.toLowerCase();
 
       Compose.renderThumbnail();
+      Compose.autoGenerateMetaDescription();
       Compose.updateSEOMetrics();
 
       // Switch to Compose tab
@@ -3997,8 +4221,65 @@ var Compose = {
       statusEl.textContent = '';
     }
 
+    Compose.autoGenerateMetaDescription();
     Compose.updateSEOMetrics();
     Compose.renderThumbnail();
+  },
+
+  onBodyChange: function () {
+    Compose.autoGenerateMetaDescription();
+    Compose.updateSEOMetrics();
+  },
+
+  // Strips HTML tags down to plain text (used for the meta description).
+  stripHtml: function (html) {
+    return (html || '')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  },
+
+  // Auto-fills the Search Description field from the post body (first
+  // 150-160 chars of stripped text), or a title-based fallback if the
+  // body is too short. Only overwrites values the user hasn't manually
+  // customized away from the last auto-generated text, so edits stick.
+  autoGenerateMetaDescription: function () {
+    var metaEl = document.getElementById('cp-meta-desc');
+    if (!metaEl) return;
+
+    // Don't clobber a manual edit the user made since the last auto-fill.
+    if (metaEl.value && metaEl.value !== Compose._lastAutoMetaDesc) return;
+
+    var title = (document.getElementById('cp-title') && document.getElementById('cp-title').value) || '';
+    var body = (document.getElementById('cp-body') && document.getElementById('cp-body').value) || '';
+    var plainBody = Compose.stripHtml(body);
+
+    var desc;
+    if (plainBody.length >= 150) {
+      desc = plainBody.slice(0, 160);
+      // Avoid cutting mid-word where possible
+      var lastSpace = desc.lastIndexOf(' ');
+      if (lastSpace > 120) desc = desc.slice(0, lastSpace);
+    } else if (plainBody.length > 0) {
+      var d = Compose.getTemplateData();
+      var fallback = d.awayName
+        ? 'Watch ' + d.homeName + ' vs ' + d.awayName + ' live stream'
+        : 'Watch ' + d.homeName + ' live stream';
+      desc = (title || fallback) + ' — ' + plainBody;
+      desc = desc.slice(0, 160);
+    } else {
+      var d2 = Compose.getTemplateData();
+      var fallback2 = d2.awayName
+        ? 'Watch ' + d2.homeName + ' vs ' + d2.awayName + ' live stream'
+        : 'Watch ' + d2.homeName + ' live stream';
+      desc = (title ? title + ' — ' : '') + fallback2;
+      desc = desc.slice(0, 160);
+    }
+
+    metaEl.value = desc;
+    Compose._lastAutoMetaDesc = desc;
   },
 
   onStatusChange: function () {
@@ -4016,14 +4297,24 @@ var Compose = {
     var title = (document.getElementById('cp-title') && document.getElementById('cp-title').value) || '';
     var body = (document.getElementById('cp-body') && document.getElementById('cp-body').value) || '';
     var labels = (document.getElementById('cp-labels') && document.getElementById('cp-labels').value) || '';
+    var metaDesc = (document.getElementById('cp-meta-desc') && document.getElementById('cp-meta-desc').value) || '';
 
     var titleLen = title.length;
     var wordCount = body.trim().split(/\s+/).filter(function (w) { return w.length > 0; }).length;
     var labelCount = labels.split(',').filter(function (l) { return l.trim().length > 0; }).length;
+    var metaLen = metaDesc.length;
 
     if (document.getElementById('cp-seo-title')) document.getElementById('cp-seo-title').textContent = titleLen;
     if (document.getElementById('cp-seo-words')) document.getElementById('cp-seo-words').textContent = wordCount;
     if (document.getElementById('cp-seo-labels')) document.getElementById('cp-seo-labels').textContent = labelCount;
+    if (document.getElementById('cp-seo-meta')) document.getElementById('cp-seo-meta').textContent = metaLen;
+
+    var metaBar = document.getElementById('cp-seo-meta-bar');
+    if (metaBar) {
+      var pct = Math.min(100, Math.round((metaLen / 160) * 100));
+      metaBar.style.width = pct + '%';
+      metaBar.style.background = (metaLen >= 120 && metaLen <= 160) ? 'var(--color-success)' : (metaLen > 160 ? '#ff6b6b' : '#f6b93b');
+    }
   },
 
   preview: function () {
@@ -4045,19 +4336,110 @@ var Compose = {
     Gen.toast('Edit cancelled');
   },
 
-  insertTemplate: function (type) {
-    var templates = {
-      'preview': '\n\n## Match Preview\n\nThis is a professional match preview section.',
-      'howtowatch': '\n\n## How to Watch\n\nWatch live on the available streaming platforms.',
-      'h2h': '\n\n## Head to Head\n\nHistorical matchup information.',
-      'faq': '\n\n## Frequently Asked Questions\n\nCommon questions about this match.',
-      'cta': '\n\n## Watch Live\n\nClick the stream buttons above to watch live.',
-      'highlights': '\n\n## Highlights & Recap\n\nMatch highlights and final recap.'
+  // ============================================================
+  // ARTICLE TEMPLATES (800-1000 chars each, team + racing variants)
+  // ============================================================
+
+  TEMPLATES: {
+    'preview': {
+      team: '<h2>Match Preview: {homeName} vs {awayName}</h2><p>Anticipation is building as <strong>{homeName}</strong> prepare to host <strong>{awayName}</strong> in a {league} fixture that could shape the standings. Both sides arrive with plenty to play for, and neither will want to give up an early advantage.</p><p><!--if:homeLogo--><img src="{homeLogo}" alt="{homeName}" style="height:44px;border-radius:50%;vertical-align:middle;margin-right:6px;"/><!--endif-->{homeName} look to build on recent momentum, while <!--if:awayLogo--><img src="{awayLogo}" alt="{awayName}" style="height:44px;border-radius:50%;vertical-align:middle;margin:0 6px;"/><!--endif-->{awayName} look for a result to keep their campaign on track.</p><ul><li>Competition: {league}</li><li>Kickoff: {date} at {time}</li><!--if:venue--><li>Venue: {venue}</li><!--endif--><li>Live streaming links are available below</li></ul><p>Stay with us for team news, lineup updates, and every twist as {homeName} and {awayName} go head to head.</p>',
+      racing: '<h2>Race Preview: {homeName}</h2><p>All eyes turn to <strong>{homeName}</strong> as the {league} weekend approaches, with drivers and teams fine-tuning strategy ahead of lights out. Expect a tightly fought session as competitors chase every fraction of a second.</p><p><!--if:homeLogo--><img src="{homeLogo}" alt="{homeName}" style="height:48px;border-radius:50%;vertical-align:middle;margin-right:8px;"/><!--endif-->Track conditions, tyre strategy, and qualifying pace will all play a role in how the {league} weekend unfolds, and fans can expect plenty of drama from start to finish.</p><ul><li>Event: {league}</li><li>Session start: {date} at {time}</li><!--if:venue--><li>Circuit: {venue}</li><!--endif--><li>Live streaming links are available below</li></ul><p>Stick around for build-up coverage, session results, and live streaming details for {homeName}.</p>'
+    },
+    'howtowatch': {
+      team: '<h2>How to Watch: {homeName} vs {awayName}</h2><p>Looking for the best way to catch <strong>{homeName}</strong> take on <strong>{awayName}</strong> in this {league} clash? We have you covered with reliable live streaming options so you never miss a moment of the action.</p><p>The match kicks off on <strong>{date} at {time}</strong><!--if:venue--> at {venue}<!--endif-->. Depending on your region, the game may also be available through official broadcast partners, so check local listings alongside the free streaming links below.</p><ul><li>Step 1: Scroll up and choose a stream button above</li><li>Step 2: Select your preferred server or quality</li><li>Step 3: Enjoy {homeName} vs {awayName} live, ad-light and in HD where available</li></ul><p>Bookmark this page and return closer to kickoff, as stream links are refreshed regularly to ensure smooth, uninterrupted playback throughout the {league} fixture.</p>',
+      racing: '<h2>How to Watch: {homeName}</h2><p>Want to catch every lap of <strong>{homeName}</strong> live? Here is the simplest way to stream the {league} action without missing a single overtake, pit stop, or podium celebration.</p><p>Coverage begins on <strong>{date} at {time}</strong><!--if:venue--> from {venue}<!--endif-->. Official broadcasters may also carry the session in select regions, so check local listings in addition to the free streaming links provided on this page.</p><ul><li>Step 1: Scroll up and pick a stream button above</li><li>Step 2: Choose your preferred server or quality</li><li>Step 3: Enjoy {homeName} live in HD where available</li></ul><p>Bookmark this page and check back before lights out, as links are refreshed regularly to keep your {league} viewing experience smooth and reliable.</p>'
+    },
+    'h2h': {
+      team: '<h2>Head-to-Head: {homeName} vs {awayName}</h2><p>Rivalries are built on history, and the meetings between <strong>{homeName}</strong> and <strong>{awayName}</strong> have produced their share of memorable moments. Recent encounters in the {league} have often been tightly contested affairs.</p><p>Form and momentum can shift quickly, but head-to-head records remain a useful guide for what to expect on <strong>{date}</strong>. Both managers will have studied previous meetings closely when preparing their approach for this fixture.</p><ul><li>Competition: {league}</li><li>Kickoff: {date} at {time}</li><!--if:venue--><li>Venue: {venue}</li><!--endif--><li>Recent meetings: closely contested, small margins</li></ul><p>Expect another absorbing chapter in this fixture as {homeName} and {awayName} renew their {league} rivalry with plenty on the line.</p>',
+      racing: '<h2>Recent Form: {homeName}</h2><p>Consistency matters heading into any {league} weekend, and recent results for <strong>{homeName}</strong> offer a useful guide to current form. Momentum built over previous rounds can carry through to qualifying and race day alike.</p><p>Championship standings, recent finishes, and pace across practice sessions all feed into expectations for <strong>{date}</strong>. Rivals will be watching closely to see whether that form holds under pressure.</p><ul><li>Event: {league}</li><li>Session start: {date} at {time}</li><!--if:venue--><li>Circuit: {venue}</li><!--endif--><li>Recent form: strong pace across recent rounds</li></ul><p>Expect another closely watched {league} weekend as {homeName} looks to build on recent momentum and translate strong practice pace into a result that matters when the points are handed out.</p>'
+    },
+    'faq': {
+      team: '<h2>Frequently Asked Questions</h2><p><strong>What time does {homeName} vs {awayName} kick off?</strong><br/>The match is scheduled to begin on {date} at {time}<!--if:venue--> at {venue}<!--endif-->, local broadcast time may vary depending on your region.</p><p><strong>Where can I watch {homeName} vs {awayName} live?</strong><br/>Use the streaming links provided above on this page, or check official {league} broadcast partners available in your country.</p><p><strong>Is the {league} stream free?</strong><br/>The links shared here are free to access, though quality and availability can vary depending on server load and your location.</p><p><strong>Will highlights be available afterward?</strong><br/>Yes, a full highlights and recap section will be added to this page once {homeName} vs {awayName} has concluded.</p>',
+      racing: '<h2>Frequently Asked Questions</h2><p><strong>What time does the {league} session for {homeName} start?</strong><br/>Coverage begins on {date} at {time}<!--if:venue--> at {venue}<!--endif-->, though local broadcast times may vary by region.</p><p><strong>Where can I watch {homeName} live?</strong><br/>Use the streaming links provided above on this page, or check official {league} broadcast partners available in your country.</p><p><strong>Is the {league} stream free?</strong><br/>The links shared here are free to access, though quality and availability can vary depending on server load and location.</p><p><strong>Will highlights be available afterward?</strong><br/>Yes, a full highlights and recap section will be added to this page once the {league} session for {homeName} has concluded.</p>'
+    },
+    'cta': {
+      team: '<h2>Watch {homeName} vs {awayName} Live Now</h2><p>Do not miss a single moment of this {league} showdown between <strong>{homeName}</strong> and <strong>{awayName}</strong>. Scroll up and tap one of the stream buttons above to start watching instantly, in HD where available.</p><p><!--if:homeLogo--><img src="{homeLogo}" alt="{homeName}" style="height:40px;border-radius:50%;vertical-align:middle;margin-right:6px;"/><!--endif--><!--if:awayLogo--><img src="{awayLogo}" alt="{awayName}" style="height:40px;border-radius:50%;vertical-align:middle;margin-right:6px;"/><!--endif-->Kickoff is set for <strong>{date} at {time}</strong><!--if:venue--> at {venue}<!--endif-->, so get comfortable and grab a link now before the action begins.</p><ul><li>No lengthy sign-up required</li><li>Multiple servers if one is slow</li><li>Mobile and desktop friendly players</li></ul><p>Share this page with fellow fans so nobody misses {homeName} vs {awayName} live.</p>',
+      racing: '<h2>Watch {homeName} Live Now</h2><p>Do not miss a single lap of this {league} action featuring <strong>{homeName}</strong>. Scroll up and tap one of the stream buttons above to start watching instantly, in HD where available.</p><p><!--if:homeLogo--><img src="{homeLogo}" alt="{homeName}" style="height:40px;border-radius:50%;vertical-align:middle;margin-right:6px;"/><!--endif-->Coverage is set to begin on <strong>{date} at {time}</strong><!--if:venue--> at {venue}<!--endif-->, so get comfortable and grab a link now before the session begins.</p><ul><li>No lengthy sign-up required</li><li>Multiple servers if one is slow</li><li>Mobile and desktop friendly players</li></ul><p>Share this page with fellow fans so nobody misses {homeName} live, and check back for updated links if a server goes down mid-session.</p>'
+    },
+    'highlights': {
+      team: '<h2>Highlights & Recap: {homeName} vs {awayName}</h2><p>The {league} clash between <strong>{homeName}</strong> and <strong>{awayName}</strong> delivered plenty of talking points from kickoff to the final whistle on {date}. Below is a quick recap of how the match unfolded, updated as the action develops.</p><ul><li>Key moments and turning points from the match</li><li>Standout performers for {homeName} and {awayName}</li><li>Final score and match statistics</li><li>Post-match reaction and manager comments</li></ul><p>Video highlights will be embedded here shortly after full time, so check back if you missed the live stream. This recap will be updated with the confirmed final score, standout moments, and manager reaction once the {league} fixture officially concludes and results are verified.</p>',
+      racing: '<h2>Highlights & Recap: {homeName}</h2><p>The {league} session featuring <strong>{homeName}</strong> delivered plenty of talking points from lights out to the chequered flag on {date}. Below is a quick recap of how the session unfolded, updated as results are confirmed.</p><ul><li>Key overtakes and turning points from the session</li><li>Standout performance from {homeName}</li><li>Final classification and race statistics</li><li>Post-session reaction and team comments</li></ul><p>Video highlights will be embedded here shortly after the chequered flag, so check back if you missed the live stream. This recap will be updated with the confirmed final classification, fastest lap, standout overtakes, and podium reaction once the {league} session officially concludes and every result is verified.</p>'
+    }
+  },
+  // Gathers current Compose-tab field values into a flat data object
+  // used to fill template placeholders. Falls back gracefully when a
+  // field (e.g. venue) does not exist in the UI.
+  getTemplateData: function () {
+    var titleEl = document.getElementById('cp-title');
+    var title = (titleEl && titleEl.value) || '';
+    var league = (document.getElementById('cp-league') && document.getElementById('cp-league').value) || 'League';
+    var dtRaw = (document.getElementById('cp-datetime') && document.getElementById('cp-datetime').value) || '';
+    var dtParts = dtRaw.trim().split(/\s+/).filter(function (p) { return p.length > 0; });
+    var date = dtParts[0] || '';
+    var time = dtParts.slice(1).join(' ') || '';
+    var homeLogo = (document.getElementById('cp-home-logo') && document.getElementById('cp-home-logo').value) || '';
+    var awayLogo = (document.getElementById('cp-away-logo') && document.getElementById('cp-away-logo').value) || '';
+    // cp-venue does not currently exist in the UI, but is read defensively
+    // in case a future field with that id is added.
+    var venueEl = document.getElementById('cp-venue');
+    var venue = (venueEl && venueEl.value) || '';
+
+    var homeName = '', awayName = '';
+    var vsMatch = title.match(/^(.*?)\s+vs\.?\s+(.*?)(?:\s*[\u2013\u2014-]\s*.*)?$/i);
+    if (vsMatch) {
+      homeName = vsMatch[1].trim();
+      awayName = vsMatch[2].trim();
+    } else if (title) {
+      // No "vs" found — likely a racing/single-entrant event. Keep the
+      // full title as-is (e.g. "MotoGP – Spanish Grand Prix"), since the
+      // dash is usually part of the event name here, not a suffix to strip.
+      homeName = title.trim();
+    }
+    if (!homeName) homeName = 'Home Team';
+
+    return {
+      homeName: homeName,
+      awayName: awayName,
+      league: league,
+      date: date || 'TBC',
+      time: time || 'TBC',
+      venue: venue,
+      homeLogo: homeLogo,
+      awayLogo: awayLogo,
+      isRacing: !awayName
     };
+  },
+
+  // Resolves <!--if:KEY-->...<!--endif--> conditional blocks against the
+  // data object, then substitutes {placeholder} tokens.
+  fillPlaceholders: function (str, d) {
+    var out = str.replace(/<!--if:(\w+)-->([\s\S]*?)<!--endif-->/g, function (match, key, inner) {
+      return d[key] ? inner : '';
+    });
+    out = out
+      .replace(/{homeName}/g, Compose.esc(d.homeName))
+      .replace(/{awayName}/g, Compose.esc(d.awayName))
+      .replace(/{league}/g, Compose.esc(d.league))
+      .replace(/{date}/g, Compose.esc(d.date))
+      .replace(/{time}/g, Compose.esc(d.time))
+      .replace(/{venue}/g, Compose.esc(d.venue))
+      .replace(/{homeLogo}/g, d.homeLogo)
+      .replace(/{awayLogo}/g, d.awayLogo);
+    return out;
+  },
+
+  insertTemplate: function (type) {
+    var tpl = Compose.TEMPLATES[type];
+    if (!tpl) return;
+
+    var d = Compose.getTemplateData();
+    var raw = d.isRacing ? tpl.racing : tpl.team;
+    var filled = Compose.fillPlaceholders(raw, d);
 
     var body = document.getElementById('cp-body');
     if (body) {
-      body.value += (templates[type] || '');
+      body.value += (body.value ? '\n\n' : '') + filled;
+      Compose.onBodyChange();
       Gen.toast('Template inserted');
     }
   },
