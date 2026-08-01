@@ -3864,14 +3864,20 @@ var Compose = {
       body += '**Date:** ' + date + ' at ' + time + '\n\n';
       body += 'Watch the live match here.\n';
 
-      // Carry over stream/channel rows from the Event Card tab
+      // Carry over stream/channel rows from the Event Card tab as iframe embeds
       var channelRows = document.querySelectorAll('#ev-channel-rows .channel-row');
       var chLines = [];
       channelRows.forEach(function (row) {
         var inputs = row.querySelectorAll('input');
-        if (inputs[1] && inputs[1].value) chLines.push('- ' + (inputs[0].value || 'Stream') + ': ' + inputs[1].value);
+        var src = inputs[1] && inputs[1].value;
+        if (!src) return;
+        chLines.push(
+          '<iframe src="' + src + '" allow="encrypted-media" allowfullscreen ' +
+          'sandbox="allow-forms allow-pointer-lock allow-same-origin allow-scripts allow-top-navigation" ' +
+          'loading="lazy" scrolling="no" style="width:100%;height:480px;border:0;"></iframe>'
+        );
       });
-      if (chLines.length) body += '\n**Streams:**\n' + chLines.join('\n') + '\n';
+      if (chLines.length) body += '\n' + chLines.join('\n\n') + '\n';
 
       // Set Compose fields
       document.getElementById('cp-title').value = title;
