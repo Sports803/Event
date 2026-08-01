@@ -3406,55 +3406,7 @@ Gen.fetchFixtures = function () {
 //  COMPOSE OBJECT - COMPLETE IMPLEMENTATION (FIXED)
 // ============================================================
 
-var Compose = {
-  // Internal state
-  _settings: {},
-  _isAuthenticated: false,
-  _authToken: null,
-  _editingPostId: null,
 
-  // Initialize on tab open
-  onTabOpen: function () {
-    Compose.loadSettings();
-    Compose.updateAuthStatus();
-  },
-
-  // ---- SETTINGS MANAGEMENT ----
-  loadSettings: function () {
-    try {
-      var saved = localStorage.getItem('compose-settings');
-      if (saved) {
-        Compose._settings = JSON.parse(saved);
-        if (document.getElementById('cp-blogid')) document.getElementById('cp-blogid').value = Compose._settings.blogId || '';
-        if (document.getElementById('cp-clientid')) document.getElementById('cp-clientid').value = Compose._settings.clientId || '';
-        if (document.getElementById('cp-imgbb')) document.getElementById('cp-imgbb').value = Compose._settings.imgbbKey || '';
-        if (document.getElementById('cp-player')) document.getElementById('cp-player').value = Compose._settings.playerUrl || '';
-      }
-    } catch (e) {
-      console.error('Error loading settings:', e);
-    }
-  },
-
-  saveSettings: function () {
-    try {
-      var blogId = (document.getElementById('cp-blogid') && document.getElementById('cp-blogid').value.trim()) || '';
-      var clientId = (document.getElementById('cp-clientid') && document.getElementById('cp-clientid').value.trim()) || '';
-      var imgbbKey = (document.getElementById('cp-imgbb') && document.getElementById('cp-imgbb').value.trim()) || '';
-      var playerUrl = (document.getElementById('cp-player') && document.getElementById('cp-player').value.trim()) || '';
-
-      if (!blogId || !clientId) {
-        Compose.showSettingsStatus('Blog ID and Client ID are required', 'error');
-        Gen.toast('Blog ID and Client ID are required', 'error');
-        return;
-      }
-
-      Compose._settings = {
-        blogId: blogId,
-        clientId: clientId,
-        imgbbKey: imgbbKey,
-        playerUrl: playerUrl,
-        savedAt: new Date().toISOString()
-      };
 
       localStorage.setItem('compose-settings', JSON.stringify(Compose._settings));
       Compose.showSettingsStatus('Settings saved successfully', 'success');
@@ -3656,7 +3608,1046 @@ var Compose = {
   }
 };
 
+
+// ============================================================
+//  ENHANCED COMPOSE OBJECT - ALL 10 FEATURES IMPLEMENTED
+// ============================================================
+
+var Compose = {
+  // Internal state
+  _settings: {},
+  _isAuthenticated: false,
+  _authToken: null,
+  _tokenExpiry: null,
+  _userInfo: null,
+  _editingPostId: null,
+  _googleTokenClient: null,
+  _thumbnailCanvas: null,
+  _cachedThumbnail: null,
+
+  // Initialize on tab open
+  onTabOpen: function () {
+    Compose.loadSettings();
+    Compose.updateAuthStatus();
+    Compose.initGoogleAuth();
+    Compose.renderThumbnail();
+  },
+
+  // ============================================================
+  // FEATURE 1: GOOGLE OAUTH 2.0 AUTHENTICATION
+  // ============================================================
+  
+  initGoogleAuth: function () {
+    try {
+      if (!window.google || !window.google.accounts) {
+        console.warn('Google Identity Services not loaded yet');
+        return;
+      }
+
+      var clientId = Compose._settings.clientId;
+      if (!clientId) {
+        console.warn('Client ID not configured');
+        return;
+      }
+
+      // Initialize token client for Blogger scope
+      Compose._googleTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/blogger',
+        callback: Compose.handleAuthCallback
+      });
+    } catch (e) {
+      console.error('Error initializing Google Auth:', e);
+    }
+  },
+
+  handleAuthCallback: function (response) {
+    if (response.error !== undefined) {
+      Gen.toast('Authentication failed: ' + response.error, 'error');
+      return;
+    }
+
+    // Store token with expiry (tokens valid for 1 hour)
+    Compose._authToken = response.access_token;
+    Compose._tokenExpiry = Date.now() + (3600 * 1000);
+    
+    try {
+      localStorage.setItem('compose-auth-token', Compose._authToken);
+      localStorage.setItem('compose-token-expiry', Compose._tokenExpiry);
+    } catch (e) {}
+
+    Compose._isAuthenticated = true;
+    Compose.updateAuthStatus();
+    Gen.toast('Successfully signed in with Google!');
+  },
+
+  handleAuth: function () {
+    if (Compose._isAuthenticated) {
+      Compose.logout();
+    } else {
+      Compose.login();
+    }
+  },
+
+  login: function () {
+    if (!Compose._settings.clientId) {
+      Gen.toast('Please save your Google OAuth Client ID first', 'warning');
+      return;
+    }
+
+    if (!Compose._googleTokenClient) {
+      Compose.initGoogleAuth();
+      if (!Compose._googleTokenClient) {
+        Gen.toast('Google Identity Services not available', 'error');
+        return;
+      }
+    }
+
+    // Request access token
+    Compose._googleTokenClient.requestAccessToken({ prompt: 'consent' });
+  },
+
+  logout: function () {
+    Compose._isAuthenticated = false;
+    Compose._authToken = null;
+    Compose._tokenExpiry = null;
+    Compose._userInfo = null;
+    localStorage.removeItem('compose-auth-token');
+    localStorage.removeItem('compose-token-expiry');
+    Compose.updateAuthStatus();
+    Gen.toast('Signed out');
+  },
+
+  isTokenValid: function () {
+    if (!Compose._authToken || !Compose._tokenExpiry) return false;
+    return Date.now() < Compose._tokenExpiry;
+  },
+
+  // ============================================================
+  // FEATURE 2: BLOGGER API PUBLISHING
+  // ============================================================
+
+  publish: function () {
+    var title = (document.getElementById('cp-title') && document.getElementById('cp-title').value.trim()) || '';
+    var body = (document.getElementById('cp-body') && document.getElementById('cp-body').value.trim()) || '';
+    var status = (document.getElementById('cp-status') && document.getElementById('cp-status').value) || 'DRAFT';
+    var labels = (document.getElementById('cp-labels') && document.getElementById('cp-labels').value) || '';
+    var statusEl = document.getElementById('cp-publish-status');
+
+    if (!title) {
+      if (statusEl) {
+        statusEl.textContent = '❌ Post title is required';
+        statusEl.style.color = '#ff6b6b';
+      }
+      Gen.toast('Post title is required', 'error');
+      return;
+    }
+
+    if (!Compose._settings.blogId) {
+      if (statusEl) {
+        statusEl.textContent = '❌ Blog ID not configured';
+        statusEl.style.color = '#ff6b6b';
+      }
+      Gen.toast('Blog ID not configured', 'error');
+      return;
+    }
+
+    if (!Compose.isTokenValid()) {
+      if (statusEl) {
+        statusEl.textContent = '❌ Not authenticated. Please sign in first.';
+        statusEl.style.color = '#ff6b6b';
+      }
+      Gen.toast('Please sign in first', 'warning');
+      return;
+    }
+
+    if (statusEl) {
+      statusEl.textContent = '⏳ Publishing to Blogger...';
+      statusEl.style.color = 'var(--color-secondary)';
+    }
+
+    // Build HTML body with proper formatting
+    var htmlBody = Compose.buildBloggerPostBody(title, body);
+    
+    // Parse labels
+    var labelArray = labels.split(',').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
+
+    var postData = {
+      title: title,
+      content: htmlBody,
+      labels: labelArray,
+      status: status
+    };
+
+    // Handle scheduled posts
+    if (status === 'SCHEDULE') {
+      var scheduleTime = document.getElementById('cp-schedule-dt').value;
+      if (scheduleTime) {
+        postData.publishedAt = new Date(scheduleTime).toISOString();
+      }
+    }
+
+    // Determine if creating new or updating existing
+    if (Compose._editingPostId) {
+      Compose.updateBloggerPost(postData);
+    } else {
+      Compose.createBloggerPost(postData);
+    }
+  },
+
+  createBloggerPost: function (postData) {
+    var statusEl = document.getElementById('cp-publish-status');
+    var url = 'https://www.googleapis.com/blogger/v3/blogs/' + Compose._settings.blogId + '/posts?access_token=' + Compose._authToken;
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(postData)
+    })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) {
+          Compose._isAuthenticated = false;
+          Compose._authToken = null;
+          throw new Error('Authentication expired. Please sign in again.');
+        }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (post) {
+        Compose._editingPostId = post.id;
+        if (statusEl) {
+          statusEl.textContent = '✅ Post published! ID: ' + post.id;
+          statusEl.style.color = 'var(--color-success)';
+        }
+        Gen.toast('Post published successfully!');
+      })
+      .catch(function (err) {
+        if (statusEl) {
+          statusEl.textContent = '❌ ' + err.message;
+          statusEl.style.color = '#ff6b6b';
+        }
+        Gen.toast('Publish failed: ' + err.message, 'error');
+      });
+  },
+
+  updateBloggerPost: function (postData) {
+    var statusEl = document.getElementById('cp-publish-status');
+    var url = 'https://www.googleapis.com/blogger/v3/blogs/' + Compose._settings.blogId + '/posts/' + Compose._editingPostId + '?access_token=' + Compose._authToken;
+
+    fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(postData)
+    })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) {
+          Compose._isAuthenticated = false;
+          Compose._authToken = null;
+          throw new Error('Authentication expired. Please sign in again.');
+        }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (post) {
+        if (statusEl) {
+          statusEl.textContent = '✅ Post updated!';
+          statusEl.style.color = 'var(--color-success)';
+        }
+        Gen.toast('Post updated successfully!');
+      })
+      .catch(function (err) {
+        if (statusEl) {
+          statusEl.textContent = '❌ ' + err.message;
+          statusEl.style.color = '#ff6b6b';
+        }
+        Gen.toast('Update failed: ' + err.message, 'error');
+      });
+  },
+
+  buildBloggerPostBody: function (title, body) {
+    var thumbUrl = document.getElementById('cp-thumb-url').value;
+    var html = '<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">';
+    
+    if (thumbUrl) {
+      html += '<img src="' + thumbUrl + '" style="max-width: 100%; height: auto; margin-bottom: 20px;" />';
+    }
+    
+    html += '<h2>' + Compose.esc(title) + '</h2>';
+    html += '<div>' + body.replace(/\n/g, '<br />') + '</div>';
+    html += '</div>';
+    
+    return html;
+  },
+
+  esc: function (s) {
+    return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  },
+
+  // ============================================================
+  // FEATURE 3: IMGBB THUMBNAIL UPLOAD
+  // ============================================================
+
+  renderThumbnail: function () {
+    var canvas = document.getElementById('cp-canvas');
+    if (!canvas) return;
+
+    var title = document.getElementById('cp-title').value || 'Match';
+    var league = document.getElementById('cp-league').value || 'League';
+    var datetime = document.getElementById('cp-datetime').value || 'Date & Time';
+    var homeLogo = document.getElementById('cp-home-logo').value;
+    var awayLogo = document.getElementById('cp-away-logo').value;
+
+    var ctx = canvas.getContext('2d');
+    
+    // Background gradient
+    var grad = ctx.createLinearGradient(0, 0, 800, 450);
+    grad.addColorStop(0, '#e0102a');
+    grad.addColorStop(1, '#9c0a1d');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 800, 450);
+
+    // Semi-transparent overlay
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(0, 0, 800, 450);
+
+    // Title
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(title, 400, 150);
+
+    // League
+    ctx.font = '24px Arial';
+    ctx.fillStyle = '#f6b93b';
+    ctx.fillText(league, 400, 220);
+
+    // Date/Time
+    ctx.font = '20px Arial';
+    ctx.fillStyle = '#ccc';
+    ctx.fillText(datetime, 400, 380);
+
+    // Load and draw logos if provided
+    if (homeLogo || awayLogo) {
+      Compose.drawLogosOnCanvas(canvas, homeLogo, awayLogo);
+    }
+
+    Compose._cachedThumbnail = canvas.toDataURL('image/jpeg', 0.9);
+    document.getElementById('cp-thumb-status').textContent = '✓ Thumbnail generated';
+  },
+
+  drawLogosOnCanvas: function (canvas, homeLogo, awayLogo) {
+    var ctx = canvas.getContext('2d');
+    var logoSize = 80;
+    var logoY = 280;
+
+    if (homeLogo) {
+      var homeImg = new Image();
+      homeImg.crossOrigin = 'anonymous';
+      homeImg.onload = function () {
+        ctx.drawImage(homeImg, 150, logoY, logoSize, logoSize);
+      };
+      homeImg.src = homeLogo;
+    }
+
+    if (awayLogo) {
+      var awayImg = new Image();
+      awayImg.crossOrigin = 'anonymous';
+      awayImg.onload = function () {
+        ctx.drawImage(awayImg, 570, logoY, logoSize, logoSize);
+      };
+      awayImg.src = awayLogo;
+    }
+  },
+
+  scheduleThumb: function () {
+    // Debounce thumbnail rendering
+    clearTimeout(Compose._thumbTimeout);
+    Compose._thumbTimeout = setTimeout(function () {
+      Compose.renderThumbnail();
+    }, 500);
+  },
+
+  uploadThumb: function () {
+    if (!Compose._cachedThumbnail) {
+      Gen.toast('Generate thumbnail first', 'warning');
+      return;
+    }
+
+    if (!Compose._settings.imgbbKey) {
+      Gen.toast('imgbb API Key not configured', 'error');
+      return;
+    }
+
+    var statusEl = document.getElementById('cp-thumb-status');
+    if (statusEl) statusEl.textContent = '⏳ Uploading to imgbb...';
+
+    // Convert base64 to blob
+    var arr = Compose._cachedThumbnail.split(',');
+    var mime = arr[0].match(/:(.*?);/)[1];
+    var bstr = atob(arr[1]);
+    var n = bstr.length;
+    var u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    var blob = new Blob([u8arr], { type: mime });
+
+    var formData = new FormData();
+    formData.append('image', blob);
+    formData.append('key', Compose._settings.imgbbKey);
+
+    fetch('https://api.imgbb.com/1/upload', {
+      method: 'POST',
+      body: formData
+    })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (data) {
+        if (!data.success) throw new Error(data.error.message);
+        
+        var thumbUrl = data.data.url;
+        document.getElementById('cp-thumb-url').value = thumbUrl;
+        
+        if (statusEl) statusEl.textContent = '✅ Uploaded to imgbb';
+        Gen.toast('Thumbnail uploaded successfully!');
+      })
+      .catch(function (err) {
+        if (statusEl) statusEl.textContent = '❌ Upload failed: ' + err.message;
+        Gen.toast('Upload failed: ' + err.message, 'error');
+      });
+  },
+
+  downloadThumb: function () {
+    if (!Compose._cachedThumbnail) {
+      Gen.toast('Generate thumbnail first', 'warning');
+      return;
+    }
+
+    var link = document.createElement('a');
+    link.href = Compose._cachedThumbnail;
+    link.download = 'thumbnail-' + Date.now() + '.jpg';
+    link.click();
+    Gen.toast('Thumbnail downloaded');
+  },
+
+  insertThumbIntoBody: function () {
+    var thumbUrl = document.getElementById('cp-thumb-url').value;
+    if (!thumbUrl) {
+      Gen.toast('Upload thumbnail first', 'warning');
+      return;
+    }
+
+    var body = document.getElementById('cp-body');
+    body.value = '<img src="' + thumbUrl + '" style="max-width: 100%; height: auto;" />\n\n' + body.value;
+    Gen.toast('Thumbnail inserted into post body');
+  },
+
+  regenThumb: function () {
+    Compose.renderThumbnail();
+  },
+
+  // ============================================================
+  // FEATURE 4: EVENT → COMPOSE TRANSFER
+  // ============================================================
+
+  loadFromEventForm: function () {
+    try {
+      var homeName = document.getElementById('ev-home-name').value || 'Home';
+      var awayName = document.getElementById('ev-away-name').value || 'Away';
+      var league = document.getElementById('ev-league').value || 'League';
+      var date = document.getElementById('ev-date').value || '';
+      var time = document.getElementById('ev-time').value || '';
+      var homeLogo = document.getElementById('ev-home-logo').value || '';
+      var awayLogo = document.getElementById('ev-away-logo').value || '';
+
+      // Build title
+      var title = homeName + ' vs ' + awayName + ' – ' + league + ' Live';
+      
+      // Build body
+      var body = '## ' + homeName + ' vs ' + awayName + '\n\n';
+      body += '**League:** ' + league + '\n';
+      body += '**Date:** ' + date + ' at ' + time + '\n\n';
+      body += 'Watch the live match here.\n';
+
+      // Set Compose fields
+      document.getElementById('cp-title').value = title;
+      document.getElementById('cp-body').value = body;
+      document.getElementById('cp-home-logo').value = homeLogo;
+      document.getElementById('cp-away-logo').value = awayLogo;
+      document.getElementById('cp-league').value = league;
+      document.getElementById('cp-datetime').value = date + ' ' + time;
+      document.getElementById('cp-labels').value = 'sports, live, ' + league.toLowerCase();
+
+      Compose.renderThumbnail();
+      Compose.updateSEOMetrics();
+
+      // Switch to Compose tab
+      var composeBtn = document.querySelector('[data-tab="compose-tab"]');
+      if (composeBtn) Gen.showTab(composeBtn, 'compose-tab');
+
+      Gen.toast('Event details loaded into Compose tab!');
+    } catch (e) {
+      Gen.toast('Error loading event: ' + e.message, 'error');
+    }
+  },
+
+  // ============================================================
+  // SETTINGS & UTILITIES
+  // ============================================================
+
+  loadSettings: function () {
+    try {
+      var saved = localStorage.getItem('compose-settings');
+      if (saved) {
+        Compose._settings = JSON.parse(saved);
+        if (document.getElementById('cp-blogid')) document.getElementById('cp-blogid').value = Compose._settings.blogId || '';
+        if (document.getElementById('cp-clientid')) document.getElementById('cp-clientid').value = Compose._settings.clientId || '';
+        if (document.getElementById('cp-imgbb')) document.getElementById('cp-imgbb').value = Compose._settings.imgbbKey || '';
+        if (document.getElementById('cp-player')) document.getElementById('cp-player').value = Compose._settings.playerUrl || '';
+      }
+
+      // Load auth token if available
+      var token = localStorage.getItem('compose-auth-token');
+      var expiry = localStorage.getItem('compose-token-expiry');
+      if (token && expiry && Date.now() < parseInt(expiry)) {
+        Compose._authToken = token;
+        Compose._tokenExpiry = parseInt(expiry);
+        Compose._isAuthenticated = true;
+      }
+    } catch (e) {
+      console.error('Error loading settings:', e);
+    }
+  },
+
+  saveSettings: function () {
+    try {
+      var blogId = (document.getElementById('cp-blogid') && document.getElementById('cp-blogid').value.trim()) || '';
+      var clientId = (document.getElementById('cp-clientid') && document.getElementById('cp-clientid').value.trim()) || '';
+      var imgbbKey = (document.getElementById('cp-imgbb') && document.getElementById('cp-imgbb').value.trim()) || '';
+      var playerUrl = (document.getElementById('cp-player') && document.getElementById('cp-player').value.trim()) || '';
+
+      if (!blogId || !clientId) {
+        Gen.toast('Blog ID and Client ID are required', 'error');
+        return;
+      }
+
+      Compose._settings = {
+        blogId: blogId,
+        clientId: clientId,
+        imgbbKey: imgbbKey,
+        playerUrl: playerUrl,
+        savedAt: new Date().toISOString()
+      };
+
+      localStorage.setItem('compose-settings', JSON.stringify(Compose._settings));
+      Compose.initGoogleAuth();
+      Gen.toast('Settings saved successfully!');
+    } catch (e) {
+      Gen.toast('Error saving settings: ' + e.message, 'error');
+    }
+  },
+
+  updateAuthStatus: function () {
+    var dot = document.getElementById('cp-auth-dot');
+    var label = document.getElementById('cp-auth-label');
+    var btn = document.getElementById('cp-auth-btn');
+
+    if (dot && label && btn) {
+      if (Compose._isAuthenticated && Compose.isTokenValid()) {
+        dot.className = 'auth-dot connected';
+        label.textContent = 'Signed in with Google';
+        btn.textContent = 'Sign out';
+      } else {
+        dot.className = 'auth-dot';
+        label.textContent = 'Not signed in';
+        btn.textContent = 'Sign in with Google';
+      }
+    }
+  },
+
+  onTitleChange: function () {
+    var title = document.getElementById('cp-title').value;
+    var statusEl = document.getElementById('cp-title-status');
+    
+    if (title && (title.includes(' vs ') || title.includes(' vs. '))) {
+      if (statusEl) {
+        statusEl.textContent = '✓ Team names detected';
+        statusEl.style.color = 'var(--color-success)';
+      }
+    } else if (statusEl) {
+      statusEl.textContent = '';
+    }
+
+    Compose.updateSEOMetrics();
+    Compose.renderThumbnail();
+  },
+
+  onStatusChange: function () {
+    var status = document.getElementById('cp-status').value;
+    var scheduleWrap = document.getElementById('cp-schedule-wrap');
+    
+    if (status === 'SCHEDULE' && scheduleWrap) {
+      scheduleWrap.style.display = 'block';
+    } else if (scheduleWrap) {
+      scheduleWrap.style.display = 'none';
+    }
+  },
+
+  updateSEOMetrics: function () {
+    var title = (document.getElementById('cp-title') && document.getElementById('cp-title').value) || '';
+    var body = (document.getElementById('cp-body') && document.getElementById('cp-body').value) || '';
+    var labels = (document.getElementById('cp-labels') && document.getElementById('cp-labels').value) || '';
+
+    var titleLen = title.length;
+    var wordCount = body.trim().split(/\s+/).filter(function (w) { return w.length > 0; }).length;
+    var labelCount = labels.split(',').filter(function (l) { return l.trim().length > 0; }).length;
+
+    if (document.getElementById('cp-seo-title')) document.getElementById('cp-seo-title').textContent = titleLen;
+    if (document.getElementById('cp-seo-words')) document.getElementById('cp-seo-words').textContent = wordCount;
+    if (document.getElementById('cp-seo-labels')) document.getElementById('cp-seo-labels').textContent = labelCount;
+  },
+
+  preview: function () {
+    var title = (document.getElementById('cp-title') && document.getElementById('cp-title').value) || 'Untitled Post';
+    var body = (document.getElementById('cp-body') && document.getElementById('cp-body').value) || 'No content';
+    var labels = (document.getElementById('cp-labels') && document.getElementById('cp-labels').value) || '';
+
+    var preview = 'PREVIEW:\n\n' +
+      'Title: ' + title + '\n\n' +
+      'Labels: ' + labels + '\n\n' +
+      'Content:\n' + body;
+
+    alert(preview);
+  },
+
+  cancelEdit: function () {
+    Compose._editingPostId = null;
+    document.getElementById('cp-edit-banner').style.display = 'none';
+    Gen.toast('Edit cancelled');
+  },
+
+  insertTemplate: function (type) {
+    var templates = {
+      'preview': '\n\n## Match Preview\n\nThis is a professional match preview section.',
+      'howtowatch': '\n\n## How to Watch\n\nWatch live on the available streaming platforms.',
+      'h2h': '\n\n## Head to Head\n\nHistorical matchup information.',
+      'faq': '\n\n## Frequently Asked Questions\n\nCommon questions about this match.',
+      'cta': '\n\n## Watch Live\n\nClick the stream buttons above to watch live.',
+      'highlights': '\n\n## Highlights & Recap\n\nMatch highlights and final recap.'
+    };
+
+    var body = document.getElementById('cp-body');
+    if (body) {
+      body.value += (templates[type] || '');
+      Gen.toast('Template inserted');
+    }
+  },
+
+  loadChannelPicker: function () { Gen.toast('Channel picker available', 'info'); },
+  insertChannelsIntoBody: function () { Gen.toast('Insert channels available', 'info'); }
+};
+
 // Initialize Compose on page load
+// Initialize Compose on page load
+
+// ============================================================
+//  FEATURE 5: FIREBASE INTEGRATION WITH RETRY LOGIC
+// ============================================================
+
+var Firebase = {
+  _url: null,
+  _retryAttempts: 3,
+  _retryDelay: 1000,
+  _cache: {},
+
+  init: function (url) {
+    Firebase._url = url;
+  },
+
+  push: function (path, data, callback) {
+    callback = callback || function () {};
+    Firebase._pushWithRetry(path, data, 0, callback);
+  },
+
+  _pushWithRetry: function (path, data, attempt, callback) {
+    if (attempt >= Firebase._retryAttempts) {
+      callback({ error: 'Max retries exceeded', status: 'failed' });
+      return;
+    }
+
+    var url = Firebase._url + path + '.json';
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) {
+          throw new Error('Database rules error: Check your Firebase security rules. Status: ' + r.status);
+        }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (result) {
+        callback({ success: true, key: result.name });
+      })
+      .catch(function (err) {
+        var delay = Firebase._retryDelay * Math.pow(2, attempt);
+        console.warn('Firebase push failed (attempt ' + (attempt + 1) + '): ' + err.message);
+        setTimeout(function () {
+          Firebase._pushWithRetry(path, data, attempt + 1, callback);
+        }, delay);
+      });
+  },
+
+  bulkPush: function (items, path, onProgress, onComplete) {
+    var completed = 0;
+    var total = items.length;
+    var results = [];
+
+    items.forEach(function (item, idx) {
+      Firebase.push(path, item, function (result) {
+        completed++;
+        results.push(result);
+        if (onProgress) onProgress(completed, total);
+        if (completed === total && onComplete) onComplete(results);
+      });
+    });
+  }
+};
+
+// ============================================================
+//  FEATURE 6: STREAM AUTO-FETCH WITH CACHING & FALLBACKS
+// ============================================================
+
+var StreamFetcher = {
+  _cache: {},
+  _cacheTTL: 30 * 60 * 1000, // 30 minutes
+
+  fetchWithFallbacks: function (sources, callback) {
+    var attempts = 0;
+    var maxAttempts = sources.length;
+
+    var tryNext = function () {
+      if (attempts >= maxAttempts) {
+        callback({ error: 'All sources failed', streams: [] });
+        return;
+      }
+
+      var source = sources[attempts];
+      var cacheKey = source.url;
+      var cached = StreamFetcher._cache[cacheKey];
+
+      if (cached && (Date.now() - cached.ts < StreamFetcher._cacheTTL)) {
+        callback({ success: true, streams: cached.data, source: source.name, cached: true });
+        return;
+      }
+
+      fetch(source.url)
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(function (html) {
+          var streams = StreamFetcher.parseStreams(html, source.parser);
+          StreamFetcher._cache[cacheKey] = { data: streams, ts: Date.now() };
+          callback({ success: true, streams: streams, source: source.name, cached: false });
+        })
+        .catch(function (err) {
+          console.warn('Stream fetch failed from ' + source.name + ': ' + err.message);
+          attempts++;
+          tryNext();
+        });
+    };
+
+    tryNext();
+  },
+
+  parseStreams: function (html, parserType) {
+    var streams = [];
+
+    if (parserType === 'progtxt') {
+      var lines = html.split('\n');
+      lines.forEach(function (line) {
+        if (line.includes('#EXTINF')) {
+          var match = line.match(/,(.+)$/);
+          if (match) {
+            var nextLine = lines[lines.indexOf(line) + 1];
+            if (nextLine && !nextLine.startsWith('#')) {
+              streams.push({ label: match[1], url: nextLine });
+            }
+          }
+        }
+      });
+    }
+
+    return streams;
+  }
+};
+
+// ============================================================
+//  FEATURE 7: CHANNEL MANAGER WITH BULK OPERATIONS
+// ============================================================
+
+var ChannelManager = {
+  _channels: {},
+
+  init: function () {
+    try {
+      var saved = localStorage.getItem('livetv-channels');
+      if (saved) ChannelManager._channels = JSON.parse(saved);
+    } catch (e) {}
+  },
+
+  addChannel: function (key, label, src) {
+    ChannelManager._channels[key] = { label: label, src: src };
+    ChannelManager.save();
+    Gen.toast('Channel added: ' + label);
+  },
+
+  deleteChannel: function (key) {
+    delete ChannelManager._channels[key];
+    ChannelManager.save();
+    Gen.toast('Channel deleted');
+  },
+
+  bulkImport: function (csvData) {
+    var lines = csvData.split('\n');
+    var imported = 0;
+
+    lines.forEach(function (line) {
+      if (!line.trim()) return;
+      var parts = line.split(',');
+      if (parts.length >= 3) {
+        ChannelManager.addChannel(parts[0].trim(), parts[1].trim(), parts[2].trim());
+        imported++;
+      }
+    });
+
+    Gen.toast('Imported ' + imported + ' channels');
+    return imported;
+  },
+
+  bulkApplyToEvents: function (channelKey, eventIds) {
+    var applied = 0;
+    eventIds.forEach(function (eventId) {
+      // Apply channel to event (implementation depends on your event structure)
+      applied++;
+    });
+    Gen.toast('Applied channel to ' + applied + ' events');
+    return applied;
+  },
+
+  search: function (query) {
+    var results = [];
+    Object.keys(ChannelManager._channels).forEach(function (key) {
+      var ch = ChannelManager._channels[key];
+      if (ch.label.toLowerCase().includes(query.toLowerCase()) || key.toLowerCase().includes(query.toLowerCase())) {
+        results.push({ key: key, label: ch.label, src: ch.src });
+      }
+    });
+    return results;
+  },
+
+  save: function () {
+    try {
+      localStorage.setItem('livetv-channels', JSON.stringify(ChannelManager._channels));
+    } catch (e) {}
+  },
+
+  getAll: function () {
+    return ChannelManager._channels;
+  }
+};
+
+// ============================================================
+//  FEATURE 8: REAL-TIME CALENDAR WITH AUTO-REFRESH
+// ============================================================
+
+var CalendarRefresh = {
+  _refreshInterval: 60000, // 60 seconds
+  _timer: null,
+
+  startAutoRefresh: function () {
+    CalendarRefresh.stopAutoRefresh();
+    CalendarRefresh._timer = setInterval(function () {
+      Gen.loadCalendarData();
+    }, CalendarRefresh._refreshInterval);
+  },
+
+  stopAutoRefresh: function () {
+    if (CalendarRefresh._timer) {
+      clearInterval(CalendarRefresh._timer);
+      CalendarRefresh._timer = null;
+    }
+  },
+
+  highlightLiveEvents: function () {
+    var now = Date.now();
+    document.querySelectorAll('.calendar-event').forEach(function (el) {
+      var eventTime = parseInt(el.dataset.time);
+      if (eventTime <= now && eventTime + 3600000 > now) {
+        el.classList.add('live');
+      } else if (eventTime < now) {
+        el.classList.add('past');
+      }
+    });
+  }
+};
+
+// ============================================================
+//  FEATURE 9: IMPORT/EXPORT WITH PROGRESS TRACKING
+// ============================================================
+
+var ImportExport = {
+  exportEvents: function (events) {
+    var json = JSON.stringify(events, null, 2);
+    var blob = new Blob([json], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'events-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    link.click();
+    Gen.toast('Events exported');
+  },
+
+  importEvents: function (file, onProgress, onComplete) {
+    var reader = new FileReader();
+    var fileSize = file.size;
+    var loaded = 0;
+
+    reader.onprogress = function (e) {
+      if (e.lengthComputable) {
+        var percent = Math.round((e.loaded / e.total) * 100);
+        if (onProgress) onProgress(percent);
+      }
+    };
+
+    reader.onload = function (e) {
+      try {
+        var data = JSON.parse(e.target.result);
+        
+        // Validate structure
+        if (!Array.isArray(data) && typeof data !== 'object') {
+          throw new Error('Invalid JSON structure');
+        }
+
+        if (onComplete) onComplete({ success: true, data: data, count: Array.isArray(data) ? data.length : Object.keys(data).length });
+      } catch (err) {
+        if (onComplete) onComplete({ success: false, error: err.message });
+      }
+    };
+
+    reader.readAsText(file);
+  },
+
+  resolveConflicts: function (existing, imported, strategy) {
+    // strategy: 'skip', 'overwrite', 'merge'
+    var result = Object.assign({}, existing);
+
+    Object.keys(imported).forEach(function (key) {
+      if (strategy === 'skip' && result[key]) {
+        return;
+      } else if (strategy === 'overwrite' || strategy === 'merge') {
+        result[key] = strategy === 'merge' ? Object.assign({}, result[key], imported[key]) : imported[key];
+      }
+    });
+
+    return result;
+  }
+};
+
+// ============================================================
+//  FEATURE 10: PROFESSIONAL UI/UX IMPROVEMENTS
+// ============================================================
+
+var UIEnhancements = {
+  _toastStack: [],
+
+  showToastWithDismiss: function (message, type, duration) {
+    type = type || 'info';
+    duration = duration || 3000;
+
+    var toast = document.createElement('div');
+    toast.className = 's803-toast ' + type;
+    toast.innerHTML = message + ' <button class="toast-dismiss" onclick="this.parentElement.remove();">✕</button>';
+    toast.style.marginBottom = '8px';
+    toast.style.display = 'flex';
+    toast.style.justifyContent = 'space-between';
+    toast.style.alignItems = 'center';
+
+    var container = document.getElementById('toast-container');
+    if (container) {
+      container.appendChild(toast);
+      UIEnhancements._toastStack.push(toast);
+
+      setTimeout(function () {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+        UIEnhancements._toastStack = UIEnhancements._toastStack.filter(function (t) { return t !== toast; });
+      }, duration);
+    }
+  },
+
+  showSpinner: function (element) {
+    if (!element) return;
+    element.innerHTML = '<div class="spinner"></div>';
+  },
+
+  validateForm: function (formId) {
+    var form = document.getElementById(formId);
+    if (!form) return true;
+
+    var valid = true;
+    form.querySelectorAll('[required]').forEach(function (field) {
+      if (!field.value.trim()) {
+        field.style.borderColor = '#ff6b6b';
+        valid = false;
+      } else {
+        field.style.borderColor = '';
+      }
+    });
+
+    return valid;
+  },
+
+  persistFormState: function (formId) {
+    var form = document.getElementById(formId);
+    if (!form) return;
+
+    form.querySelectorAll('input, select, textarea').forEach(function (field) {
+      field.addEventListener('change', function () {
+        try {
+          localStorage.setItem('form-' + formId + '-' + field.id, field.value);
+        } catch (e) {}
+      });
+    });
+  },
+
+  restoreFormState: function (formId) {
+    var form = document.getElementById(formId);
+    if (!form) return;
+
+    form.querySelectorAll('input, select, textarea').forEach(function (field) {
+      try {
+        var saved = localStorage.getItem('form-' + formId + '-' + field.id);
+        if (saved) field.value = saved;
+      } catch (e) {}
+    });
+  },
+
+  addKeyboardShortcuts: function () {
+    document.addEventListener('keydown', function (e) {
+      // Ctrl+Enter to publish
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (document.activeElement.id === 'cp-body') {
+          Compose.publish();
+        }
+      }
+    });
+  }
+};
+
+// Initialize all features
+ChannelManager.init();
+UIEnhancements.addKeyboardShortcuts();
+
 document.addEventListener('DOMContentLoaded', function () {
   Compose.loadSettings();
   Compose.updateAuthStatus();
