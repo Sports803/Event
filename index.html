@@ -581,31 +581,41 @@ textarea.code-out {
         <div class="field"><label>Duration (minutes, for the live window)</label><input id="ev-duration" type="number" value="120"/></div>
         <div class="field">
           <label>Category</label>
-          <select id="ev-category">
+          <select id="ev-category" onchange="Gen.onCategoryChange()">
             <option value="football">⚽ Football / Soccer</option>
             <option value="basketball">🏀 Basketball</option>
             <option value="nfl">🏈 American Football</option>
             <option value="hockey">🏒 Hockey</option>
             <option value="baseball">⚾ Baseball</option>
-            <option value="f1">🏎️ F1</option>
-            <option value="nascar">🏁 NASCAR</option>
-            <option value="motorsport">🏍️ Motorsport</option>
+            <option value="tennis">🎾 Tennis</option>
+            <option value="darts">🎯 Darts</option>
             <option value="boxing">🥊 Boxing</option>
             <option value="mma">🥋 MMA</option>
+            <option value="volleyball">🏐 Volleyball</option>
+            <option value="handball">🤾 Handball</option>
+            <option value="rugby">🏉 Rugby</option>
+            <option value="f1">🏎️ Formula 1</option>
+            <option value="nascar">🏁 NASCAR</option>
+            <option value="motogp">🏍️ MotoGP</option>
+            <option value="motorsport">🏍️ Motorsport (other)</option>
             <option value="cycling">🚴 Cycling</option>
+            <option value="golf">⛳ Golf</option>
+            <option value="athletics">🏃 Athletics</option>
             <option value="cricket">🏏 Cricket</option>
+            <option value="esports">🎮 Esports</option>
             <option value="other">🏆 Other</option>
           </select>
         </div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Home team name</label><input id="ev-home-name" value="Home Team"/></div>
-        <div class="field"><label>Home badge/logo URL</label><input id="ev-home-logo" placeholder="https://..."/></div>
+        <div class="field"><label id="ev-home-label">Home team name</label><input id="ev-home-name" value="Home Team"/></div>
+        <div class="field"><label id="ev-home-logo-label">Home badge/logo URL</label><input id="ev-home-logo" placeholder="https://..."/></div>
       </div>
-      <div class="field-row">
-        <div class="field"><label>Away team name (leave blank for races/single-entrant events)</label><input id="ev-away-name" value="Away Team"/></div>
-        <div class="field"><label>Away badge/logo URL</label><input id="ev-away-logo" placeholder="https://..."/></div>
+      <div class="field-row" id="ev-away-row">
+        <div class="field"><label id="ev-away-label">Away team name (leave blank for races/single-entrant events)</label><input id="ev-away-name" value="Away Team"/></div>
+        <div class="field"><label id="ev-away-logo-label">Away badge/logo URL</label><input id="ev-away-logo" placeholder="https://..."/></div>
       </div>
+      <p class="hint" id="ev-single-entrant-hint" style="display:none;">This category is treated as a single-entrant event (race, tournament round, etc.) — the away/second competitor fields are hidden. Fill in a second name manually if this specific event does need one.</p>
 
       <h2 style="margin-top:20px;">3. Stream buttons for this match</h2>
       <p class="hint">Streams are auto-fetched from Streamed.pk when you use the Auto-Fetch tab. You can also add manual sources here.</p>
@@ -970,6 +980,8 @@ textarea.code-out {
 
       <h2 style="margin-top:18px;">Article body</h2>
       <p class="hint">No AI key required — templates below fill in placeholders from the title/teams automatically. You can still edit anything after inserting.</p>
+      <button class="btn-secondary" onclick="Compose.fetchLiveStats()">⚡ Fetch Live Score &amp; Goals (ESPN)</button>
+      <p class="hint" id="cp-live-status">Optional — fetches the score and (where available) goal scorers for head-to-head team sports before you insert the H2H or Highlights template below. Coverage depends on ESPN; MotoGP, cycling, and darts aren't supported.</p>
       <div class="tpl-btn-row">
         <button class="tpl-btn" onclick="Compose.insertTemplate('preview')">+ Match Preview</button>
         <button class="tpl-btn" onclick="Compose.insertTemplate('howtowatch')">+ How To Watch</button>
@@ -2021,19 +2033,51 @@ awayTeamBlock +
   },
 
   CATEGORY_META: {
-    football:   { sport: 'football',   leagueEmoji: '⚽',  leagueId: 'custom.football' },
-    basketball: { sport: 'basketball', leagueEmoji: '🏀',  leagueId: 'custom.basketball' },
-    nfl:        { sport: 'other',      leagueEmoji: '🏈',  leagueId: 'nfl' },
-    hockey:     { sport: 'other',      leagueEmoji: '🏒',  leagueId: 'nhl' },
-    baseball:   { sport: 'other',      leagueEmoji: '⚾',  leagueId: 'mlb' },
-    f1:         { sport: 'motorsport', leagueEmoji: '🏎️', leagueId: 'f1' },
-    nascar:     { sport: 'motorsport', leagueEmoji: '🏁',  leagueId: 'nascar-cup' },
-    motorsport: { sport: 'motorsport', leagueEmoji: '🏍️', leagueId: 'motogp' },
-    boxing:     { sport: 'other',      leagueEmoji: '🥊',  leagueId: 'boxing' },
-    mma:        { sport: 'other',      leagueEmoji: '🥋',  leagueId: 'mma-ufc' },
-    cycling:    { sport: 'other',      leagueEmoji: '🚴',  leagueId: 'cycling' },
-    cricket:    { sport: 'other',      leagueEmoji: '🏏',  leagueId: 'cricket' },
-    other:      { sport: 'other',      leagueEmoji: '🏆',  leagueId: 'other' }
+    football:   { sport: 'football',   leagueEmoji: '⚽',  leagueId: 'custom.football',  singleEntrant: false, labels: ['Home team name', 'Away team name'] },
+    basketball: { sport: 'basketball', leagueEmoji: '🏀',  leagueId: 'custom.basketball', singleEntrant: false, labels: ['Home team name', 'Away team name'] },
+    nfl:        { sport: 'other',      leagueEmoji: '🏈',  leagueId: 'nfl',              singleEntrant: false, labels: ['Home team name', 'Away team name'] },
+    hockey:     { sport: 'other',      leagueEmoji: '🏒',  leagueId: 'nhl',              singleEntrant: false, labels: ['Home team name', 'Away team name'] },
+    baseball:   { sport: 'other',      leagueEmoji: '⚾',  leagueId: 'mlb',              singleEntrant: false, labels: ['Home team name', 'Away team name'] },
+    tennis:     { sport: 'other',      leagueEmoji: '🎾',  leagueId: 'tennis',           singleEntrant: false, labels: ['Player 1 name', 'Player 2 name'] },
+    darts:      { sport: 'other',      leagueEmoji: '🎯',  leagueId: 'darts',            singleEntrant: false, labels: ['Player 1 name', 'Player 2 name'] },
+    boxing:     { sport: 'other',      leagueEmoji: '🥊',  leagueId: 'boxing',           singleEntrant: false, labels: ['Fighter 1 name', 'Fighter 2 name'] },
+    mma:        { sport: 'other',      leagueEmoji: '🥋',  leagueId: 'mma-ufc',          singleEntrant: false, labels: ['Fighter 1 name', 'Fighter 2 name'] },
+    volleyball: { sport: 'other',      leagueEmoji: '🏐',  leagueId: 'volleyball',       singleEntrant: false, labels: ['Home team name', 'Away team name'] },
+    handball:   { sport: 'other',      leagueEmoji: '🤾',  leagueId: 'handball',         singleEntrant: false, labels: ['Home team name', 'Away team name'] },
+    rugby:      { sport: 'other',      leagueEmoji: '🏉',  leagueId: 'rugby',            singleEntrant: false, labels: ['Home team name', 'Away team name'] },
+    cricket:    { sport: 'other',      leagueEmoji: '🏏',  leagueId: 'cricket',          singleEntrant: false, labels: ['Home team name', 'Away team name'] },
+    f1:         { sport: 'motorsport', leagueEmoji: '🏎️', leagueId: 'f1',               singleEntrant: true,  labels: ['Event / session name (e.g. "F1 – Monaco GP")', ''] },
+    nascar:     { sport: 'motorsport', leagueEmoji: '🏁',  leagueId: 'nascar-cup',       singleEntrant: true,  labels: ['Event / race name', ''] },
+    motogp:     { sport: 'motorsport', leagueEmoji: '🏍️', leagueId: 'motogp',           singleEntrant: true,  labels: ['Event / session name (e.g. "MotoGP – Spanish GP")', ''] },
+    motorsport: { sport: 'motorsport', leagueEmoji: '🏍️', leagueId: 'motorsport',       singleEntrant: true,  labels: ['Event / session name', ''] },
+    cycling:    { sport: 'other',      leagueEmoji: '🚴',  leagueId: 'cycling',          singleEntrant: true,  labels: ['Race / stage name', ''] },
+    golf:       { sport: 'other',      leagueEmoji: '⛳',  leagueId: 'golf',             singleEntrant: true,  labels: ['Tournament / round name', ''] },
+    athletics:  { sport: 'other',      leagueEmoji: '🏃',  leagueId: 'athletics',        singleEntrant: true,  labels: ['Meet / event name', ''] },
+    esports:    { sport: 'other',      leagueEmoji: '🎮',  leagueId: 'esports',          singleEntrant: false, labels: ['Team / player 1', 'Team / player 2'] },
+    other:      { sport: 'other',      leagueEmoji: '🏆',  leagueId: 'other',            singleEntrant: false, labels: ['Home team name', 'Away team name'] }
+  },
+
+  // Adjusts the Home/Away field labels and shows/hides the Away row based
+  // on whether the selected sport is typically head-to-head (football,
+  // tennis, boxing…) or a single-entrant event (F1, MotoGP, cycling,
+  // golf…). This only changes labels/visibility — it never clears data
+  // the user already typed.
+  onCategoryChange: function () {
+    var category = document.getElementById('ev-category').value;
+    var meta = Gen.CATEGORY_META[category] || Gen.CATEGORY_META.other;
+
+    var homeLabel = document.getElementById('ev-home-label');
+    var awayLabel = document.getElementById('ev-away-label');
+    var awayRow = document.getElementById('ev-away-row');
+    var hint = document.getElementById('ev-single-entrant-hint');
+
+    if (homeLabel) homeLabel.textContent = meta.labels[0] || 'Home team name';
+    if (awayLabel) awayLabel.textContent = meta.labels[1] || 'Away team name';
+
+    if (awayRow) awayRow.style.display = meta.singleEntrant ? 'none' : '';
+    if (hint) hint.style.display = meta.singleEntrant ? 'block' : 'none';
+
+    Gen.buildEventCard();
   },
 
   buildEventPayload: function () {
@@ -3588,11 +3632,17 @@ var Compose = {
       status: status
     };
 
-    // Blogger API v3 supports a searchDescription field for SEO meta
-    // description; some integrations also key it as metaDescription.
+    // Blogger's REST API does not have a documented "searchDescription" or
+    // "metaDescription" field on the Post resource — those don't persist.
+    // The closest real field is "customMetaData" (a plain string), which
+    // Google's own schema marks deprecated and which is known to be
+    // unreliable via the API (see Blogger's developer community threads).
+    // We still send it as a best-effort, but don't overstate reliability —
+    // publish() below also copies the description to the clipboard and
+    // tells the user to double check/paste it into the post's Search
+    // description field in the Blogger UI if it doesn't stick.
     if (metaDescription) {
-      postData.searchDescription = metaDescription;
-      postData.metaDescription = metaDescription;
+      postData.customMetaData = metaDescription;
     }
 
     // Handle scheduled posts
@@ -3636,6 +3686,16 @@ var Compose = {
           statusEl.style.color = 'var(--color-success)';
         }
         Gen.toast('Post published successfully!');
+
+        // Blogger's API field for the search/meta description is
+        // deprecated and known to not always persist. As a safety net,
+        // copy it to the clipboard and tell the user where to paste it
+        // manually (Post settings → Search description) if it's missing.
+        if (metaDescription && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(metaDescription).then(function () {
+            Gen.toast('Search description copied — paste into Post settings → Search description if it doesn\'t show up automatically.', 'info');
+          }).catch(function () { /* clipboard permission denied — non-critical */ });
+        }
       })
       .catch(function (err) {
         if (statusEl) {
@@ -4070,22 +4130,36 @@ var Compose = {
 
   loadFromEventForm: function () {
     try {
-      var homeName = document.getElementById('ev-home-name').value || 'Home';
-      var awayName = document.getElementById('ev-away-name').value || 'Away';
+      var category = document.getElementById('ev-category').value;
+      var meta = Gen.CATEGORY_META[category] || Gen.CATEGORY_META.other;
+
+      var awayNameRaw = (document.getElementById('ev-away-name').value || '').trim();
+      var isRacing = meta.singleEntrant || !awayNameRaw;
+
+      var homeName = document.getElementById('ev-home-name').value.trim() || (isRacing ? 'Event' : 'Home');
+      var awayName = isRacing ? '' : (awayNameRaw || 'Away');
       var league = document.getElementById('ev-league').value || 'League';
       var date = document.getElementById('ev-date').value || '';
       var time = document.getElementById('ev-time').value || '';
       var homeLogo = document.getElementById('ev-home-logo').value || '';
       var awayLogo = document.getElementById('ev-away-logo').value || '';
 
-      // Build title
-      var title = homeName + ' vs ' + awayName + ' – ' + league + ' Live';
-      
+      // Build title — single-entrant events (races, tournaments) never get
+      // a "vs" in the title, since there's no second competitor to name.
+      // If the entrant/event name already mentions the league (e.g. "MotoGP
+      // – Spanish Grand Prix" with league "MotoGP"), don't repeat it.
+      var homeAlreadyMentionsLeague = league && homeName.toLowerCase().indexOf(league.toLowerCase()) !== -1;
+      var title = isRacing
+        ? (homeAlreadyMentionsLeague ? homeName + ' Live' : homeName + ' – ' + league + ' Live')
+        : homeName + ' vs ' + awayName + ' – ' + league + ' Live';
+
       // Build body
-      var body = '## ' + homeName + ' vs ' + awayName + '\n\n';
+      var body = isRacing
+        ? '## ' + homeName + '\n\n'
+        : '## ' + homeName + ' vs ' + awayName + '\n\n';
       body += '**League:** ' + league + '\n';
       body += '**Date:** ' + date + ' at ' + time + '\n\n';
-      body += 'Watch the live match here.\n';
+      body += isRacing ? 'Watch it live here.\n' : 'Watch the live match here.\n';
 
       // Carry over stream/channel rows from the Event Card tab as iframe embeds
       var channelRows = document.querySelectorAll('#ev-channel-rows .channel-row');
@@ -4350,7 +4424,7 @@ var Compose = {
       racing: '<h2>How to Watch: {homeName}</h2><p>Want to catch every lap of <strong>{homeName}</strong> live? Here is the simplest way to stream the {league} action without missing a single overtake, pit stop, or podium celebration.</p><p>Coverage begins on <strong>{date} at {time}</strong><!--if:venue--> from {venue}<!--endif-->. Official broadcasters may also carry the session in select regions, so check local listings in addition to the free streaming links provided on this page.</p><ul><li>Step 1: Scroll up and pick a stream button above</li><li>Step 2: Choose your preferred server or quality</li><li>Step 3: Enjoy {homeName} live in HD where available</li></ul><p>Bookmark this page and check back before lights out, as links are refreshed regularly to keep your {league} viewing experience smooth and reliable.</p>'
     },
     'h2h': {
-      team: '<h2>Head-to-Head: {homeName} vs {awayName}</h2><p>Rivalries are built on history, and the meetings between <strong>{homeName}</strong> and <strong>{awayName}</strong> have produced their share of memorable moments. Recent encounters in the {league} have often been tightly contested affairs.</p><p>Form and momentum can shift quickly, but head-to-head records remain a useful guide for what to expect on <strong>{date}</strong>. Both managers will have studied previous meetings closely when preparing their approach for this fixture.</p><ul><li>Competition: {league}</li><li>Kickoff: {date} at {time}</li><!--if:venue--><li>Venue: {venue}</li><!--endif--><li>Recent meetings: closely contested, small margins</li></ul><p>Expect another absorbing chapter in this fixture as {homeName} and {awayName} renew their {league} rivalry with plenty on the line.</p>',
+      team: '<h2>Head-to-Head: {homeName} vs {awayName}</h2><!--if:liveFound--><p><strong>Live score:</strong> {liveScoreLine}</p><!--endif-->{goalsList}<p>Rivalries are built on history, and the meetings between <strong>{homeName}</strong> and <strong>{awayName}</strong> have produced their share of memorable moments. Recent encounters in the {league} have often been tightly contested affairs.</p><p>Form and momentum can shift quickly, but head-to-head records remain a useful guide for what to expect on <strong>{date}</strong>. Both managers will have studied previous meetings closely when preparing their approach for this fixture.</p><ul><li>Competition: {league}</li><li>Kickoff: {date} at {time}</li><!--if:venue--><li>Venue: {venue}</li><!--endif--><li>Recent meetings: closely contested, small margins</li></ul><p>Expect another absorbing chapter in this fixture as {homeName} and {awayName} renew their {league} rivalry with plenty on the line.</p>',
       racing: '<h2>Recent Form: {homeName}</h2><p>Consistency matters heading into any {league} weekend, and recent results for <strong>{homeName}</strong> offer a useful guide to current form. Momentum built over previous rounds can carry through to qualifying and race day alike.</p><p>Championship standings, recent finishes, and pace across practice sessions all feed into expectations for <strong>{date}</strong>. Rivals will be watching closely to see whether that form holds under pressure.</p><ul><li>Event: {league}</li><li>Session start: {date} at {time}</li><!--if:venue--><li>Circuit: {venue}</li><!--endif--><li>Recent form: strong pace across recent rounds</li></ul><p>Expect another closely watched {league} weekend as {homeName} looks to build on recent momentum and translate strong practice pace into a result that matters when the points are handed out.</p>'
     },
     'faq': {
@@ -4362,7 +4436,7 @@ var Compose = {
       racing: '<h2>Watch {homeName} Live Now</h2><p>Do not miss a single lap of this {league} action featuring <strong>{homeName}</strong>. Scroll up and tap one of the stream buttons above to start watching instantly, in HD where available.</p><p><!--if:homeLogo--><img src="{homeLogo}" alt="{homeName}" style="height:40px;border-radius:50%;vertical-align:middle;margin-right:6px;"/><!--endif-->Coverage is set to begin on <strong>{date} at {time}</strong><!--if:venue--> at {venue}<!--endif-->, so get comfortable and grab a link now before the session begins.</p><ul><li>No lengthy sign-up required</li><li>Multiple servers if one is slow</li><li>Mobile and desktop friendly players</li></ul><p>Share this page with fellow fans so nobody misses {homeName} live, and check back for updated links if a server goes down mid-session.</p>'
     },
     'highlights': {
-      team: '<h2>Highlights & Recap: {homeName} vs {awayName}</h2><p>The {league} clash between <strong>{homeName}</strong> and <strong>{awayName}</strong> delivered plenty of talking points from kickoff to the final whistle on {date}. Below is a quick recap of how the match unfolded, updated as the action develops.</p><ul><li>Key moments and turning points from the match</li><li>Standout performers for {homeName} and {awayName}</li><li>Final score and match statistics</li><li>Post-match reaction and manager comments</li></ul><p>Video highlights will be embedded here shortly after full time, so check back if you missed the live stream. This recap will be updated with the confirmed final score, standout moments, and manager reaction once the {league} fixture officially concludes and results are verified.</p>',
+      team: '<h2>Highlights & Recap: {homeName} vs {awayName}</h2><!--if:liveFound--><p><strong>Final/live score (ESPN):</strong> {liveScoreLine}</p><!--endif-->{goalsList}<p>The {league} clash between <strong>{homeName}</strong> and <strong>{awayName}</strong> delivered plenty of talking points from kickoff to the final whistle on {date}. Below is a quick recap of how the match unfolded, updated as the action develops.</p><ul><li>Key moments and turning points from the match</li><li>Standout performers for {homeName} and {awayName}</li><li>Final score and match statistics</li><li>Post-match reaction and manager comments</li></ul><p>Video highlights will be embedded here shortly after full time, so check back if you missed the live stream. This recap will be updated with the confirmed final score, standout moments, and manager reaction once the {league} fixture officially concludes and results are verified.</p>',
       racing: '<h2>Highlights & Recap: {homeName}</h2><p>The {league} session featuring <strong>{homeName}</strong> delivered plenty of talking points from lights out to the chequered flag on {date}. Below is a quick recap of how the session unfolded, updated as results are confirmed.</p><ul><li>Key overtakes and turning points from the session</li><li>Standout performance from {homeName}</li><li>Final classification and race statistics</li><li>Post-session reaction and team comments</li></ul><p>Video highlights will be embedded here shortly after the chequered flag, so check back if you missed the live stream. This recap will be updated with the confirmed final classification, fastest lap, standout overtakes, and podium reaction once the {league} session officially concludes and every result is verified.</p>'
     }
   },
@@ -4397,7 +4471,7 @@ var Compose = {
     }
     if (!homeName) homeName = 'Home Team';
 
-    return {
+    var d = {
       homeName: homeName,
       awayName: awayName,
       league: league,
@@ -4408,6 +4482,20 @@ var Compose = {
       awayLogo: awayLogo,
       isRacing: !awayName
     };
+
+    // Merge in live score/goals data if a previous fetchLiveStats() call
+    // found a matching ESPN event. Absent unless the user fetched it.
+    var live = Compose._liveStats;
+    if (live && live.found) {
+      d.liveFound = true;
+      d.liveScoreLine = Compose.esc(homeName) + ' ' + live.homeScore + ' – ' + live.awayScore + ' ' + Compose.esc(awayName) +
+        ' (' + Compose.esc(live.statusText || '') + ', via ESPN)';
+      if (live.scorers && live.scorers.length) {
+        d.goalsList = '<ul>' + live.scorers.map(function (s) { return '<li>' + Compose.esc(s) + '</li>'; }).join('') + '</ul>';
+      }
+    }
+
+    return d;
   },
 
   // Resolves <!--if:KEY-->...<!--endif--> conditional blocks against the
@@ -4424,8 +4512,166 @@ var Compose = {
       .replace(/{time}/g, Compose.esc(d.time))
       .replace(/{venue}/g, Compose.esc(d.venue))
       .replace(/{homeLogo}/g, d.homeLogo)
-      .replace(/{awayLogo}/g, d.awayLogo);
+      .replace(/{awayLogo}/g, d.awayLogo)
+      .replace(/{liveScoreLine}/g, d.liveScoreLine || '')
+      .replace(/{goalsList}/g, d.goalsList || '');
     return out;
+  },
+
+  // ============================================================
+  // LIVE DATA (ESPN's public site API — undocumented, best-effort)
+  // ============================================================
+
+  // Keyword match from the free-text League field to an ESPN sport/league
+  // slug. ESPN's coverage is strongest for the major team sports; there is
+  // no reliable ESPN scoreboard for MotoGP, cycling, or darts, so those
+  // resolve to null and the UI explains that plainly rather than failing
+  // silently or guessing.
+  ESPN_LEAGUES: [
+    { test: /champions league|\bucl\b/i, sport: 'soccer', league: 'uefa.champions' },
+    { test: /europa league/i, sport: 'soccer', league: 'uefa.europa' },
+    { test: /premier league|\bepl\b/i, sport: 'soccer', league: 'eng.1' },
+    { test: /la ?liga/i, sport: 'soccer', league: 'esp.1' },
+    { test: /serie a/i, sport: 'soccer', league: 'ita.1' },
+    { test: /bundesliga/i, sport: 'soccer', league: 'ger.1' },
+    { test: /ligue 1/i, sport: 'soccer', league: 'fra.1' },
+    { test: /\bmls\b/i, sport: 'soccer', league: 'usa.1' },
+    { test: /world cup/i, sport: 'soccer', league: 'fifa.world' },
+    { test: /\bnba\b/i, sport: 'basketball', league: 'nba' },
+    { test: /\bnfl\b/i, sport: 'football', league: 'nfl' },
+    { test: /\bmlb\b/i, sport: 'baseball', league: 'mlb' },
+    { test: /\bnhl\b/i, sport: 'hockey', league: 'nhl' },
+    { test: /\bufc\b|\bmma\b/i, sport: 'mma', league: 'ufc' },
+    { test: /\bwta\b/i, sport: 'tennis', league: 'wta' },
+    { test: /\batp\b|tennis/i, sport: 'tennis', league: 'atp' },
+    { test: /\bpga\b|golf/i, sport: 'golf', league: 'pga' }
+  ],
+
+  resolveEspnLeague: function (leagueText) {
+    var s = leagueText || '';
+    for (var i = 0; i < Compose.ESPN_LEAGUES.length; i++) {
+      if (Compose.ESPN_LEAGUES[i].test.test(s)) return Compose.ESPN_LEAGUES[i];
+    }
+    return null;
+  },
+
+  // Looks up the scoreboard for the resolved league/date, fuzzy-matches
+  // the event by team name, and (best-effort) pulls scoring details from
+  // the match summary. Never throws — always resolves, and reports the
+  // outcome via #cp-live-status so the user knows what happened.
+  fetchLiveStats: function () {
+    var statusEl = document.getElementById('cp-live-status');
+    var setStatus = function (msg) { if (statusEl) statusEl.textContent = msg; };
+
+    var d = Compose.getTemplateData();
+    var resolved = Compose.resolveEspnLeague(d.league);
+
+    if (!resolved) {
+      Compose._liveStats = { found: false, reason: 'unsupported-league' };
+      setStatus('⚠️ ESPN doesn\'t have reliable live data for "' + d.league + '" — templates will use general wording instead.');
+      return Promise.resolve(Compose._liveStats);
+    }
+
+    if (d.isRacing) {
+      Compose._liveStats = { found: false, reason: 'racing-event' };
+      setStatus('⚠️ Live score/goals lookup only supports head-to-head team sports right now.');
+      return Promise.resolve(Compose._liveStats);
+    }
+
+    setStatus('⏳ Looking up ' + d.homeName + ' vs ' + d.awayName + ' on ESPN…');
+
+    var dateStr = (d.date || '').replace(/-/g, '');
+    var scoreboardUrl = 'https://site.api.espn.com/apis/site/v2/sports/' + resolved.sport + '/' + resolved.league + '/scoreboard' +
+      (dateStr ? '?dates=' + dateStr : '');
+
+    var norm = function (s) { return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); };
+    var homeKey = norm(d.homeName), awayKey = norm(d.awayName);
+
+    return fetch(scoreboardUrl)
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (data) {
+        var events = (data && data.events) || [];
+        var matchEvent = null, matchComp = null;
+
+        for (var i = 0; i < events.length; i++) {
+          var comp = events[i].competitions && events[i].competitions[0];
+          if (!comp || !comp.competitors) continue;
+          var names = comp.competitors.map(function (c) { return norm(c.team && c.team.displayName); });
+          var hasHome = names.some(function (n) { return n && (n.indexOf(homeKey) !== -1 || homeKey.indexOf(n) !== -1); });
+          var hasAway = names.some(function (n) { return n && (n.indexOf(awayKey) !== -1 || awayKey.indexOf(n) !== -1); });
+          if (hasHome && hasAway) { matchEvent = events[i]; matchComp = comp; break; }
+        }
+
+        if (!matchEvent) {
+          Compose._liveStats = { found: false, reason: 'no-match' };
+          setStatus('⚠️ Couldn\'t find this fixture on ESPN for that date — it may not be scheduled/covered there yet.');
+          return Compose._liveStats;
+        }
+
+        var homeC = matchComp.competitors.find(function (c) { return c.homeAway === 'home'; }) || matchComp.competitors[0];
+        var awayC = matchComp.competitors.find(function (c) { return c.homeAway === 'away'; }) || matchComp.competitors[1];
+        var statusText = (matchEvent.status && matchEvent.status.type && matchEvent.status.type.description) || 'Scheduled';
+
+        Compose._liveStats = {
+          found: true,
+          eventId: matchEvent.id,
+          statusText: statusText,
+          homeScore: (homeC && homeC.score) || '0',
+          awayScore: (awayC && awayC.score) || '0',
+          scorers: []
+        };
+
+        setStatus('✓ Found on ESPN: ' + d.homeName + ' ' + Compose._liveStats.homeScore + ' – ' + Compose._liveStats.awayScore + ' ' + d.awayName + ' (' + statusText + ')');
+
+        // Best-effort: try to pull scoring details from the match summary.
+        // ESPN's summary schema varies by sport/competition and isn't
+        // formally documented, so every field access here is guarded —
+        // if the shape doesn't match, we simply keep the score with no
+        // goal-by-goal list rather than erroring out.
+        var summaryUrl = 'https://site.api.espn.com/apis/site/v2/sports/' + resolved.sport + '/' + resolved.league +
+          '/summary?event=' + matchEvent.id;
+
+        return fetch(summaryUrl)
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (summary) {
+            if (!summary) return Compose._liveStats;
+            var scorers = [];
+            try {
+              var details = summary.header && summary.header.competitions && summary.header.competitions[0] && summary.header.competitions[0].details;
+              if (Array.isArray(details)) {
+                details.forEach(function (ev) {
+                  if (!ev || !ev.scoringPlay) return;
+                  var who = (ev.athletesInvolved && ev.athletesInvolved[0] && ev.athletesInvolved[0].displayName) || (ev.type && ev.type.text) || 'Goal';
+                  var clock = (ev.clock && ev.clock.displayValue) || '';
+                  scorers.push(who + (clock ? ' (' + clock + ')' : ''));
+                });
+              }
+            } catch (e) { /* summary shape didn't match — skip goals list */ }
+
+            if (!scorers.length) {
+              try {
+                var plays = summary.scoringPlays;
+                if (Array.isArray(plays)) {
+                  plays.forEach(function (p) {
+                    if (p && p.text) scorers.push(p.text);
+                  });
+                }
+              } catch (e2) { /* skip */ }
+            }
+
+            if (scorers.length) {
+              Compose._liveStats.scorers = scorers.slice(0, 12);
+              setStatus('✓ Found on ESPN with ' + scorers.length + ' scoring event(s) — ready to insert into a template.');
+            }
+            return Compose._liveStats;
+          })
+          .catch(function () { return Compose._liveStats; }); // summary lookup is optional
+      })
+      .catch(function (err) {
+        Compose._liveStats = { found: false, reason: 'fetch-error' };
+        setStatus('⚠️ Could not reach ESPN (' + err.message + '). Check your connection and try again.');
+        return Compose._liveStats;
+      });
   },
 
   insertTemplate: function (type) {
