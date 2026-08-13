@@ -5,7 +5,7 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
 const IMGBB_KEY = process.env.IMGBB_KEY;
-const FIREBASE_URL = (process.env.FIREBASE_DATABASE_URL || '').replace(/\/$/, '');
+const FIREBASE_URL = (process.env.FIREBASE_DATABASE_URL || '').replace(/^http:\/\//i, 'https://').replace(/\/$/, '');
 const FIREBASE_AUTH_TOKEN = process.env.FIREBASE_AUTH_TOKEN || '';
 const MAX_POSTS = Number(process.env.MAX_POSTS_PER_RUN || 5);
 const WINDOW_HOURS = Number(process.env.EVENT_WINDOW_HOURS || 24);
@@ -19,9 +19,18 @@ const jsonHeaders = { 'Content-Type': 'application/json' };
 const firebaseUrl = (path = '') => `${FIREBASE_URL}/${path.replace(/^\//, '')}.json${FIREBASE_AUTH_TOKEN ? `?auth=${encodeURIComponent(FIREBASE_AUTH_TOKEN)}` : ''}`;
 
 async function firebaseRequest(path, options = {}) {
-  const response = await fetch(firebaseUrl(path), { ...options, headers: { ...jsonHeaders, ...(options.headers || {}) } });
-  if (!response.ok) throw new Error(`Firebase ${response.status}: ${await response.text()}`);
-  return response.json();
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(firebaseUrl(path), { ...options, headers: { ...jsonHeaders, ...(options.headers || {}) } });
+      if (!response.ok) throw new Error(`Firebase ${response.status}: ${await response.text()}`);
+      return response.json();
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+    }
+  }
+  throw new Error(`Firebase request failed after retries: ${lastError?.message || lastError}`);
 }
 
 async function getBloggerToken() {
