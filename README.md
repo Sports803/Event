@@ -20,11 +20,12 @@ Configure these repository secrets under **Settings â†’ Secrets and variables â†
 | `GOOGLE_REFRESH_TOKEN` | Long-lived Blogger authorization refresh token |
 | `IMGBB_KEY` | ImgBB upload API key |
 | `FIREBASE_DATABASE_URL` | Firebase Realtime Database URL |
-| `FIREBASE_AUTH_TOKEN` | Optional Firebase REST authentication token, if database rules require it |
+| `FIREBASE_AUTH_TOKEN` | Legacy Firebase REST authentication value; normally leave empty when using the service account |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Required secure service-account JSON for authenticated Firebase writes |
 
 Never commit the OAuth client secret, refresh token, Firebase token, or ImgBB key to the repository. The OAuth client ID and Blogger blog ID are identifiers, but they should still be supplied through the Actions secrets for consistent deployment.
 
-The workflow uses the Blogger API with the `https://www.googleapis.com/auth/blogger` scope and requires an OAuth refresh token. The client ID alone cannot authorize background posting. The first authorization must be completed for the Google account that owns or can publish to the Blogger blog.
+The workflow uses the Blogger API with the `https://www.googleapis.com/auth/blogger` scope and requires an OAuth refresh token. The client ID alone cannot authorize background posting. The first authorization must be completed for the Google account that owns or can publish to the Blogger blog. Firebase writes use a service-account OAuth token generated from `FIREBASE_SERVICE_ACCOUNT_JSON`; do not make the database publicly writable to bypass permission errors.
 
 ## Validation
 

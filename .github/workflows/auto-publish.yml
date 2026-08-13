@@ -41,6 +41,7 @@ jobs:
           IMGBB_KEY: ${{ secrets.IMGBB_KEY }}
           FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
           FIREBASE_AUTH_TOKEN: ${{ secrets.FIREBASE_AUTH_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           MAX_POSTS_PER_RUN: '5'
           EVENT_WINDOW_HOURS: '24'
           ACTIVE_GRACE_HOURS: '2'

@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { createSign } from 'node:crypto';
 
 const BLOG_ID = process.env.BLOGGER_BLOG_ID;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -7,6 +8,7 @@ const GOOGLE_REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
 const IMGBB_KEY = process.env.IMGBB_KEY;
 const FIREBASE_URL = (process.env.FIREBASE_DATABASE_URL || '').replace(/^http:\/\//i, 'https://').replace(/\/$/, '');
 const FIREBASE_AUTH_TOKEN = process.env.FIREBASE_AUTH_TOKEN || '';
+const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '';
 const MAX_POSTS = Number(process.env.MAX_POSTS_PER_RUN || 5);
 const WINDOW_HOURS = Number(process.env.EVENT_WINDOW_HOURS || 24);
 const ACTIVE_GRACE_HOURS = Number(process.env.ACTIVE_GRACE_HOURS || 2);
@@ -14,15 +16,40 @@ const ACTIVE_GRACE_HOURS = Number(process.env.ACTIVE_GRACE_HOURS || 2);
 for (const [name, value] of Object.entries({ BLOGGER_BLOG_ID: BLOG_ID, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, IMGBB_KEY, FIREBASE_DATABASE_URL: FIREBASE_URL })) {
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
 }
+if (!FIREBASE_SERVICE_ACCOUNT_JSON && !FIREBASE_AUTH_TOKEN) {
+  throw new Error('Missing FIREBASE_SERVICE_ACCOUNT_JSON; add the Firebase service-account JSON as a GitHub Actions secret.');
+}
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
-const firebaseUrl = (path = '') => `${FIREBASE_URL}/${path.replace(/^\//, '')}.json${FIREBASE_AUTH_TOKEN ? `?auth=${encodeURIComponent(FIREBASE_AUTH_TOKEN)}` : ''}`;
-
+const base64url = value => Buffer.from(value).toString('base64url');
+let firebaseAccessToken;
+let firebaseAccessTokenExpiry = 0;
+async function getFirebaseToken() {
+  if (FIREBASE_AUTH_TOKEN) return FIREBASE_AUTH_TOKEN;
+  if (firebaseAccessToken && Date.now() < firebaseAccessTokenExpiry - 60000) return firebaseAccessToken;
+  let serviceAccount;
+  try { serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON); } catch { throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON.'); }
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claim = base64url(JSON.stringify({ iss: serviceAccount.client_email, scope: 'https://www.googleapis.com/auth/firebase.database', aud: serviceAccount.token_uri || 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }));
+  const signer = createSign('RSA-SHA256');
+  signer.update(`${header}.${claim}`);
+  const assertion = `${header}.${claim}.${signer.sign(serviceAccount.private_key, 'base64url')}`;
+  const response = await fetch(serviceAccount.token_uri || 'https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }) });
+  const data = await response.json();
+  if (!response.ok || !data.access_token) throw new Error(`Firebase service-account token failed: ${JSON.stringify(data)}`);
+  firebaseAccessToken = data.access_token;
+  firebaseAccessTokenExpiry = Date.now() + Number(data.expires_in || 3600) * 1000;
+  return firebaseAccessToken;
+}
+const firebaseUrl = (path = '') => `${FIREBASE_URL}/${path.replace(/^\//, '')}.json`;
 async function firebaseRequest(path, options = {}) {
+
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const response = await fetch(firebaseUrl(path), { ...options, headers: { ...jsonHeaders, ...(options.headers || {}) } });
+      const authToken = await getFirebaseToken();
+      const response = await fetch(firebaseUrl(path), { ...options, headers: { ...jsonHeaders, Authorization: `Bearer ${authToken}`, ...(options.headers || {}) } });
       if (!response.ok) throw new Error(`Firebase ${response.status}: ${await response.text()}`);
       return response.json();
     } catch (error) {
