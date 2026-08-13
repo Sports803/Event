@@ -134,7 +134,7 @@ async function main() {
     return;
   }
   const existing = (await firebaseRequest('automation/bloggerPosts')) || {};
-  const eligible = matches.filter(m => !existing[stableKey(m)]).sort((a, b) => Number(a.date) - Number(b.date));
+  const eligible = matches.filter(m => existing[stableKey(m)]?.status !== 'posted').sort((a, b) => Number(a.date) - Number(b.date));
   const selected = eligible.slice(0, MAX_POSTS);
   const accessToken = selected.length ? await getBloggerToken() : null;
   let posted = 0;
