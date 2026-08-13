@@ -1,0 +1,12 @@
+{
+  "name": "sports803-event-automation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "auto-publish": "node scripts/auto-publish.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}
+
