@@ -44,3 +44,9 @@ AI_ENABLED=true AI_API_URL=https://your-openai-compatible-endpoint/v1 AI_API_KEY
 ```
 
 The production publisher continues to use deterministic source aggregation and the existing article templates by default. AI is an opt-in enhancement and is not required for Firebase synchronization or Blogger publication.
+
+## Firebase verification and admin diagnostics
+
+The manual workflow **Verify Firebase event cards** reads `s803config/todaysMatches`, validates the website-compatible card fields, counts valid and invalid records, and never writes or deletes data. It uses the same Firebase service-account secret as the publisher and can be started from the GitHub Actions tab when investigating a missing card or broken stream.
+
+The live database currently contains legacy records from earlier manual/imported workflows. The verifier accepts legacy records without an `id` field but reports records with no valid stream URL so they can be reviewed before being presented as playable events.
