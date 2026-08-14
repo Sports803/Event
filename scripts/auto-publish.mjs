@@ -182,12 +182,37 @@ async function writeAndVerifyFirebaseEvent(eventKey, event) {
   console.log('[FIREBASE] Website-compatible event confirmed');
   return readBack;
 }
+async function patchAndVerifyFirebaseEvent(eventKey, patch) {
+  const path = `s803config/todaysMatches/${eventKey}`;
+  await firebaseRequest(path, { method: 'PATCH', body: JSON.stringify(patch) });
+  const readBack = await firebaseRequest(path);
+  for (const [field, value] of Object.entries(patch)) {
+    if (String(readBack?.[field] ?? '') !== String(value ?? '')) throw new Error(`[FIREBASE] Patch read-back mismatch: ${path}/${field}`);
+  }
+  console.log(`[FIREBASE] Update verified: ${eventKey}`);
+  return readBack;
+}
+function normalizeStreams(streams) {
+  const seen = new Set();
+  return (Array.isArray(streams) ? streams : []).map((stream, index) => ({
+    label: String(stream?.label || `Server ${index + 1}`).trim(),
+    src: String(stream?.url || stream?.src || '').trim()
+  })).filter(stream => /^https?:\/\//i.test(stream.src) && !seen.has(stream.src) && seen.add(stream.src));
+}
+function deriveLifecycle(match, now) {
+  const kickoff = Number(match.date || 0);
+  const durationMs = Number(match.duration || 120) * 60000;
+  if (match.isLive || (kickoff <= now && kickoff + durationMs > now)) return { statusType: 'STATUS_LIVE', status: 'LIVE' };
+  if (kickoff + durationMs <= now) return { statusType: 'STATUS_FINAL', status: 'FINISHED' };
+  if (kickoff <= now + 15 * 60000) return { statusType: 'STATUS_SCHEDULED', status: 'STARTING_SOON' };
+  return { statusType: 'STATUS_SCHEDULED', status: 'UPCOMING' };
+}
 function hasOneBall(match) { return (match.sources || []).includes('oneball') || (match.rawMatches || []).some(m => m._source === 'oneball'); }
 function inWindow(match, now) { const time = Number(match.date || 0); return time >= now - ACTIVE_GRACE_HOURS * 3600000 && time <= now + WINDOW_HOURS * 3600000; }
 
 async function main() {
   const now = Date.now();
-  const matches = (await collectMatches()).filter(m => hasOneBall(m) && inWindow(m, now) && (m.streams || []).length);
+  const matches = (await collectMatches()).map(match => ({ ...match, streams: normalizeStreams(match.streams) })).filter(m => hasOneBall(m) && inWindow(m, now) && m.streams.length);
   if (MAX_POSTS === 0) {
     console.log(JSON.stringify({ mode: 'detection-only', detected: matches.length, titles: matches.map(m => m.title) }));
     return;
@@ -200,15 +225,16 @@ async function main() {
   for (const match of selected) {
     const key = stableKey(match);
     const eventKey = `match_auto_${key}`;
+    const lifecycle = deriveLifecycle(match, now);
     const firebasePayload = {
       id: eventKey,
-      kickoff: new Date(match.date).toISOString(), sport: match.category === 'football' ? 'football' : 'other', category: match.category || 'other', isRacing: false,
+      kickoff: new Date(match.date).toISOString(), sport: match.category === 'football' ? 'football' : 'other', category: match.category || 'other', isRacing: !match.awayName,
       homeName: match.homeName || 'Home', homeLogo: match.homeLogo || '', awayName: match.awayName || '', awayLogo: match.awayLogo || '',
-      score: '- -', scoreHome: '', scoreAway: '', statusType: match.isLive ? 'STATUS_LIVE' : 'STATUS_SCHEDULED', status: match.isLive ? 'LIVE' : 'UPCOMING',
+      score: '- -', scoreHome: '', scoreAway: '', statusType: lifecycle.statusType, status: lifecycle.status,
       leagueName: match.league || 'Live Event', leagueId: match.leagueId || '', leagueEmoji: match.leagueEmoji || '',
       postUrl: '', bloggerPostId: '', publicationStatus: 'FIREBASE_SYNCED', matchId: match.id, source: 'oneball',
       channelKey: '', channelName: '', venue: '', updatedAt: Date.now(), duration: 120,
-      channels: match.streams.map(s => ({ label: s.label || 'Stream', src: s.url })).filter(s => /^https?:\/\//i.test(s.src)),
+      channels: match.streams,
       _source: 'unified-auto', _matchId: match.id, _oneball: true, _automation: true
     };
     await writeAndVerifyFirebaseEvent(eventKey, firebasePayload);
@@ -216,13 +242,13 @@ async function main() {
     try {
       const post = await bloggerInsert(accessToken, await buildPostData(match));
       const publishedAt = Date.now();
-      await firebaseRequest(`s803config/todaysMatches/${eventKey}`, { method: 'PATCH', body: JSON.stringify({ postUrl: post.url || '', bloggerPostId: post.id, publicationStatus: 'PUBLISHED', publishedAt, updatedAt: publishedAt }) });
+      await patchAndVerifyFirebaseEvent(eventKey, { postUrl: post.url || '', bloggerPostId: post.id, publicationStatus: 'PUBLISHED', publishedAt, updatedAt: publishedAt });
       await firebaseRequest(`automation/bloggerPosts/${key}`, { method: 'PUT', body: JSON.stringify({ status: 'posted', eventKey, matchId: match.id, bloggerPostId: post.id, bloggerUrl: post.url || '', kickoff: match.date, title: match.title, updatedAt: publishedAt }) });
       posted++;
       console.log(`Posted ${match.title} (${post.id}) and updated Firebase card ${eventKey}`);
     } catch (error) {
       const failedAt = Date.now();
-      await firebaseRequest(`s803config/todaysMatches/${eventKey}`, { method: 'PATCH', body: JSON.stringify({ publicationStatus: 'BLOGGER_FAILED', publicationError: String(error.message), updatedAt: failedAt }) });
+      await patchAndVerifyFirebaseEvent(eventKey, { publicationStatus: 'BLOGGER_FAILED', publicationError: String(error.message), updatedAt: failedAt });
       await firebaseRequest(`automation/bloggerPosts/${key}`, { method: 'PUT', body: JSON.stringify({ status: 'blogger_failed', eventKey, matchId: match.id, error: String(error.message), kickoff: match.date, title: match.title, updatedAt: failedAt }) });
       console.error(`Failed ${match.title}: ${error.message}`);
     }
