@@ -196,7 +196,9 @@ function normalizeStreams(streams) {
   const seen = new Set();
   return (Array.isArray(streams) ? streams : []).map((stream, index) => ({
     label: String(stream?.label || `Server ${index + 1}`).trim(),
-    src: String(stream?.url || stream?.src || '').trim()
+    src: String(stream?.url || stream?.src || '').trim(),
+    health: 'UNKNOWN',
+    status: 'unknown'
   })).filter(stream => /^https?:\/\//i.test(stream.src) && !seen.has(stream.src) && seen.add(stream.src));
 }
 function deriveLifecycle(match, now) {
@@ -230,11 +232,11 @@ async function main() {
       id: eventKey,
       kickoff: new Date(match.date).toISOString(), sport: match.category === 'football' ? 'football' : 'other', category: match.category || 'other', isRacing: !match.awayName,
       homeName: match.homeName || 'Home', homeLogo: match.homeLogo || '', awayName: match.awayName || '', awayLogo: match.awayLogo || '',
-      score: '- -', scoreHome: '', scoreAway: '', statusType: lifecycle.statusType, status: lifecycle.status,
+      score: '- -', scoreHome: '', scoreAway: '', minute: null, period: null, scoreProvider: 'none', statusType: lifecycle.statusType, status: lifecycle.status,
       leagueName: match.league || 'Live Event', leagueId: match.leagueId || '', leagueEmoji: match.leagueEmoji || '',
       postUrl: '', bloggerPostId: '', publicationStatus: 'FIREBASE_SYNCED', matchId: match.id, source: 'oneball',
       channelKey: '', channelName: '', venue: '', updatedAt: Date.now(), duration: 120,
-      channels: match.streams,
+      channels: match.streams, streamCount: match.streams.length,
       _source: 'unified-auto', _matchId: match.id, _oneball: true, _automation: true
     };
     await writeAndVerifyFirebaseEvent(eventKey, firebasePayload);
