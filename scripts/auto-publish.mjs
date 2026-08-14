@@ -166,8 +166,9 @@ function stableKey(match) { return `${String(match.homeName).toLowerCase()}|${St
 function validateFirebaseEvent(event) {
   const required = ['id', 'kickoff', 'homeName', 'awayName', 'statusType', 'channels', 'updatedAt'];
   const missing = required.filter(field => event[field] === undefined || event[field] === null);
-  if (missing.length || !Array.isArray(event.channels) || !event.channels.length) {
-    throw new Error(`Firebase event schema invalid: missing=${missing.join(',') || 'none'}, channels=${Array.isArray(event.channels) ? event.channels.length : 'invalid'}`);
+  const invalidChannels = Array.isArray(event.channels) ? event.channels.filter(channel => !/^https:\/\/sports803\.github\.io\/player\/\?mora=.+/i.test(String(channel?.src || '')) || String(channel?.src || '').includes('mora=undefined')) : [];
+  if (missing.length || !Array.isArray(event.channels) || !event.channels.length || invalidChannels.length) {
+    throw new Error(`Firebase event schema invalid: missing=${missing.join(',') || 'none'}, channels=${Array.isArray(event.channels) ? event.channels.length : 'invalid'}, invalidPlayerUrls=${invalidChannels.length}`);
   }
   return true;
 }
@@ -194,18 +195,35 @@ async function patchAndVerifyFirebaseEvent(eventKey, patch) {
   console.log(`[FIREBASE] Update verified: ${eventKey}`);
   return readBack;
 }
+const PLAYER_BASE = 'https://sports803.github.io/player/';
+function resolveRawStreamUrl(stream) {
+  const candidate = String(stream?.streamUrl || stream?.url || stream?.src || '').trim();
+  if (!candidate || candidate === 'undefined' || candidate === 'null') return '';
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.hostname === 'sports803.github.io' && parsed.pathname === '/player/') return parsed.searchParams.get('mora') || '';
+  } catch { /* validate as raw URL below */ }
+  return candidate;
+}
+function makePlayerUrl(rawUrl) {
+  return `${PLAYER_BASE}?mora=${encodeURIComponent(rawUrl)}`;
+}
 function normalizeStreams(streams) {
   const seen = new Set();
-  return (Array.isArray(streams) ? streams : []).map((stream, index) => ({
-    label: String(stream?.label || `Server ${index + 1}`).trim(),
-    src: String(stream?.url || stream?.src || '').trim(),
-    health: 'UNKNOWN',
-    status: 'unknown'
-  })).filter(stream => /^https?:\/\//i.test(stream.src) && !seen.has(stream.src) && seen.add(stream.src));
+  return (Array.isArray(streams) ? streams : []).map((stream, index) => {
+    const streamUrl = resolveRawStreamUrl(stream);
+    return {
+      label: String(stream?.label || `Server ${index + 1}`).trim(),
+      src: streamUrl ? makePlayerUrl(streamUrl) : '',
+      streamUrl,
+      health: 'UNKNOWN',
+      status: 'unknown'
+    };
+  }).filter(stream => /^https?:\/\//i.test(stream.streamUrl) && !seen.has(stream.streamUrl) && seen.add(stream.streamUrl));
 }
 async function probeStream(stream) {
   try {
-    const response = await fetch(stream.src, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(5000) });
+    const response = await fetch(stream.streamUrl, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(5000) });
     return { ...stream, health: response.ok ? 'ONLINE' : 'OFFLINE', status: response.ok ? 'online' : 'offline', httpStatus: response.status };
   } catch {
     return { ...stream, health: 'UNKNOWN', status: 'unknown' };
