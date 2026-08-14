@@ -188,8 +188,9 @@ async function main() {
       channels: match.streams.map(s => ({ label: s.label || 'Stream', src: s.url })), _source: 'unified-auto', _matchId: match.id, _oneball: true
     };
     await firebaseRequest(`automation/bloggerPosts/${key}`, { method: 'PUT', body: JSON.stringify({ status: 'firebase_synced', matchId: match.id, kickoff: match.date, title: match.title, updatedAt: Date.now() }) });
-    const eventKey = `unified_auto_${key}`;
-    await firebaseRequest(`events/${eventKey}`, { method: 'PUT', body: JSON.stringify(payload) });
+    const eventKey = `match_auto_${key}`;
+    const firebasePayload = { ...payload, _automation: true, _firebasePushedAt: Date.now() };
+    await firebaseRequest(`events/${eventKey}`, { method: 'PUT', body: JSON.stringify(firebasePayload) });
     try {
       const post = await bloggerInsert(accessToken, await buildPostData(match));
       await firebaseRequest(`automation/bloggerPosts/${key}`, { method: 'PUT', body: JSON.stringify({ status: 'posted', matchId: match.id, bloggerPostId: post.id, bloggerUrl: post.url || '', kickoff: match.date, title: match.title, updatedAt: Date.now() }) });
