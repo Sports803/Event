@@ -189,7 +189,7 @@ async function main() {
     };
     await firebaseRequest(`automation/bloggerPosts/${key}`, { method: 'PUT', body: JSON.stringify({ status: 'firebase_synced', matchId: match.id, kickoff: match.date, title: match.title, updatedAt: Date.now() }) });
     const eventKey = `unified_auto_${key}`;
-    await firebaseRequest(eventKey, { method: 'PUT', body: JSON.stringify(payload) });
+    await firebaseRequest(`events/${eventKey}`, { method: 'PUT', body: JSON.stringify(payload) });
     try {
       const post = await bloggerInsert(accessToken, await buildPostData(match));
       await firebaseRequest(`automation/bloggerPosts/${key}`, { method: 'PUT', body: JSON.stringify({ status: 'posted', matchId: match.id, bloggerPostId: post.id, bloggerUrl: post.url || '', kickoff: match.date, title: match.title, updatedAt: Date.now() }) });
