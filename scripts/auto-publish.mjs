@@ -201,6 +201,19 @@ function normalizeStreams(streams) {
     status: 'unknown'
   })).filter(stream => /^https?:\/\//i.test(stream.src) && !seen.has(stream.src) && seen.add(stream.src));
 }
+async function probeStream(stream) {
+  try {
+    const response = await fetch(stream.src, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(5000) });
+    return { ...stream, health: response.ok ? 'ONLINE' : 'OFFLINE', status: response.ok ? 'online' : 'offline', httpStatus: response.status };
+  } catch {
+    return { ...stream, health: 'UNKNOWN', status: 'unknown' };
+  }
+}
+async function rankStreams(streams) {
+  const probed = await Promise.all(streams.map(probeStream));
+  const rank = { ONLINE: 0, UNKNOWN: 1, OFFLINE: 2 };
+  return probed.sort((a, b) => rank[a.health] - rank[b.health]).map((stream, index) => ({ ...stream, fallbackOrder: index + 1 }));
+}
 function deriveLifecycle(match, now) {
   const kickoff = Number(match.date || 0);
   const durationMs = Number(match.duration || 120) * 60000;
@@ -211,6 +224,16 @@ function deriveLifecycle(match, now) {
 }
 function hasOneBall(match) { return (match.sources || []).includes('oneball') || (match.rawMatches || []).some(m => m._source === 'oneball'); }
 function inWindow(match, now) { const time = Number(match.date || 0); return time >= now - ACTIVE_GRACE_HOURS * 3600000 && time <= now + WINDOW_HOURS * 3600000; }
+async function refreshExistingLifecycles(matches, now) {
+  for (const match of matches) {
+    const eventKey = `match_auto_${stableKey(match)}`;
+    const path = `s803config/todaysMatches/${eventKey}`;
+    const existing = await firebaseRequest(path);
+    if (!existing || !existing.id) continue;
+    const lifecycle = deriveLifecycle(match, now);
+    await patchAndVerifyFirebaseEvent(eventKey, { statusType: lifecycle.statusType, status: lifecycle.status, updatedAt: Date.now() });
+  }
+}
 
 async function main() {
   const now = Date.now();
@@ -219,6 +242,7 @@ async function main() {
     console.log(JSON.stringify({ mode: 'detection-only', detected: matches.length, titles: matches.map(m => m.title) }));
     return;
   }
+  await refreshExistingLifecycles(matches, now);
   const existing = (await firebaseRequest('automation/bloggerPosts')) || {};
   const eligible = matches.filter(m => existing[stableKey(m)]?.status !== 'posted').sort((a, b) => Number(a.date) - Number(b.date));
   const selected = eligible.slice(0, MAX_POSTS);
@@ -228,6 +252,7 @@ async function main() {
     const key = stableKey(match);
     const eventKey = `match_auto_${key}`;
     const lifecycle = deriveLifecycle(match, now);
+    const rankedStreams = await rankStreams(match.streams);
     const firebasePayload = {
       id: eventKey,
       kickoff: new Date(match.date).toISOString(), sport: match.category === 'football' ? 'football' : 'other', category: match.category || 'other', isRacing: !match.awayName,
@@ -236,7 +261,7 @@ async function main() {
       leagueName: match.league || 'Live Event', leagueId: match.leagueId || '', leagueEmoji: match.leagueEmoji || '',
       postUrl: '', bloggerPostId: '', publicationStatus: 'FIREBASE_SYNCED', matchId: match.id, source: 'oneball',
       channelKey: '', channelName: '', venue: '', updatedAt: Date.now(), duration: 120,
-      channels: match.streams, streamCount: match.streams.length,
+      channels: rankedStreams, streamCount: rankedStreams.length, fallbackEnabled: rankedStreams.length > 1,
       _source: 'unified-auto', _matchId: match.id, _oneball: true, _automation: true
     };
     await writeAndVerifyFirebaseEvent(eventKey, firebasePayload);
