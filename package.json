@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "auto-publish": "node scripts/auto-publish.mjs"
+    "auto-publish": "node scripts/auto-publish.mjs",
+    "ai-tools": "node scripts/ai-tools.mjs"
   },
   "dependencies": {
     "playwright": "^1.55.0"

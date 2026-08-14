@@ -30,3 +30,17 @@ The workflow uses the Blogger API with the `https://www.googleapis.com/auth/blog
 ## Validation
 
 The worker supports a local detection-only check by setting `MAX_POSTS_PER_RUN=0`. This runs the browser-based source aggregation and prints detected OneBall-backed matches without contacting Firebase, ImgBB, or Blogger. Normal workflow runs require authenticated Firebase access through `FIREBASE_SERVICE_ACCOUNT_JSON` or `FIREBASE_AUTH_TOKEN`; the database should not be made publicly writable. Each Firebase event write is followed by a read-back and schema check.
+
+## Optional AI utilities
+
+The repository includes `scripts/ai-tools.mjs` for optional structured event comparison, SEO/social content suggestions, and event-repair suggestions. AI is disabled unless `AI_ENABLED=true`, `AI_API_URL`, and `AI_API_KEY` are supplied. The utilities never apply repair suggestions automatically; uncertain changes require explicit review.
+
+Examples:
+
+```bash
+AI_ENABLED=true AI_API_URL=https://your-openai-compatible-endpoint/v1 AI_API_KEY=... node scripts/ai-tools.mjs compare event-pair.json
+AI_ENABLED=true AI_API_URL=https://your-openai-compatible-endpoint/v1 AI_API_KEY=... node scripts/ai-tools.mjs content event.json
+AI_ENABLED=true AI_API_URL=https://your-openai-compatible-endpoint/v1 AI_API_KEY=... node scripts/ai-tools.mjs repair event.json
+```
+
+The production publisher continues to use deterministic source aggregation and the existing article templates by default. AI is an opt-in enhancement and is not required for Firebase synchronization or Blogger publication.
