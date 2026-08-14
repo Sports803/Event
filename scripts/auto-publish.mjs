@@ -9,7 +9,6 @@ const IMGBB_KEY = process.env.IMGBB_KEY;
 const FIREBASE_URL = (process.env.FIREBASE_DATABASE_URL || '').replace(/^http:\/\//i, 'https://').replace(/\/$/, '');
 const FIREBASE_AUTH_TOKEN = process.env.FIREBASE_AUTH_TOKEN || '';
 const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '';
-const FIREBASE_PUBLIC_WRITE = String(process.env.FIREBASE_PUBLIC_WRITE || '').toLowerCase() === 'true';
 const MAX_POSTS = Number(process.env.MAX_POSTS_PER_RUN || 5);
 const WINDOW_HOURS = Number(process.env.EVENT_WINDOW_HOURS || 24);
 const ACTIVE_GRACE_HOURS = Number(process.env.ACTIVE_GRACE_HOURS || 2);
@@ -17,8 +16,8 @@ const ACTIVE_GRACE_HOURS = Number(process.env.ACTIVE_GRACE_HOURS || 2);
 for (const [name, value] of Object.entries({ BLOGGER_BLOG_ID: BLOG_ID, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, IMGBB_KEY, FIREBASE_DATABASE_URL: FIREBASE_URL })) {
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
 }
-if (!FIREBASE_PUBLIC_WRITE && !FIREBASE_SERVICE_ACCOUNT_JSON && !FIREBASE_AUTH_TOKEN) {
-  throw new Error('Missing Firebase authentication. Set FIREBASE_PUBLIC_WRITE, FIREBASE_SERVICE_ACCOUNT_JSON, or FIREBASE_AUTH_TOKEN.');
+if (!FIREBASE_SERVICE_ACCOUNT_JSON && !FIREBASE_AUTH_TOKEN) {
+  throw new Error('Missing Firebase authentication. Set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_AUTH_TOKEN. Public database writes are not supported.');
 }
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
@@ -26,7 +25,6 @@ const base64url = value => Buffer.from(value).toString('base64url');
 let firebaseAccessToken;
 let firebaseAccessTokenExpiry = 0;
 async function getFirebaseToken() {
-  if (FIREBASE_PUBLIC_WRITE) return '';
   if (FIREBASE_AUTH_TOKEN) return FIREBASE_AUTH_TOKEN;
   if (firebaseAccessToken && Date.now() < firebaseAccessTokenExpiry - 60000) return firebaseAccessToken;
   let serviceAccount;

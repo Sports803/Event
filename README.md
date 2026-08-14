@@ -79,3 +79,20 @@ npm run test-ai-router
 ```
 
 The test suite covers deterministic aliases, cache hits, transient failure and fallback, retry counting, and concurrency limits. AI should be enabled only after adding `NVIDIA_API_KEY` as a GitHub Actions secret and confirming the selected model IDs are available to the account. The production event workflow remains functional with `AI_ENABLED=false`.
+
+
+## Finished Blogger theme and validation
+
+The production Blogger theme is stored at `sports803-theme.xml`. It preserves the current Sports 803 event, Live TV, search, category, favorites, reminder, cinema-mode, picture-in-picture, Firebase, and stream-button functionality while providing the audited dark sports-platform design foundation.
+
+Before importing the theme, run:
+
+```bash
+npm run validate-theme
+```
+
+The validator checks the required Blogger structure, event and Live TV sections, search input, mobile navigation, Firebase metadata, and balanced CDATA blocks. It is a structural preflight check; Blogger should still be used for the final import validation.
+
+To install the theme, open Blogger, go to **Theme**, choose **Restore**, upload `sports803-theme.xml`, and preview the result before publishing. Keep a backup of the current theme XML. After import, verify the homepage, Live Events, Schedule, Channels, search, category filters, event stream buttons, cinema mode, picture-in-picture, favorites, reminders, Telegram/WhatsApp links, and mobile bottom navigation.
+
+The automation workflow no longer enables the public Firebase-write bypass. Event writes now require `FIREBASE_SERVICE_ACCOUNT_JSON` or the explicitly supported legacy `FIREBASE_AUTH_TOKEN`. Do not make Firebase publicly writable to work around authentication failures.
