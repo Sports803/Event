@@ -46,4 +46,21 @@ jobs:
           MAX_POSTS_PER_RUN: '5'
           EVENT_WINDOW_HOURS: '24'
           ACTIVE_GRACE_HOURS: '2'
+          AI_ENABLED: ${{ vars.AI_ENABLED || 'false' }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          NVIDIA_API_URL: ${{ vars.NVIDIA_API_URL || 'https://integrate.api.nvidia.com/v1' }}
+          AI_MODEL_MATCHING: ${{ vars.AI_MODEL_MATCHING || 'qwen/qwen3-next-80b-a3b-instruct' }}
+          AI_MODEL_WRITING: ${{ vars.AI_MODEL_WRITING || 'meta/llama-3.3-70b-instruct' }}
+          AI_MODEL_FAST: ${{ vars.AI_MODEL_FAST || 'nvidia/nemotron-3-nano-30b-a3b' }}
+          AI_MODEL_REASONING: ${{ vars.AI_MODEL_REASONING || 'openai/gpt-oss-120b' }}
+          AI_MODEL_EMBEDDING: ${{ vars.AI_MODEL_EMBEDDING || 'nvidia/nemotron-3-embed-1b' }}
+          AI_MAX_CONCURRENCY: '2'
+          AI_TIMEOUT_MS: '30000'
+          AI_MAX_RETRIES: '2'
+          AI_CACHE_ENABLED: 'true'
+          AI_CACHE_TTL_HOURS: '168'
+          AI_CIRCUIT_BREAKER_ENABLED: 'true'
+          AI_CIRCUIT_FAILURE_THRESHOLD: '5'
+          AI_CIRCUIT_RESET_MS: '60000'
+          AI_MAX_REQUESTS_PER_RUN: '50'
         run: npm run auto-publish

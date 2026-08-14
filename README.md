@@ -50,3 +50,32 @@ The production publisher continues to use deterministic source aggregation and t
 The manual workflow **Verify Firebase event cards** reads `s803config/todaysMatches`, validates the website-compatible card fields, counts valid and invalid records, and never writes or deletes data. It uses the same Firebase service-account secret as the publisher and can be started from the GitHub Actions tab when investigating a missing card or broken stream.
 
 The live database currently contains legacy records from earlier manual/imported workflows. The verifier accepts legacy records without an `id` field but reports records with no valid stream URL so they can be reviewed before being presented as playable events.
+
+## NVIDIA Build multi-model AI router
+
+The repository includes `scripts/ai-router.mjs`, a provider-agnostic AI layer. The deterministic event engine remains the source of truth and the AI layer is disabled by default. When enabled, requests are routed by task rather than sending every event to one model.
+
+The currently configured role defaults are:
+
+| Role | Default model ID | Purpose |
+|---|---|---|
+| Matching | `qwen/qwen3-next-80b-a3b-instruct` | Ambiguous event comparison after deterministic and embedding stages |
+| Writing | `meta/llama-3.3-70b-instruct` | Optional SEO and social content |
+| Fast | `nvidia/nemotron-3-nano-30b-a3b` | Classification and lightweight extraction |
+| Reasoning | `openai/gpt-oss-120b` | Difficult repair suggestions |
+| Embedding | `nvidia/nemotron-3-embed-1b` | Semantic similarity and duplicate lookup |
+
+Model IDs are configurable through GitHub Actions variables and should be checked against the current NVIDIA Build catalog before enabling production requests. In particular, the Qwen3-Next page currently marks its free endpoint as deprecated while partner and downloadable deployment options remain available.
+
+Optional configuration includes `NVIDIA_API_KEY`, `AI_ENABLED`, `NVIDIA_API_URL`, `AI_MODEL_MATCHING`, `AI_MODEL_WRITING`, `AI_MODEL_FAST`, `AI_MODEL_REASONING`, `AI_MODEL_EMBEDDING`, `AI_MAX_CONCURRENCY`, `AI_TIMEOUT_MS`, `AI_MAX_RETRIES`, `AI_CACHE_ENABLED`, `AI_CACHE_TTL_HOURS`, `AI_CIRCUIT_BREAKER_ENABLED`, `AI_CIRCUIT_FAILURE_THRESHOLD`, `AI_CIRCUIT_RESET_MS`, and `AI_MAX_REQUESTS_PER_RUN`.
+
+The router provides a single provider interface, task-based model routing, structured JSON parsing, deterministic cache keys, a persistent local cache, configurable concurrency, exponential backoff with jitter, `Retry-After` handling, circuit breaking, fallback models, request budgets, and run statistics. Transient NVIDIA failures, invalid JSON, rate limits, and model unavailability return deterministic fallbacks rather than failing Firebase or Blogger processing. API keys are never included in logs or cache data.
+
+Useful commands:
+
+```bash
+npm run ai-router
+npm run test-ai-router
+```
+
+The test suite covers deterministic aliases, cache hits, transient failure and fallback, retry counting, and concurrency limits. AI should be enabled only after adding `NVIDIA_API_KEY` as a GitHub Actions secret and confirming the selected model IDs are available to the account. The production event workflow remains functional with `AI_ENABLED=false`.

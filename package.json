@@ -5,7 +5,9 @@
   "scripts": {
     "auto-publish": "node scripts/auto-publish.mjs",
     "ai-tools": "node scripts/ai-tools.mjs",
-    "verify-firebase": "node scripts/verify-firebase.mjs"
+    "verify-firebase": "node scripts/verify-firebase.mjs",
+    "ai-router": "node scripts/ai-router.mjs",
+    "test-ai-router": "node scripts/test-ai-router.mjs"
   },
   "dependencies": {
     "playwright": "^1.55.0"
