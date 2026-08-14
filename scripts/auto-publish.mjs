@@ -130,8 +130,11 @@ async function buildPostData(match) {
       body += `<p><strong>League:</strong> ${Compose.esc(match.league || 'Live')}<br/><strong>Date:</strong> ${Compose.esc(dateStr)} at ${Compose.esc(timeStr)}</p>\n`;
       body += isRacing ? '<p>Watch it live here.</p>\n' : '<p>Watch the live match here.</p>\n';
       if (match.streams?.length) {
+        const rawStreams = match.streams.map(s => s.streamUrl || resolveRawStreamUrl(s)).filter(url => /^https?:\/\//i.test(url));
+        if (!rawStreams.length) throw new Error('No valid raw stream URL available for Blogger iframe');
         const playerBase = document.getElementById('cp-player').value || 'https://sports803.github.io/player/';
-        const playerUrl = `${playerBase}?${match.streams.map(s => `mora=${encodeURIComponent(s.url)}`).join('&')}`;
+        const playerUrl = `${playerBase}?mora=${encodeURIComponent(rawStreams[0])}`;
+        if (playerUrl.includes('undefined') || playerUrl.includes('null')) throw new Error('Invalid Blogger player URL');
         body += `<iframe src="${Compose.esc(playerUrl)}" allow="encrypted-media" allowfullscreen sandbox="allow-forms allow-pointer-lock allow-same-origin allow-scripts allow-top-navigation" loading="lazy" scrolling="no" style="width:100%;height:480px;border:0;background:#000;"></iframe>\n`;
       }
       document.getElementById('cp-body').value = body;
