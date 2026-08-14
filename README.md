@@ -96,3 +96,10 @@ The validator checks the required Blogger structure, event and Live TV sections,
 To install the theme, open Blogger, go to **Theme**, choose **Restore**, upload `sports803-theme.xml`, and preview the result before publishing. Keep a backup of the current theme XML. After import, verify the homepage, Live Events, Schedule, Channels, search, category filters, event stream buttons, cinema mode, picture-in-picture, favorites, reminders, Telegram/WhatsApp links, and mobile bottom navigation.
 
 The automation workflow no longer enables the public Firebase-write bypass. Event writes now require `FIREBASE_SERVICE_ACCOUNT_JSON` or the explicitly supported legacy `FIREBASE_AUTH_TOKEN`. Do not make Firebase publicly writable to work around authentication failures.
+
+
+## Reference-aligned dashboard design
+
+The theme now includes the reference-aligned visual system documented in `SPORTS803-REFERENCE-DESIGN.md`. The desktop layout uses a fixed Sports 803 sidebar, compact top bar, central live player and match workspace, and a secondary right rail. Mobile removes the sidebar, keeps the live content first, uses compact sticky controls, and relies on fixed bottom navigation. The design uses a near-black dashboard palette with charcoal surfaces and a restrained green live accent.
+
+The reference styling is implemented as a CSS-first layer in `sports803-theme.xml`, so existing Firebase mounts, event cards, channel buttons, search, category filters, favorites, reminders, cinema mode, picture-in-picture, and player hooks remain intact.
