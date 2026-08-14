@@ -30,10 +30,10 @@ async function read(path) {
   return response.json();
 }
 function validate(key, event) {
-  const required = ['id', 'kickoff', 'homeName', 'awayName', 'statusType', 'channels', 'updatedAt'];
+  const required = ['kickoff', 'homeName', 'awayName', 'statusType', 'channels', 'updatedAt'];
   const missing = required.filter(field => event?.[field] === undefined || event?.[field] === null);
   const channels = Array.isArray(event?.channels) ? event.channels.filter(channel => /^https?:\/\//i.test(String(channel?.src || ''))) : [];
-  return { key, valid: missing.length === 0 && channels.length > 0, missing, streamCount: channels.length, publicationStatus: event?.publicationStatus || 'UNKNOWN' };
+  return { key, valid: missing.length === 0 && channels.length > 0, legacyId: !event?.id, missing, streamCount: channels.length, publicationStatus: event?.publicationStatus || 'UNKNOWN' };
 }
 const events = await read('s803config/todaysMatches');
 const report = Object.entries(events || {}).map(([key, event]) => validate(key, event));
