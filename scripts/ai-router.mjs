@@ -5,20 +5,21 @@ const truthy = value => ['1', 'true', 'yes', 'on'].includes(String(value ?? '').
 const numberEnv = (name, fallback) => Number.isFinite(Number(process.env[name])) ? Number(process.env[name]) : fallback;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const hash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const modelNeedsThinking = model => /nemotron-3-super/i.test(String(model || ''));
 
 export const AI_CONFIG = {
   enabled: truthy(process.env.AI_ENABLED),
   apiKey: process.env.NVIDIA_API_KEY || process.env.AI_API_KEY || '',
   apiBaseUrl: (process.env.NVIDIA_API_URL || process.env.AI_API_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/$/, ''),
   models: {
-    matching: process.env.AI_MODEL_MATCHING || 'qwen/qwen3-next-80b-a3b-instruct',
+    matching: process.env.AI_MODEL_MATCHING || 'nvidia/nemotron-3-super-120b-a12b',
     writing: process.env.AI_MODEL_WRITING || 'meta/llama-3.3-70b-instruct',
     fast: process.env.AI_MODEL_FAST || 'nvidia/nemotron-3-nano-30b-a3b',
     reasoning: process.env.AI_MODEL_REASONING || 'openai/gpt-oss-120b',
     embedding: process.env.AI_MODEL_EMBEDDING || 'nvidia/nemotron-3-embed-1b'
   },
   fallbacks: {
-    matching: (process.env.AI_FALLBACK_MATCHING || 'nvidia/nemotron-3-nano-30b-a3b').split(',').map(x => x.trim()).filter(Boolean),
+    matching: (process.env.AI_FALLBACK_MATCHING || 'openai/gpt-oss-120b,nvidia/nemotron-3-nano-30b-a3b').split(',').map(x => x.trim()).filter(Boolean),
     writing: (process.env.AI_FALLBACK_WRITING || 'qwen/qwen3-next-80b-a3b-instruct,nvidia/nemotron-3-nano-30b-a3b').split(',').map(x => x.trim()).filter(Boolean),
     fast: (process.env.AI_FALLBACK_FAST || 'meta/llama-3.3-8b-instruct').split(',').map(x => x.trim()).filter(Boolean),
     reasoning: (process.env.AI_FALLBACK_REASONING || 'nvidia/nemotron-3-super-120b-a12b').split(',').map(x => x.trim()).filter(Boolean),
@@ -34,7 +35,9 @@ export const AI_CONFIG = {
   circuitFailureThreshold: Math.max(1, numberEnv('AI_CIRCUIT_FAILURE_THRESHOLD', 5)),
   circuitResetMs: Math.max(1000, numberEnv('AI_CIRCUIT_RESET_MS', 60000)),
   maxRequestsPerRun: Math.max(0, numberEnv('AI_MAX_REQUESTS_PER_RUN', 50)),
-  promptVersion: process.env.AI_PROMPT_VERSION || '1.0.0'
+  promptVersion: process.env.AI_PROMPT_VERSION || '1.0.0',
+  thinkingEnabled: process.env.AI_THINKING_ENABLED === undefined ? true : truthy(process.env.AI_THINKING_ENABLED),
+  reasoningBudget: Math.max(0, numberEnv('AI_REASONING_BUDGET', 16384))
 };
 
 export class AIProvider {
@@ -71,14 +74,16 @@ export class NvidiaProvider extends AIProvider {
     return body;
   }
 
-  async generateText({ model, messages, temperature = 0.2, maxTokens = 1200 }) {
-    const body = await this.request('/chat/completions', { model, messages, temperature, max_tokens: maxTokens });
+  async generateText({ model, messages, temperature = 0.2, maxTokens = 1200, extraBody }) {
+    const payload = { model, messages, temperature, max_tokens: maxTokens };
+    if (extraBody) payload.extra_body = extraBody;
+    const body = await this.request('/chat/completions', payload);
     return body?.choices?.[0]?.message?.content || '';
   }
 
-  async generateStructured({ model, messages, schema, temperature = 0.1, maxTokens = 1200 }) {
+  async generateStructured({ model, messages, schema, temperature = 0.1, maxTokens = 1200, extraBody }) {
     const schemaInstruction = `Return ONLY valid JSON matching this schema. Do not use Markdown fences. Schema: ${JSON.stringify(schema)}`;
-    const content = await this.generateText({ model, messages: [...messages, { role: 'system', content: schemaInstruction }], temperature, maxTokens });
+    const content = await this.generateText({ model, messages: [...messages, { role: 'system', content: schemaInstruction }], temperature, maxTokens, extraBody });
     return parseJson(content);
   }
 
@@ -176,9 +181,16 @@ export class AIRouter {
   }
 
   async matchEvents(left, right) {
+    const deterministic = deterministicMatch(left, right);
+    if (deterministic.confidence >= 0.95) return { ok: true, deterministic: true, value: { ...deterministic, reason: 'deterministic-normalization' } };
     const input = { left, right };
     const schema = { sameEvent: 'boolean', confidence: 'number 0..1', homeTeam: 'string', awayTeam: 'string', competition: 'string', reason: 'string' };
-    return this.call('matching', input, model => this.provider.generateStructured({ model, schema, messages: [{ role: 'user', content: `Compare these sports events using only supplied facts. ${JSON.stringify(input)}` }] }));
+    const extraBody = this.config.thinkingEnabled && modelNeedsThinking(this.config.models.matching) ? { chat_template_kwargs: { enable_thinking: true }, reasoning_budget: this.config.reasoningBudget } : undefined;
+    return this.call('matching', input, model => this.provider.generateStructured({ model, schema, extraBody: this.config.thinkingEnabled && modelNeedsThinking(model) ? extraBody : undefined, messages: [{ role: 'user', content: `Compare these sports events using only supplied facts. ${JSON.stringify(input)}` }] }));
+  }
+
+  async embed(input) {
+    return this.call('embedding', input, model => this.provider.embed({ model, input: String(input) }));
   }
 
   async generateArticle(event) {

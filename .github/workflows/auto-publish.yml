@@ -49,7 +49,7 @@ jobs:
           AI_ENABLED: ${{ vars.AI_ENABLED || 'false' }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           NVIDIA_API_URL: ${{ vars.NVIDIA_API_URL || 'https://integrate.api.nvidia.com/v1' }}
-          AI_MODEL_MATCHING: ${{ vars.AI_MODEL_MATCHING || 'qwen/qwen3-next-80b-a3b-instruct' }}
+          AI_MODEL_MATCHING: ${{ vars.AI_MODEL_MATCHING || 'nvidia/nemotron-3-super-120b-a12b' }}
           AI_MODEL_WRITING: ${{ vars.AI_MODEL_WRITING || 'meta/llama-3.3-70b-instruct' }}
           AI_MODEL_FAST: ${{ vars.AI_MODEL_FAST || 'nvidia/nemotron-3-nano-30b-a3b' }}
           AI_MODEL_REASONING: ${{ vars.AI_MODEL_REASONING || 'openai/gpt-oss-120b' }}
@@ -63,4 +63,6 @@ jobs:
           AI_CIRCUIT_FAILURE_THRESHOLD: '5'
           AI_CIRCUIT_RESET_MS: '60000'
           AI_MAX_REQUESTS_PER_RUN: '50'
+          AI_THINKING_ENABLED: 'true'
+          AI_REASONING_BUDGET: '16384'
         run: npm run auto-publish

@@ -30,16 +30,18 @@ assert.equal(deterministicMatch(left, right).sameEvent, true, 'deterministic ali
 
 const provider = new FakeProvider();
 const router = new AIRouter({ provider, config: baseConfig, cache: new FileCache('/tmp/sports803-ai-test-cache.json', 86400000) });
-const first = await router.matchEvents(left, right);
+const aiLeft = { ...left, homeName: 'Arsenal', awayName: 'Manchester United', date: Date.parse('2026-08-14T19:00:00Z') };
+const aiRight = { ...right, homeName: 'Gunners', awayName: 'Man Utd', date: Date.parse('2026-08-14T23:30:00Z') };
+const first = await router.matchEvents(aiLeft, aiRight);
 assert.equal(first.ok, true, 'primary structured request succeeds');
-const second = await router.matchEvents(left, right);
+const second = await router.matchEvents(aiLeft, aiRight);
 assert.equal(second.cached, true, 'identical request is cached');
 assert.equal(provider.calls.length, 1, 'cache prevents a second provider request');
 
 const fallbackProvider = new FakeProvider();
 fallbackProvider.failPrimary = true;
 const fallbackRouter = new AIRouter({ provider: fallbackProvider, config: { ...baseConfig, cacheFile: '/tmp/sports803-ai-fallback-cache.json' }, cache: new FileCache('/tmp/sports803-ai-fallback-cache.json', 86400000) });
-const fallback = await fallbackRouter.matchEvents(left, right);
+const fallback = await fallbackRouter.matchEvents(aiLeft, aiRight);
 assert.equal(fallback.ok, true, 'fallback request succeeds');
 assert.equal(fallback.model, 'fallback', 'fallback model selected after transient primary failure');
 assert.ok(fallbackRouter.summary().retries >= 1, 'transient failure retried');
@@ -51,7 +53,7 @@ parallelProvider.generateStructured = async ({ model }) => {
   return { sameEvent: true, confidence: 0.9, homeTeam: 'A', awayTeam: 'B', competition: 'Test', reason: model };
 };
 const parallelRouter = new AIRouter({ provider: parallelProvider, config: { ...baseConfig, maxConcurrency: 2, cacheFile: '/tmp/sports803-ai-concurrency-cache.json' }, cache: new FileCache('/tmp/sports803-ai-concurrency-cache.json', 86400000) });
-await Promise.all(Array.from({ length: 6 }, (_, index) => parallelRouter.matchEvents({ id: index }, { id: index + 1 })));
+await Promise.all(Array.from({ length: 6 }, (_, index) => parallelRouter.matchEvents({ id: index, homeName: `Team ${index}`, awayName: `Opponent ${index}`, date: 1000 }, { id: index + 1, homeName: `Different ${index}`, awayName: `Other ${index}`, date: 999999999 })));
 assert.ok(maxActive <= 2, 'concurrency limit respected');
 
 console.log(JSON.stringify({
