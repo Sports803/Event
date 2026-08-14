@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "auto-publish": "node scripts/auto-publish.mjs",
-    "ai-tools": "node scripts/ai-tools.mjs"
+    "ai-tools": "node scripts/ai-tools.mjs",
+    "verify-firebase": "node scripts/verify-firebase.mjs"
   },
   "dependencies": {
     "playwright": "^1.55.0"
