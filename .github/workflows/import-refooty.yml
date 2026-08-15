@@ -1,0 +1,44 @@
+name: Import ReFooty highlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      refooty_url:
+        description: ReFooty match highlight URL
+        required: true
+        type: string
+      rights_confirmed:
+        description: I confirm I have permission to republish this video and metadata
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Queue ReFooty highlight
+        if: ${{ inputs.rights_confirmed == true }}
+        env:
+          FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+          FIREBASE_AUTH_TOKEN: ${{ secrets.FIREBASE_AUTH_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/refooty-import.mjs --url "${{ inputs.refooty_url }}" --rights-confirmed
+      - name: Stop when rights are not confirmed
+        if: ${{ inputs.rights_confirmed != true }}
+        run: |
+          echo "Rights confirmation is required before queueing third-party video content."
+          exit 1

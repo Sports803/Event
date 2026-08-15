@@ -103,3 +103,17 @@ The automation workflow no longer enables the public Firebase-write bypass. Even
 The theme now includes the reference-aligned visual system documented in `SPORTS803-REFERENCE-DESIGN.md`. The desktop layout uses a fixed Sports 803 sidebar, compact top bar, central live player and match workspace, and a secondary right rail. Mobile removes the sidebar, keeps the live content first, uses compact sticky controls, and relies on fixed bottom navigation. The design uses a near-black dashboard palette with charcoal surfaces and a restrained green live accent.
 
 The reference styling is implemented as a CSS-first layer in `sports803-theme.xml`, so existing Firebase mounts, event cards, channel buttons, search, category filters, favorites, reminders, cinema mode, picture-in-picture, and player hooks remain intact.
+
+## ReFooty highlight import
+
+The repository now includes a rights-confirmed import path for ReFooty highlight pages. The importer fetches the page’s public metadata—title, description, thumbnail, and exposed HLS media URL—and writes a pending item under `automation/refootyHighlights`. It does not download or re-host the video. The regular `auto-publish` job consumes pending items, writes a compatible Firebase event card, and publishes a Blogger post using the supplied metadata and source player URL.
+
+Use the command locally after setting the same Firebase authentication variables used by the existing automation:
+
+```bash
+npm run import-refooty -- --url https://refooty.com/video/red-star-fc-93-vs-sochaux-2026-08-14 --rights-confirmed
+```
+
+There is also a manual **Import ReFooty highlight** workflow in GitHub Actions. Enter the ReFooty URL and confirm that you have permission to republish the video and metadata. The scheduled **Auto-publish OneBall events** workflow will pick up the queued item on its next run, subject to `MAX_POSTS_PER_RUN` and the existing Blogger/Firebase secrets.
+
+The importer intentionally refuses to queue an item unless `--rights-confirmed` is supplied. ReFooty’s page currently exposes an HLS `.m3u8` source rather than a direct `.mp4`; the implementation preserves that source URL and does not attempt to bypass access controls or convert the stream.

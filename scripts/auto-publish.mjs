@@ -16,6 +16,7 @@ const ACTIVE_GRACE_HOURS = Number(process.env.ACTIVE_GRACE_HOURS || 2);
 const MANUAL_SCHEDULE_PATH = process.env.MANUAL_SCHEDULE_PATH || 'automation/scheduledEvents';
 const MANUAL_WINDOW_HOURS = Number(process.env.MANUAL_WINDOW_HOURS || WINDOW_HOURS);
 const MANUAL_PRIORITY = Number(process.env.MANUAL_PRIORITY || 1000);
+const REFOOTY_QUEUE_PATH = process.env.REFOOTY_QUEUE_PATH || 'automation/refootyHighlights';
 
 for (const [name, value] of Object.entries({ BLOGGER_BLOG_ID: BLOG_ID, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, IMGBB_KEY, FIREBASE_DATABASE_URL: FIREBASE_URL })) {
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -112,6 +113,14 @@ async function collectMatches() {
 }
 
 async function buildPostData(match) {
+  if (match._refooty) {
+    const stream = match.streams?.[0]?.streamUrl || '';
+    if (!stream || !match.thumbnailUrl) throw new Error('ReFooty item is missing mediaUrl or thumbnailUrl');
+    const playerUrl = `${PLAYER_BASE}?mora=${encodeURIComponent(stream)}`;
+    const title = match.title || `${match.homeName} vs ${match.awayName}`;
+    const body = `<p>${escapeHtml(match.description || '')}</p><iframe src="${escapeHtml(playerUrl)}" allow="encrypted-media" allowfullscreen sandbox="allow-forms allow-pointer-lock allow-same-origin allow-scripts allow-top-navigation" loading="lazy" scrolling="no" style="width:100%;height:480px;border:0;background:#000;"></iframe><p><small>Source: <a href="${escapeHtml(match.sourceUrl)}">ReFooty</a></small></p>`;
+    return { title, content: `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #f1f2f6;"><img src="${escapeHtml(match.thumbnailUrl)}" style="max-width: 100%; height: auto; margin-bottom: 20px;" /><h2>${escapeHtml(title)}</h2><div>${body}</div></div>`, labels: ['sports', 'football', 'highlights', String(match.league || 'football').toLowerCase()], status: 'LIVE', customMetaData: match.description || title };
+  }
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1200 } });
@@ -249,7 +258,7 @@ function deriveLifecycle(match, now) {
   if (kickoff <= now + 15 * 60000) return { statusType: 'STATUS_SCHEDULED', status: 'STARTING_SOON' };
   return { statusType: 'STATUS_SCHEDULED', status: 'UPCOMING' };
 }
-function hasOneBall(match) { return (match.sources || []).includes('oneball') || (match.rawMatches || []).some(m => m._source === 'oneball'); }
+function hasOneBall(match) { return !!match._refooty || (match.sources || []).includes('oneball') || (match.rawMatches || []).some(m => m._source === 'oneball'); }
 function manualInWindow(match, now) {
   const time = Number(match.date || 0);
   return match.enabled !== false && time >= now - ACTIVE_GRACE_HOURS * 3600000 && time <= now + MANUAL_WINDOW_HOURS * 3600000;
@@ -285,6 +294,23 @@ async function loadManualSchedule() {
   const data = await firebaseRequest(MANUAL_SCHEDULE_PATH);
   return Object.entries(data || {}).map(([id, value]) => normalizeManualEvent(id, value)).filter(Boolean);
 }
+function normalizeRefootyHighlight(sourceKey, value) {
+  if (!value || value.status && value.status !== 'pending' || value.enabled === false || value.rightsConfirmed !== true) return null;
+  const mediaUrl = String(value.mediaUrl || '').trim();
+  if (!/^https:\/\//i.test(mediaUrl)) return null;
+  const title = String(value.title || 'Football highlight').trim();
+  const parts = title.split(/\s+vs\s+/i);
+  return {
+    ...value, id: value.id || `refooty_${sourceKey}`, _sourceKey: sourceKey, _refooty: true, _manual: true, _priority: Number(value.priority || MANUAL_PRIORITY + 1),
+    _scheduleId: `refooty_${sourceKey}`, _matchId: value.id || `refooty_${sourceKey}`, date: Number(value.publishAt || value.importedAt || Date.now()), duration: Number(value.duration || 120),
+    title, homeName: String(value.homeName || parts[0] || title), awayName: String(value.awayName || parts[1] || 'Highlights'), league: value.league || 'Football Highlights', category: 'football', competitionCategory: 'football', competitionLabel: 'Football Highlights',
+    streams: normalizeStreams([{ label: 'ReFooty HLS', streamUrl: mediaUrl }])
+  };
+}
+async function loadRefootyHighlights() {
+  const data = await firebaseRequest(REFOOTY_QUEUE_PATH);
+  return Object.entries(data || {}).map(([id, value]) => normalizeRefootyHighlight(id, value)).filter(Boolean);
+}
 function mergeManualPriority(manual, detected) {
   const result = manual.slice().sort((a, b) => Number(b._priority || 0) - Number(a._priority || 0) || Number(a.date) - Number(b.date));
   const consumed = new Set();
@@ -301,8 +327,8 @@ function mergeManualPriority(manual, detected) {
   return [...result, ...detected.filter((_, index) => !consumed.has(index))];
 }
 function inWindow(match, now) { const time = Number(match.date || 0); return time >= now - ACTIVE_GRACE_HOURS * 3600000 && time <= now + WINDOW_HOURS * 3600000; }
-function recordKey(match) { return match._manual ? manualStableKey(match) : stableKey(match); }
-function eventKeyForMatch(match) { return match._manual ? `match_manual_${match._scheduleId}` : `match_auto_${stableKey(match)}`; }
+function recordKey(match) { return match._refooty ? `refooty:${match._sourceKey}` : (match._manual ? manualStableKey(match) : stableKey(match)); }
+function eventKeyForMatch(match) { return match._refooty ? `match_refooty_${match._sourceKey}` : (match._manual ? `match_manual_${match._scheduleId}` : `match_auto_${stableKey(match)}`); }
 function matchTitle(match) {
   return match.title || (match.awayName ? `${match.homeName} vs ${match.awayName}` : match.homeName) || 'Scheduled event';
 }
@@ -325,6 +351,13 @@ async function main() {
     manual = (await loadManualSchedule()).filter(m => manualInWindow(m, now));
   } catch (error) {
     console.warn(`[SCHEDULE] Could not load ${MANUAL_SCHEDULE_PATH}: ${error.message}`);
+  }
+  try {
+    const highlights = (await loadRefootyHighlights()).filter(m => manualInWindow(m, now));
+    manual = [...manual, ...highlights];
+    if (highlights.length) console.log(`[REFOOTY] Queued highlights ready: ${highlights.length}`);
+  } catch (error) {
+    console.warn(`[REFOOTY] Could not load ${REFOOTY_QUEUE_PATH}: ${error.message}`);
   }
   const matches = mergeManualPriority(manual, detected).filter(m => m.streams.length);
   if (MAX_POSTS === 0) {
@@ -352,10 +385,10 @@ async function main() {
       score: '- -', scoreHome: '', scoreAway: '', minute: null, period: null, scoreProvider: 'none', statusType: lifecycle.statusType, status: lifecycle.status,
       leagueName: match.league || 'Live Event', leagueId: match.leagueId || '', leagueEmoji: match.leagueEmoji || '',
       competitionCategory: match.competitionCategory || 'other', competitionLabel: match.competitionLabel || match.competitionCategory || 'Other Competition',
-      postUrl: '', bloggerPostId: '', publicationStatus: 'FIREBASE_SYNCED', matchId: match.id, source: match._manual ? 'manual-schedule' : 'oneball',
+      postUrl: '', bloggerPostId: '', publicationStatus: 'FIREBASE_SYNCED', matchId: match.id, source: match._refooty ? 'refooty' : (match._manual ? 'manual-schedule' : 'oneball'),
       channelKey: '', channelName: '', venue: '', updatedAt: Date.now(), duration: Number(match.duration || 120),
       channels: rankedStreams, streamCount: rankedStreams.length, fallbackEnabled: rankedStreams.length > 1,
-      _source: match._manual ? 'manual-schedule' : 'unified-auto', _matchId: match.id, _oneball: !match._manual, _manual: !!match._manual, _priority: Number(match._priority || 0), _automation: true
+      _source: match._refooty ? 'refooty' : (match._manual ? 'manual-schedule' : 'unified-auto'), _matchId: match.id, _oneball: !match._manual && !match._refooty, _manual: !!match._manual, _refooty: !!match._refooty, sourceUrl: match.sourceUrl || '', thumbnailUrl: match.thumbnailUrl || '', description: match.description || '', _priority: Number(match._priority || 0), _automation: true
     };
     await writeAndVerifyFirebaseEvent(eventKey, firebasePayload);
     await firebaseRequest(`automation/bloggerPosts/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ status: 'firebase_synced', eventKey, manual: !!match._manual, priority: Number(match._priority || 0), matchId: match.id, kickoff: match.date, title: matchTitle(match), updatedAt: Date.now() }) });
@@ -363,13 +396,15 @@ async function main() {
       const post = await bloggerInsert(accessToken, await buildPostData(match));
       const publishedAt = Date.now();
       await patchAndVerifyFirebaseEvent(eventKey, { postUrl: post.url || '', bloggerPostId: post.id, publicationStatus: 'PUBLISHED', publishedAt, updatedAt: publishedAt });
-      await firebaseRequest(`automation/bloggerPosts/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ status: 'posted', eventKey, manual: !!match._manual, priority: Number(match._priority || 0), matchId: match.id, bloggerPostId: post.id, bloggerUrl: post.url || '', kickoff: match.date, title: matchTitle(match), updatedAt: publishedAt }) });
+      await firebaseRequest(`automation/bloggerPosts/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ status: 'posted', eventKey, manual: !!match._manual, refooty: !!match._refooty, priority: Number(match._priority || 0), matchId: match.id, bloggerPostId: post.id, bloggerUrl: post.url || '', kickoff: match.date, title: matchTitle(match), updatedAt: publishedAt }) });
+      if (match._refooty) await firebaseRequest(`${REFOOTY_QUEUE_PATH}/${encodeURIComponent(match._sourceKey)}`, { method: 'PATCH', body: JSON.stringify({ status: 'posted', bloggerPostId: post.id, bloggerUrl: post.url || '', postedAt: publishedAt, updatedAt: publishedAt }) });
       posted++;
       console.log(`Posted ${match.title} (${post.id}) and updated Firebase card ${eventKey}`);
     } catch (error) {
       const failedAt = Date.now();
       await patchAndVerifyFirebaseEvent(eventKey, { publicationStatus: 'BLOGGER_FAILED', publicationError: String(error.message), updatedAt: failedAt });
-      await firebaseRequest(`automation/bloggerPosts/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ status: 'blogger_failed', eventKey, manual: !!match._manual, priority: Number(match._priority || 0), matchId: match.id, error: String(error.message), kickoff: match.date, title: matchTitle(match), updatedAt: failedAt }) });
+      await firebaseRequest(`automation/bloggerPosts/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ status: 'blogger_failed', eventKey, manual: !!match._manual, refooty: !!match._refooty, priority: Number(match._priority || 0), matchId: match.id, error: String(error.message), kickoff: match.date, title: matchTitle(match), updatedAt: failedAt }) });
+      if (match._refooty) await firebaseRequest(`${REFOOTY_QUEUE_PATH}/${encodeURIComponent(match._sourceKey)}`, { method: 'PATCH', body: JSON.stringify({ status: 'blogger_failed', error: String(error.message), updatedAt: failedAt }) });
       console.error(`Failed ${match.title}: ${error.message}`);
     }
   }
