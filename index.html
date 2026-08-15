@@ -459,6 +459,7 @@ UNIFIED EVENT GENERATOR TAB
 
             <div class="filter-row">
                 <input id="gen-search" type="text" placeholder="Search teams, leagues..." oninput="UnifiedGenerator.filterMatches()" style="flex:1;min-width:150px;" />
+                <select id="gen-competition-filter" onchange="UnifiedGenerator.filterMatches()" style="min-width:170px;"><option value="">All competitions</option><option value="premier-league">Premier League</option><option value="la-liga">La Liga</option><option value="serie-a">Serie A</option><option value="coppa-italia">Coppa Italia</option><option value="bundesliga">Bundesliga</option><option value="ligue-1">Ligue 1</option><option value="champions-league">UEFA Champions League</option><option value="europa-league">UEFA Europa League</option><option value="conference-league">UEFA Conference League</option><option value="club-friendlies">International Club Friendlies</option><option value="international-friendlies">International Friendlies</option><option value="world-cup">World Cup</option><option value="african-cup">Africa Cup of Nations</option><option value="other">Other Competition</option></select>
                 <button class="btn-generator" onclick="UnifiedGenerator.fetchAllSources()" id="gen-fetch-btn">🔄 Fetch All Sources</button>
             </div>
 
@@ -2602,6 +2603,7 @@ var UnifiedGenerator = {
 
             // Detect category
             var category = UnifiedGenerator.detectCategory(bestLeague, homeName, awayName, allSources);
+            var competitionCategory = UnifiedGenerator.detectCompetition(bestLeague, homeName, awayName, allSources);
 
             unified.push({
                 id: 'unified_' + Date.now() + '_' + Math.random().toString(36).substr(2,6),
@@ -2615,6 +2617,8 @@ var UnifiedGenerator = {
                 sources: allSources,
                 isLive: isLive,
                 category: category,
+                competitionCategory: competitionCategory,
+                competitionLabel: UnifiedGenerator.COMPETITION_META[competitionCategory] || 'Other Competition',
                 rawMatches: group.map(function(item) { return item.match; }),
                 title: (homeName || 'Home') + ' vs ' + (awayName || 'Away') + ' — ' + (bestLeague || 'Live')
             });
@@ -2623,6 +2627,39 @@ var UnifiedGenerator = {
         return unified;
     },
 
+    COMPETITION_META: {
+        'premier-league': 'Premier League', 'la-liga': 'La Liga', 'serie-a': 'Serie A', 'coppa-italia': 'Coppa Italia', 'bundesliga': 'Bundesliga', 'ligue-1': 'Ligue 1', 'champions-league': 'UEFA Champions League', 'europa-league': 'UEFA Europa League', 'conference-league': 'UEFA Conference League', 'club-friendlies': 'International Club Friendlies', 'international-friendlies': 'International Friendlies', 'world-cup': 'World Cup', 'african-cup': 'Africa Cup of Nations', 'other': 'Other Competition'
+    },
+    competitionOptionsHtml: function(selected) {
+        var html = '';
+        Object.keys(UnifiedGenerator.COMPETITION_META).forEach(function(key) { html += '<option value="' + key + '"' + (key === selected ? ' selected' : '') + '>' + UnifiedGenerator.COMPETITION_META[key] + '</option>'; });
+        return html;
+    },
+    detectCompetition: function(league, home, away, sources) {
+        var text = (league + ' ' + home + ' ' + away + ' ' + sources.join(' ')).toLowerCase();
+        if (/\b(coppa\s+italia|italian\s+cup)\b/.test(text)) return 'coppa-italia';
+        if (/\b(premier\s+league|epl)\b/.test(text)) return 'premier-league';
+        if (/\b(la\s+liga|laliga|primera\s+division)\b/.test(text)) return 'la-liga';
+        if (/\b(serie\s+a|italian\s+serie\s+a)\b/.test(text)) return 'serie-a';
+        if (/\b(bundesliga)\b/.test(text)) return 'bundesliga';
+        if (/\b(ligue\s*1)\b/.test(text)) return 'ligue-1';
+        if (/\b(champions\s+league|uefa\s+ucl)\b/.test(text)) return 'champions-league';
+        if (/\b(europa\s+league|uefa\s+uel)\b/.test(text)) return 'europa-league';
+        if (/\b(conference\s+league)\b/.test(text)) return 'conference-league';
+        if (/\b(club\s+friendly|international\s+club\s+friendly|club\s+friendlies)\b/.test(text)) return 'club-friendlies';
+        if (/\b(international\s+friendly|international\s+friendlies)\b/.test(text)) return 'international-friendlies';
+        if (/\b(world\s+cup|fifa\s+world\s+cup)\b/.test(text)) return 'world-cup';
+        if (/\b(africa\s+cup|afcon)\b/.test(text)) return 'african-cup';
+        return 'other';
+    },
+    setCompetitionCategory: function(matchKey, value) {
+        var match = UnifiedGenerator._unifiedMatches.find(function(m) { return m.id === matchKey; });
+        if (!match) return;
+        match.competitionCategory = value;
+        match.competitionLabel = UnifiedGenerator.COMPETITION_META[value] || value;
+        if (UnifiedGenerator._selectedIds[matchKey]) UnifiedGenerator._selectedIds[matchKey] = match;
+        UnifiedGenerator.renderMatches();
+    },
     detectCategory: function(league, home, away, sources) {
         var text = (league + ' ' + home + ' ' + away + ' ' + sources.join(' ')).toLowerCase();
         if (/\b(football|soccer|premier league|la liga|bundesliga|serie a|ligue 1|champions league|europa league|world cup|uefa|mls)\b/.test(text)) return 'football';
@@ -2645,10 +2682,12 @@ var UnifiedGenerator = {
     renderMatches: function() {
         var listEl = document.getElementById('gen-match-list');
         var searchTerm = (document.getElementById('gen-search') && document.getElementById('gen-search').value || '').toLowerCase();
+        var competitionFilter = (document.getElementById('gen-competition-filter') && document.getElementById('gen-competition-filter').value || '');
 
         var filtered = UnifiedGenerator._unifiedMatches.filter(function(m) {
+            if (competitionFilter && m.competitionCategory !== competitionFilter) return false;
             if (!searchTerm) return true;
-            var haystack = (m.homeName + ' ' + m.awayName + ' ' + m.league + ' ' + m.id).toLowerCase();
+            var haystack = (m.homeName + ' ' + m.awayName + ' ' + m.league + ' ' + (m.competitionLabel || '') + ' ' + m.id).toLowerCase();
             return haystack.indexOf(searchTerm) !== -1;
         });
 
@@ -2699,7 +2738,8 @@ var UnifiedGenerator = {
             infoHtml += '<span>' + dateStr + '</span>';
             infoHtml += '<span class="stream-count">📡 ' + match.streams.length + ' stream(s)</span>';
             infoHtml += '<span class="source-tags">' + sourceTags + '</span>';
-            infoHtml += '<span class="category-badge" style="font-size:9px;color:var(--color-text-dim);">' + match.category + '</span>';
+            infoHtml += '<span class="category-badge" style="font-size:9px;color:var(--color-text-dim);">' + Gen.esc(match.category) + '</span>';
+            infoHtml += '<select class="competition-override" aria-label="Competition category for ' + Gen.esc(match.homeName) + '" style="font-size:10px;max-width:190px;" data-match-key="' + Gen.esc(matchKey) + '">' + UnifiedGenerator.competitionOptionsHtml(match.competitionCategory) + '</select>';
             infoHtml += '</div>';
             infoHtml += '</div>';
 
@@ -2709,6 +2749,11 @@ var UnifiedGenerator = {
 
             item.innerHTML = checkboxHtml + thumbHtml + infoHtml + actionHtml;
 
+            var competitionSelect = item.querySelector('.competition-override');
+            if (competitionSelect) {
+                competitionSelect.addEventListener('click', function(e) { e.stopPropagation(); });
+                competitionSelect.addEventListener('change', function(e) { e.stopPropagation(); UnifiedGenerator.setCompetitionCategory(matchKey, competitionSelect.value); });
+            }
             var checkbox = item.querySelector('.pick-checkbox');
             checkbox.addEventListener('click', function(e) { e.stopPropagation(); });
             checkbox.addEventListener('change', function() {
@@ -2850,7 +2895,8 @@ var UnifiedGenerator = {
             return {
                 id: makeId(match), enabled: true, priority: priority,
                 kickoff: dt.toISOString(), duration: Number(match.duration || 120),
-                league: match.league || 'Scheduled event', category: match.category || 'other', sport: match.category || 'other',
+                league: match.league || 'Scheduled event', leagueName: match.league || 'Scheduled event', category: match.category || 'other', sport: match.category || 'other',
+                competitionCategory: match.competitionCategory || 'other', competitionLabel: match.competitionLabel || UnifiedGenerator.COMPETITION_META[match.competitionCategory] || 'Other Competition',
                 homeName: match.homeName || 'Scheduled event', homeLogo: match.homeLogo || '',
                 awayName: match.awayName || '', awayLogo: match.awayLogo || '', streams: streams,
                 source: 'unified-generator', sourceIds: (match.rawMatches || []).map(function(raw) { return raw.id; }).filter(Boolean),
@@ -2948,6 +2994,8 @@ var UnifiedGenerator = {
             scoreAway: '',
             statusType: match.isLive ? 'STATUS_LIVE' : 'STATUS_SCHEDULED',
             leagueName: match.league || 'Live Event',
+            competitionCategory: match.competitionCategory || 'other',
+            competitionLabel: match.competitionLabel || UnifiedGenerator.COMPETITION_META[match.competitionCategory] || 'Other Competition',
             leagueEmoji: Gen.CATEGORY_META[match.category] ? Gen.CATEGORY_META[match.category].leagueEmoji : '🏆',
             leagueId: Gen.CATEGORY_META[match.category] ? Gen.CATEGORY_META[match.category].leagueId : 'custom.other',
             postUrl: '',

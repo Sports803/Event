@@ -128,9 +128,10 @@ async function buildPostData(match) {
       document.getElementById('cp-datetime').value = `${dateStr} ${timeStr}`;
       document.getElementById('cp-home-logo').value = match.homeLogo || '';
       document.getElementById('cp-away-logo').value = match.awayLogo || '';
-      document.getElementById('cp-labels').value = `sports, ${match.category || 'live'}, ${(match.league || 'live').toLowerCase()}`;
+      const competitionLabel = match.competitionLabel || match.competitionCategory || 'Other Competition';
+      document.getElementById('cp-labels').value = `sports, ${match.category || 'live'}, ${competitionLabel.toLowerCase()}, ${(match.league || 'live').toLowerCase()}`;
       let body = isRacing ? `<h2>${Compose.esc(match.homeName)}</h2>\n` : `<h2>${Compose.esc(match.homeName)} vs ${Compose.esc(match.awayName)}</h2>\n`;
-      body += `<p><strong>League:</strong> ${Compose.esc(match.league || 'Live')}<br/><strong>Date:</strong> ${Compose.esc(dateStr)} at ${Compose.esc(timeStr)}</p>\n`;
+      body += `<p><strong>Competition:</strong> ${Compose.esc(competitionLabel)}<br/><strong>League:</strong> ${Compose.esc(match.league || 'Live')}<br/><strong>Date:</strong> ${Compose.esc(dateStr)} at ${Compose.esc(timeStr)}</p>\n`;
       body += isRacing ? '<p>Watch it live here.</p>\n' : '<p>Watch the live match here.</p>\n';
       if (match.streams?.length) {
         const rawStreams = match.streams.map(s => s.streamUrl || resolveRawStreamUrl(s)).filter(url => /^https?:\/\//i.test(url));
@@ -275,6 +276,8 @@ function normalizeManualEvent(scheduleId, value) {
     awayName: value.awayName || value.away || '',
     league: value.league || value.leagueName || 'Scheduled event',
     category: value.category || value.sport || 'other',
+    competitionCategory: value.competitionCategory || 'other',
+    competitionLabel: value.competitionLabel || value.competitionCategory || 'Other Competition',
     streams
   };
 }
@@ -348,6 +351,7 @@ async function main() {
       homeName: match.homeName || 'Home', homeLogo: match.homeLogo || '', awayName: match.awayName || '', awayLogo: match.awayLogo || '',
       score: '- -', scoreHome: '', scoreAway: '', minute: null, period: null, scoreProvider: 'none', statusType: lifecycle.statusType, status: lifecycle.status,
       leagueName: match.league || 'Live Event', leagueId: match.leagueId || '', leagueEmoji: match.leagueEmoji || '',
+      competitionCategory: match.competitionCategory || 'other', competitionLabel: match.competitionLabel || match.competitionCategory || 'Other Competition',
       postUrl: '', bloggerPostId: '', publicationStatus: 'FIREBASE_SYNCED', matchId: match.id, source: match._manual ? 'manual-schedule' : 'oneball',
       channelKey: '', channelName: '', venue: '', updatedAt: Date.now(), duration: Number(match.duration || 120),
       channels: rankedStreams, streamCount: rankedStreams.length, fallbackEnabled: rankedStreams.length > 1,
