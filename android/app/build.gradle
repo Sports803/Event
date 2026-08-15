@@ -1,0 +1,21 @@
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+    id 'dev.flutter.flutter-gradle-plugin'
+    id 'com.google.gms.google-services'
+}
+
+android {
+    namespace 'com.sports803.tv'
+    compileSdk flutter.compileSdkVersion
+    ndkVersion flutter.ndkVersion
+    defaultConfig {
+        applicationId 'com.sports803.tv'
+        minSdk 23
+        targetSdk flutter.targetSdkVersion
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }
+}
+
+flutter { source '../..' }

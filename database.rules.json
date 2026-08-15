@@ -1,0 +1,22 @@
+{
+  "rules": {
+    "s803config": {
+      ".read": true,
+      ".write": false
+    },
+    "livetv": {
+      "channels": {
+        ".read": true,
+        ".write": false
+      }
+    },
+    "postReactions": {
+      ".read": true,
+      "$postId": {
+        ".write": false
+      }
+    },
+    ".read": false,
+    ".write": false
+  }
+}

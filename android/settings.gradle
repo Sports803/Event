@@ -1,0 +1,19 @@
+pluginManagement {
+    def flutterSdkPath = {
+        def properties = new Properties()
+        file('local.properties').withInputStream { properties.load(it) }
+        def path = properties.getProperty('flutter.sdk')
+        assert path != null, 'flutter.sdk not set in local.properties'
+        return path
+    }()
+    includeBuild("${flutterSdkPath}/packages/flutter_tools/gradle")
+    repositories { google(); mavenCentral(); gradlePluginPortal() }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories { google(); mavenCentral() }
+}
+
+rootProject.name = 'sports803_tv'
+include ':app'
