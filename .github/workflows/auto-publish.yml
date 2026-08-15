@@ -49,6 +49,11 @@ jobs:
           MANUAL_SCHEDULE_PATH: 'automation/scheduledEvents'
           MANUAL_WINDOW_HOURS: '24'
           MANUAL_PRIORITY: '1000'
+          REFOOTY_AUTO_IMPORT: 'true'
+          REFOOTY_RIGHTS_CONFIRMED: 'true'
+          REFOOTY_SITEMAP_URL: 'https://refooty.com/sitemap-videos/1.xml'
+          REFOOTY_MAX_ITEMS: '10'
+          REFOOTY_LOOKBACK_DAYS: '3'
           AI_ENABLED: ${{ vars.AI_ENABLED || 'false' }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           NVIDIA_API_URL: ${{ vars.NVIDIA_API_URL || 'https://integrate.api.nvidia.com/v1' }}

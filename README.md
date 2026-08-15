@@ -106,7 +106,7 @@ The reference styling is implemented as a CSS-first layer in `sports803-theme.xm
 
 ## ReFooty highlight import
 
-The repository now includes a rights-confirmed import path for ReFooty highlight pages. The importer fetches the page’s public metadata—title, description, thumbnail, and exposed HLS media URL—and writes a pending item under `automation/refootyHighlights`. It does not download or re-host the video. The regular `auto-publish` job consumes pending items, writes a compatible Firebase event card, and publishes a Blogger post using the supplied metadata and source player URL.
+The repository now includes an automatic, rights-confirmed import path for ReFooty highlight pages. On each scheduled publisher run, `scripts/refooty-auto-import.mjs` reads the newest ReFooty video sitemap entries, fetches each page’s public metadata—title, description, thumbnail, and exposed HLS media URL—and writes new items under `automation/refootyHighlights`. Existing `pending` and `posted` records are deduplicated. The importer does not download or re-host the video. The regular `auto-publish` job consumes the queue, writes a compatible Firebase event card, and publishes a Blogger post using the supplied metadata and source player URL.
 
 Use the command locally after setting the same Firebase authentication variables used by the existing automation:
 
@@ -114,6 +114,6 @@ Use the command locally after setting the same Firebase authentication variables
 npm run import-refooty -- --url https://refooty.com/video/red-star-fc-93-vs-sochaux-2026-08-14 --rights-confirmed
 ```
 
-There is also a manual **Import ReFooty highlight** workflow in GitHub Actions. Enter the ReFooty URL and confirm that you have permission to republish the video and metadata. The scheduled **Auto-publish OneBall events** workflow will pick up the queued item on its next run, subject to `MAX_POSTS_PER_RUN` and the existing Blogger/Firebase secrets.
+Automatic discovery is enabled in `.github/workflows/auto-publish.yml` with the first ReFooty video sitemap, a three-day lookback, and a maximum of ten new pages inspected per run. You can test it locally with `REFOOTY_RIGHTS_CONFIRMED=true npm run auto-import-refooty`; use `REFOOTY_DRY_RUN=true` to inspect results without writing Firebase. The existing manual **Import ReFooty highlight** workflow and the Calendar-tab form remain available for exceptional URLs or scheduled items.
 
 The importer intentionally refuses to queue an item unless `--rights-confirmed` is supplied. ReFooty’s page currently exposes an HLS `.m3u8` source rather than a direct `.mp4`; the implementation preserves that source URL and does not attempt to bypass access controls or convert the stream.

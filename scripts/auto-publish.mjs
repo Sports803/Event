@@ -1,5 +1,7 @@
 import { chromium } from 'playwright';
 import { createSign } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 const BLOG_ID = process.env.BLOGGER_BLOG_ID;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -17,6 +19,8 @@ const MANUAL_SCHEDULE_PATH = process.env.MANUAL_SCHEDULE_PATH || 'automation/sch
 const MANUAL_WINDOW_HOURS = Number(process.env.MANUAL_WINDOW_HOURS || WINDOW_HOURS);
 const MANUAL_PRIORITY = Number(process.env.MANUAL_PRIORITY || 1000);
 const REFOOTY_QUEUE_PATH = process.env.REFOOTY_QUEUE_PATH || 'automation/refootyHighlights';
+const REFOOTY_AUTO_IMPORT = String(process.env.REFOOTY_AUTO_IMPORT || '').toLowerCase() === 'true';
+const execFileAsync = promisify(execFile);
 
 for (const [name, value] of Object.entries({ BLOGGER_BLOG_ID: BLOG_ID, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, IMGBB_KEY, FIREBASE_DATABASE_URL: FIREBASE_URL })) {
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -97,6 +101,17 @@ async function uploadThumbnail(dataUrl) {
   const data = await response.json();
   if (!response.ok || !data.success) throw new Error(`ImgBB upload failed: ${JSON.stringify(data)}`);
   return data.data.url;
+}
+
+async function autoImportRefooty() {
+  if (!REFOOTY_AUTO_IMPORT) return;
+  try {
+    const { stdout, stderr } = await execFileAsync(process.execPath, ['scripts/refooty-auto-import.mjs'], { env: { ...process.env, REFOOTY_RIGHTS_CONFIRMED: 'true' }, timeout: 120000, maxBuffer: 1024 * 1024 });
+    if (stdout.trim()) console.log(`[REFOOTY] ${stdout.trim()}`);
+    if (stderr.trim()) console.warn(`[REFOOTY] ${stderr.trim()}`);
+  } catch (error) {
+    console.warn(`[REFOOTY] Automatic import skipped: ${error.message}`);
+  }
 }
 
 async function collectMatches() {
@@ -345,6 +360,7 @@ async function refreshExistingLifecycles(matches, now) {
 
 async function main() {
   const now = Date.now();
+  await autoImportRefooty();
   const detected = (await collectMatches()).map(match => ({ ...match, streams: normalizeStreams(match.streams) })).filter(m => hasOneBall(m) && inWindow(m, now) && m.streams.length);
   let manual = [];
   try {
