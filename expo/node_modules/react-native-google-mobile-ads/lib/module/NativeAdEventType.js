@@ -1,0 +1,14 @@
+export let NativeAdEventType = /*#__PURE__*/function (NativeAdEventType) {
+  NativeAdEventType["IMPRESSION"] = "impression";
+  NativeAdEventType["CLICKED"] = "clicked";
+  NativeAdEventType["OPENED"] = "opened";
+  NativeAdEventType["CLOSED"] = "closed";
+  NativeAdEventType["PAID"] = "paid";
+  NativeAdEventType["VIDEO_PLAYED"] = "video_played";
+  NativeAdEventType["VIDEO_PAUSED"] = "video_paused";
+  NativeAdEventType["VIDEO_ENDED"] = "video_ended";
+  NativeAdEventType["VIDEO_MUTED"] = "video_muted";
+  NativeAdEventType["VIDEO_UNMUTED"] = "video_unmuted";
+  return NativeAdEventType;
+}({});
+//# sourceMappingURL=NativeAdEventType.js.map

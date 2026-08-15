@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Sports 803",
+    "slug": "sports803",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "sports803",
+    "android": {
+      "package": "com.sports803.tv",
+      "versionCode": 1,
+      "permissions": ["INTERNET"],
+      "adaptiveIcon": { "backgroundColor": "#080C18" }
+    },
+    "plugins": [
+      ["react-native-google-mobile-ads", { "androidAppId": "ca-app-pub-5622139873916803~1201837341" }]
+    ],
+    "extra": { "firebaseDatabaseUrl": "https://sports-803-1b806-default-rtdb.firebaseio.com" }
+  }
+}
