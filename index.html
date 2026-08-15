@@ -615,6 +615,28 @@ CALENDAR TAB
             <p class="status-text" id="schedule-status"></p>
             <div id="scheduled-events-list" class="fixture-list" style="max-height:360px;margin-top:12px;"></div>
         </div>
+        <div class="schedule-priority-panel refooty-panel" id="refooty-panel">
+            <h3>ReFooty Highlight Import</h3>
+            <p class="hint">Paste a ReFooty highlight page and its public media details. The item will be queued for the existing publisher at the selected time. You must have permission to republish the video and metadata.</p>
+            <div class="field-row">
+                <div class="field"><label>ReFooty page URL</label><input id="rf-source-url" type="url" placeholder="https://refooty.com/video/..." /></div>
+                <div class="field"><label>Queue ID</label><input id="rf-id" placeholder="red-star-sochaux-2026-08-14" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Publish date</label><input id="rf-date" type="date" /></div>
+                <div class="field"><label>Publish time</label><input id="rf-time" type="time" /></div>
+                <div class="field"><label>Priority</label><input id="rf-priority" type="number" value="1001" min="1" max="9999" /></div>
+            </div>
+            <div class="field"><label>Title</label><input id="rf-title" placeholder="RED Star FC 93 vs Sochaux" /></div>
+            <div class="field"><label>Description</label><textarea id="rf-description" rows="3" placeholder="Highlight description from the source page"></textarea></div>
+            <div class="field-row">
+                <div class="field"><label>Thumbnail URL</label><input id="rf-thumbnail" type="url" placeholder="https://img.refooty.com/thumbnail/..." /></div>
+                <div class="field"><label>HLS / media URL</label><input id="rf-media" type="url" placeholder="https://img.refooty.com/m3u8/...m3u8" /></div>
+            </div>
+            <label class="toggle-row"><input id="rf-rights" type="checkbox" /> <span>I confirm I have permission to republish this video and metadata.</span></label>
+            <div class="copy-row"><button class="btn-primary" onclick="Gen.saveRefootyHighlight()">Queue ReFooty highlight</button><button class="btn-secondary" onclick="Gen.clearRefootyForm()">Clear</button><button class="btn-secondary" onclick="Gen.openRefootySource()">Open source page</button></div>
+            <p class="status-text" id="refooty-status"></p>
+        </div>
         <div class="calendar-nav">
             <button onclick="Gen.calPrev()">&lt; Prev</button>
             <span class="cal-title" id="cal-title">July 2026</span>
@@ -1850,6 +1872,9 @@ var Gen = {
     scheduleBase: function() {
         return document.getElementById('fb-url').value.replace(/\/$/, '') + '/automation/scheduledEvents';
     },
+    refootyQueueBase: function() {
+        return document.getElementById('fb-url').value.replace(/\/$/, '') + '/automation/refootyHighlights';
+    },
     scheduleOutboxKey: 's803_schedule_outbox',
     buildScheduledPayload: function() {
         var date = document.getElementById('sch-date').value;
@@ -1956,6 +1981,43 @@ var Gen = {
         document.getElementById('sch-stream-label').value='Stream 1'; document.getElementById('sch-priority').value=1000; document.getElementById('sch-duration').value=120; document.getElementById('sch-enabled').checked=true; document.getElementById('schedule-status').textContent='';
     },
 
+    openRefootySource: function() {
+        var url = document.getElementById('rf-source-url').value.trim();
+        if (!/^https:\/\/(?:www\.)?refooty\.com\//i.test(url)) { Gen.toast('Enter a valid ReFooty page URL first.', 'warning'); return; }
+        window.open(url, '_blank', 'noopener');
+    },
+    clearRefootyForm: function() {
+        ['rf-source-url','rf-id','rf-title','rf-description','rf-thumbnail','rf-media'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+        var now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('rf-date').value = now.toISOString().slice(0,10);
+        document.getElementById('rf-time').value = now.toISOString().slice(11,16);
+        document.getElementById('rf-priority').value = 1001;
+        document.getElementById('rf-rights').checked = false;
+        document.getElementById('refooty-status').textContent = '';
+    },
+    saveRefootyHighlight: function() {
+        var status = document.getElementById('refooty-status');
+        var sourceUrl = document.getElementById('rf-source-url').value.trim();
+        var title = document.getElementById('rf-title').value.trim();
+        var description = document.getElementById('rf-description').value.trim();
+        var thumbnailUrl = document.getElementById('rf-thumbnail').value.trim();
+        var mediaUrl = document.getElementById('rf-media').value.trim();
+        var id = document.getElementById('rf-id').value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-|-$/g, '');
+        var date = document.getElementById('rf-date').value;
+        var time = document.getElementById('rf-time').value;
+        if (!/^https:\/\/(?:www\.)?refooty\.com\//i.test(sourceUrl)) { status.textContent='⚠️ Enter a valid ReFooty page URL.'; return; }
+        if (!id) { try { id = new URL(sourceUrl).pathname.split('/').filter(Boolean).pop().replace(/[^a-z0-9_-]+/gi, '-').toLowerCase(); } catch(e) {} }
+        if (!id || !title || !description || !thumbnailUrl || !/^https:\/\//i.test(mediaUrl) || !date || !time) { status.textContent='⚠️ Complete the URL, ID, timing, title, description, thumbnail, and media URL fields.'; return; }
+        if (!document.getElementById('rf-rights').checked) { status.textContent='⚠️ Confirm republishing permission before queueing this item.'; return; }
+        var publishAt = new Date(date+'T'+time+':00').getTime();
+        if (!Number.isFinite(publishAt)) { status.textContent='⚠️ Choose a valid publish date and time.'; return; }
+        var payload = { id:'refooty_'+id, source:'refooty', sourceUrl:sourceUrl, importedAt:Date.now(), publishAt:publishAt, rightsConfirmed:true, status:'pending', priority:Math.max(1, Math.min(9999, parseInt(document.getElementById('rf-priority').value,10)||1001)), title:title, description:description, thumbnailUrl:thumbnailUrl, mediaUrl:mediaUrl, updatedAt:Date.now() };
+        status.textContent='Queueing ReFooty highlight…';
+        fetch(Gen.refootyQueueBase()+'/'+encodeURIComponent(id)+'.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+          .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+          .then(function(){status.textContent='✅ Highlight queued. The automatic publisher will process it at the selected time.'; Gen.toast('ReFooty highlight queued.');})
+          .catch(function(err){status.textContent='❌ Could not queue highlight: '+err.message; Gen.toast('ReFooty queue failed: '+err.message,'error');});
+    },
     // ---- Calendar ----
     calPrev: function() {
         if (Gen._calMonth === 0) { Gen._calMonth = 11; Gen._calYear--; } else { Gen._calMonth--; }
