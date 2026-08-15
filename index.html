@@ -469,6 +469,7 @@ UNIFIED EVENT GENERATOR TAB
                 <span class="bulk-count" id="gen-bulk-count">0 selected</span>
                 <button class="btn-generator" style="margin:0;padding:8px 14px;font-size:12px;background:linear-gradient(135deg,#f6b93b,#e08e1d);color:#1a1300;" onclick="UnifiedGenerator.postSelectedToBlogger()">📤 Post selected to Blogger</button>
                 <button class="btn-generator" style="margin:0;padding:8px 14px;font-size:12px;" onclick="UnifiedGenerator.pushSelectedToFirebase()">🔥 Push selected to Firebase</button>
+                <button class="btn-generator" style="margin:0;padding:8px 14px;font-size:12px;background:linear-gradient(135deg,#7c5cff,#4d35c7);" onclick="UnifiedGenerator.scheduleSelected()">🗓️ Schedule selected</button>
                 <button class="btn-secondary" style="margin:0;padding:8px 12px;font-size:11px;" onclick="UnifiedGenerator.fillEventFormSelected()">📋 Fill Event Card</button>
             </div>
 
@@ -2825,6 +2826,49 @@ var UnifiedGenerator = {
         var eventTabBtn = document.querySelector('[data-tab="event-tab"]');
         Gen.showTab(eventTabBtn, 'event-tab');
         Gen.buildEventCard();
+    },
+
+    // ---- Schedule selected into the priority queue ----
+    scheduleSelected: function() {
+        var ids = Object.keys(UnifiedGenerator._selectedIds);
+        if (!ids.length) { Gen.toast('Select at least one match first.', 'warning'); return; }
+        if (!confirm('Schedule ' + ids.length + ' selected match(es) as priority events? They will be checked every 10 minutes and posted automatically.')) return;
+        var statusEl = document.getElementById('gen-status');
+        statusEl.style.display = 'block'; statusEl.className = 'scraper-status loading'; statusEl.textContent = '🗓️ Saving ' + ids.length + ' priority event(s)…';
+        var makeId = function(match) {
+            var base = ((match.homeName || 'event') + '-' + (match.awayName || '')).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            var stamp = match.date ? new Date(match.date).toISOString().slice(0,16).replace(/[^0-9]/g, '') : 'tbd';
+            return 'generator-' + (base || 'event') + '-' + stamp;
+        };
+        var payloads = ids.map(function(id, index) {
+            var match = UnifiedGenerator._selectedIds[id];
+            var priority = 2000 - index;
+            var streams = (match.streams || []).map(function(s, streamIndex) {
+                return { label: s.label || ('Stream ' + (streamIndex + 1)), src: s.url || s.src || s.streamUrl || '' };
+            }).filter(function(s) { return /^https?:\/\//i.test(s.src); });
+            var dt = match.date ? new Date(match.date) : new Date();
+            return {
+                id: makeId(match), enabled: true, priority: priority,
+                kickoff: dt.toISOString(), duration: Number(match.duration || 120),
+                league: match.league || 'Scheduled event', category: match.category || 'other', sport: match.category || 'other',
+                homeName: match.homeName || 'Scheduled event', homeLogo: match.homeLogo || '',
+                awayName: match.awayName || '', awayLogo: match.awayLogo || '', streams: streams,
+                source: 'unified-generator', sourceIds: (match.rawMatches || []).map(function(raw) { return raw.id; }).filter(Boolean),
+                updatedAt: Date.now(), _manual: true
+            };
+        });
+        Promise.all(payloads.map(function(payload) {
+            return fetch(Gen.scheduleBase() + '/' + encodeURIComponent(payload.id) + '.json', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
+                .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+        })).then(function(){
+            statusEl.className = 'scraper-status success'; statusEl.textContent = '✅ Scheduled ' + payloads.length + ' priority event(s). They will be processed before ordinary detected events.';
+            Gen.toast('Scheduled ' + payloads.length + ' selected event(s).');
+            UnifiedGenerator._selectedIds = {}; UnifiedGenerator.updateBulkCount();
+            document.querySelectorAll('#gen-match-list .pick-checkbox').forEach(function(cb){ cb.checked = false; });
+        }).catch(function(err){
+            statusEl.className = 'scraper-status error'; statusEl.textContent = '❌ Could not save the priority queue (' + err.message + ').';
+            Gen.toast('Priority scheduling failed: ' + err.message, 'error');
+        });
     },
 
     // ---- Push selected to Firebase ----
