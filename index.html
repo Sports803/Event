@@ -555,6 +555,7 @@ CHANNEL MANAGER TAB
             <div class="field"><label>Channel name</label><input id="ch-name" placeholder="e.g. Sky Sports Premier League" /></div>
             <div class="field"><label>Logo URL</label><input id="ch-logo" placeholder="https://..." /></div>
             <div class="field"><label>Source URL (embed)</label><input id="ch-src" placeholder="https://your-embed-source.example/channel" /></div>
+            <div class="field-row"><div class="field"><label>Sport category</label><select id="ch-category"><option value="football">Football</option><option value="basketball">Basketball</option><option value="nfl">American Football</option><option value="hockey">Hockey</option><option value="baseball">Baseball</option><option value="motorsport">Motorsport</option><option value="boxing">Boxing</option><option value="mma">MMA</option><option value="other">Other</option></select></div><label class="toggle-row"><input id="ch-live" type="checkbox" checked="checked" /> <span>Active live channel</span></label></div>
             <button class="btn-primary" onclick="Gen.saveChannel()">Save channel</button>
             <button class="btn-secondary" onclick="Gen.resetChannelForm()" style="margin-left:8px;">Reset form</button>
             <p class="hint" id="ch-status"></p>
@@ -1752,12 +1753,14 @@ var Gen = {
         var name = document.getElementById('ch-name').value.trim();
         var logo = document.getElementById('ch-logo').value.trim();
         var src = document.getElementById('ch-src').value.trim();
+        var category = document.getElementById('ch-category').value || 'other';
+        var isLive = document.getElementById('ch-live').checked;
         var statusEl = document.getElementById('ch-status');
 
         if (!key) { if (statusEl) statusEl.textContent = 'Channel key is required.'; return; }
 
         var fbUrl = document.getElementById('fb-url').value.replace(/\/$/, '');
-        var body = { name: name || key, logo: logo, src: src };
+        var body = { name: name || key, logo: logo, src: src, category: category, isLive: isLive, updatedAt: Date.now() };
 
         fetch(fbUrl + '/livetv/channels/' + key + '.json', {
             method: 'PUT',
@@ -1786,6 +1789,8 @@ var Gen = {
         document.getElementById('ch-name').value = ch.name || '';
         document.getElementById('ch-logo').value = ch.logo || '';
         document.getElementById('ch-src').value = ch.src || '';
+        document.getElementById('ch-category').value = ch.category || 'other';
+        document.getElementById('ch-live').checked = ch.isLive !== false;
         Gen._editingChannelKey = key;
         Gen.toast('Editing channel: ' + key);
     },
@@ -1809,6 +1814,8 @@ var Gen = {
         document.getElementById('ch-name').value = '';
         document.getElementById('ch-logo').value = '';
         document.getElementById('ch-src').value = '';
+        document.getElementById('ch-category').value = 'football';
+        document.getElementById('ch-live').checked = true;
         Gen._editingChannelKey = null;
     },
 
