@@ -13,6 +13,9 @@ const FIREBASE_PUBLIC_WRITE = String(process.env.FIREBASE_PUBLIC_WRITE || '').to
 const MAX_POSTS = Number(process.env.MAX_POSTS_PER_RUN || 5);
 const WINDOW_HOURS = Number(process.env.EVENT_WINDOW_HOURS || 24);
 const ACTIVE_GRACE_HOURS = Number(process.env.ACTIVE_GRACE_HOURS || 2);
+const MANUAL_SCHEDULE_PATH = process.env.MANUAL_SCHEDULE_PATH || 'automation/scheduledEvents';
+const MANUAL_WINDOW_HOURS = Number(process.env.MANUAL_WINDOW_HOURS || WINDOW_HOURS);
+const MANUAL_PRIORITY = Number(process.env.MANUAL_PRIORITY || 1000);
 
 for (const [name, value] of Object.entries({ BLOGGER_BLOG_ID: BLOG_ID, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, IMGBB_KEY, FIREBASE_DATABASE_URL: FIREBASE_URL })) {
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -246,10 +249,63 @@ function deriveLifecycle(match, now) {
   return { statusType: 'STATUS_SCHEDULED', status: 'UPCOMING' };
 }
 function hasOneBall(match) { return (match.sources || []).includes('oneball') || (match.rawMatches || []).some(m => m._source === 'oneball'); }
+function manualInWindow(match, now) {
+  const time = Number(match.date || 0);
+  return match.enabled !== false && time >= now - ACTIVE_GRACE_HOURS * 3600000 && time <= now + MANUAL_WINDOW_HOURS * 3600000;
+}
+function manualStableKey(match) {
+  return `manual:${String(match._scheduleId || match.id || stableKey(match)).toLowerCase().replace(/[^a-z0-9:_-]+/g, '-')}`;
+}
+function normalizeManualEvent(scheduleId, value) {
+  const kickoff = value.kickoff || value.date || value.startTime;
+  const date = typeof kickoff === 'number' ? kickoff : Date.parse(kickoff || '');
+  if (!Number.isFinite(date)) return null;
+  const rawStreams = value.streams || value.channels || [];
+  const streams = normalizeStreams(rawStreams);
+  return {
+    ...value,
+    id: value.id || `manual_${scheduleId}`,
+    _scheduleId: scheduleId,
+    _manual: true,
+    _priority: Number(value.priority || MANUAL_PRIORITY),
+    _matchId: value.id || `manual_${scheduleId}`,
+    date,
+    duration: Number(value.duration || 120),
+    homeName: value.homeName || value.home || value.title || 'Scheduled event',
+    awayName: value.awayName || value.away || '',
+    league: value.league || value.leagueName || 'Scheduled event',
+    category: value.category || value.sport || 'other',
+    streams
+  };
+}
+async function loadManualSchedule() {
+  const data = await firebaseRequest(MANUAL_SCHEDULE_PATH);
+  return Object.entries(data || {}).map(([id, value]) => normalizeManualEvent(id, value)).filter(Boolean);
+}
+function mergeManualPriority(manual, detected) {
+  const result = manual.slice().sort((a, b) => Number(b._priority || 0) - Number(a._priority || 0) || Number(a.date) - Number(b.date));
+  const consumed = new Set();
+  for (const scheduled of result) {
+    const matchIndex = detected.findIndex((candidate, index) => !consumed.has(index) && stableKey(candidate) === stableKey(scheduled));
+    if (matchIndex >= 0) {
+      const candidate = detected[matchIndex];
+      scheduled.streams = normalizeStreams([...(scheduled.streams || []), ...(candidate.streams || [])]);
+      scheduled.sources = [...new Set([...(scheduled.sources || []), ...(candidate.sources || []), 'manual'])];
+      scheduled.rawMatches = [...(scheduled.rawMatches || []), ...(candidate.rawMatches || [])];
+      consumed.add(matchIndex);
+    }
+  }
+  return [...result, ...detected.filter((_, index) => !consumed.has(index))];
+}
 function inWindow(match, now) { const time = Number(match.date || 0); return time >= now - ACTIVE_GRACE_HOURS * 3600000 && time <= now + WINDOW_HOURS * 3600000; }
+function recordKey(match) { return match._manual ? manualStableKey(match) : stableKey(match); }
+function eventKeyForMatch(match) { return match._manual ? `match_manual_${match._scheduleId}` : `match_auto_${stableKey(match)}`; }
+function matchTitle(match) {
+  return match.title || (match.awayName ? `${match.homeName} vs ${match.awayName}` : match.homeName) || 'Scheduled event';
+}
 async function refreshExistingLifecycles(matches, now) {
   for (const match of matches) {
-    const eventKey = `match_auto_${stableKey(match)}`;
+    const eventKey = eventKeyForMatch(match);
     const path = `s803config/todaysMatches/${eventKey}`;
     const existing = await firebaseRequest(path);
     if (!existing || !existing.id) continue;
@@ -260,20 +316,30 @@ async function refreshExistingLifecycles(matches, now) {
 
 async function main() {
   const now = Date.now();
-  const matches = (await collectMatches()).map(match => ({ ...match, streams: normalizeStreams(match.streams) })).filter(m => hasOneBall(m) && inWindow(m, now) && m.streams.length);
+  const detected = (await collectMatches()).map(match => ({ ...match, streams: normalizeStreams(match.streams) })).filter(m => hasOneBall(m) && inWindow(m, now) && m.streams.length);
+  let manual = [];
+  try {
+    manual = (await loadManualSchedule()).filter(m => manualInWindow(m, now));
+  } catch (error) {
+    console.warn(`[SCHEDULE] Could not load ${MANUAL_SCHEDULE_PATH}: ${error.message}`);
+  }
+  const matches = mergeManualPriority(manual, detected).filter(m => m.streams.length);
   if (MAX_POSTS === 0) {
-    console.log(JSON.stringify({ mode: 'detection-only', detected: matches.length, titles: matches.map(m => m.title) }));
+    console.log(JSON.stringify({ mode: 'detection-only', scheduled: manual.length, detected: detected.length, titles: matches.map(matchTitle) }));
     return;
   }
   await refreshExistingLifecycles(matches, now);
   const existing = (await firebaseRequest('automation/bloggerPosts')) || {};
-  const eligible = matches.filter(m => existing[stableKey(m)]?.status !== 'posted').sort((a, b) => Number(a.date) - Number(b.date));
+  const eligible = matches.filter(m => existing[recordKey(m)]?.status !== 'posted').sort((a, b) => {
+    const priority = Number(b._priority || 0) - Number(a._priority || 0);
+    return priority || Number(a.date) - Number(b.date);
+  });
   const selected = eligible.slice(0, MAX_POSTS);
   const accessToken = selected.length ? await getBloggerToken() : null;
   let posted = 0;
   for (const match of selected) {
-    const key = stableKey(match);
-    const eventKey = `match_auto_${key}`;
+    const key = recordKey(match);
+    const eventKey = eventKeyForMatch(match);
     const lifecycle = deriveLifecycle(match, now);
     const rankedStreams = await rankStreams(match.streams);
     const firebasePayload = {
@@ -282,28 +348,28 @@ async function main() {
       homeName: match.homeName || 'Home', homeLogo: match.homeLogo || '', awayName: match.awayName || '', awayLogo: match.awayLogo || '',
       score: '- -', scoreHome: '', scoreAway: '', minute: null, period: null, scoreProvider: 'none', statusType: lifecycle.statusType, status: lifecycle.status,
       leagueName: match.league || 'Live Event', leagueId: match.leagueId || '', leagueEmoji: match.leagueEmoji || '',
-      postUrl: '', bloggerPostId: '', publicationStatus: 'FIREBASE_SYNCED', matchId: match.id, source: 'oneball',
-      channelKey: '', channelName: '', venue: '', updatedAt: Date.now(), duration: 120,
+      postUrl: '', bloggerPostId: '', publicationStatus: 'FIREBASE_SYNCED', matchId: match.id, source: match._manual ? 'manual-schedule' : 'oneball',
+      channelKey: '', channelName: '', venue: '', updatedAt: Date.now(), duration: Number(match.duration || 120),
       channels: rankedStreams, streamCount: rankedStreams.length, fallbackEnabled: rankedStreams.length > 1,
-      _source: 'unified-auto', _matchId: match.id, _oneball: true, _automation: true
+      _source: match._manual ? 'manual-schedule' : 'unified-auto', _matchId: match.id, _oneball: !match._manual, _manual: !!match._manual, _priority: Number(match._priority || 0), _automation: true
     };
     await writeAndVerifyFirebaseEvent(eventKey, firebasePayload);
-    await firebaseRequest(`automation/bloggerPosts/${key}`, { method: 'PUT', body: JSON.stringify({ status: 'firebase_synced', eventKey, matchId: match.id, kickoff: match.date, title: match.title, updatedAt: Date.now() }) });
+    await firebaseRequest(`automation/bloggerPosts/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ status: 'firebase_synced', eventKey, manual: !!match._manual, priority: Number(match._priority || 0), matchId: match.id, kickoff: match.date, title: matchTitle(match), updatedAt: Date.now() }) });
     try {
       const post = await bloggerInsert(accessToken, await buildPostData(match));
       const publishedAt = Date.now();
       await patchAndVerifyFirebaseEvent(eventKey, { postUrl: post.url || '', bloggerPostId: post.id, publicationStatus: 'PUBLISHED', publishedAt, updatedAt: publishedAt });
-      await firebaseRequest(`automation/bloggerPosts/${key}`, { method: 'PUT', body: JSON.stringify({ status: 'posted', eventKey, matchId: match.id, bloggerPostId: post.id, bloggerUrl: post.url || '', kickoff: match.date, title: match.title, updatedAt: publishedAt }) });
+      await firebaseRequest(`automation/bloggerPosts/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ status: 'posted', eventKey, manual: !!match._manual, priority: Number(match._priority || 0), matchId: match.id, bloggerPostId: post.id, bloggerUrl: post.url || '', kickoff: match.date, title: matchTitle(match), updatedAt: publishedAt }) });
       posted++;
       console.log(`Posted ${match.title} (${post.id}) and updated Firebase card ${eventKey}`);
     } catch (error) {
       const failedAt = Date.now();
       await patchAndVerifyFirebaseEvent(eventKey, { publicationStatus: 'BLOGGER_FAILED', publicationError: String(error.message), updatedAt: failedAt });
-      await firebaseRequest(`automation/bloggerPosts/${key}`, { method: 'PUT', body: JSON.stringify({ status: 'blogger_failed', eventKey, matchId: match.id, error: String(error.message), kickoff: match.date, title: match.title, updatedAt: failedAt }) });
+      await firebaseRequest(`automation/bloggerPosts/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ status: 'blogger_failed', eventKey, manual: !!match._manual, priority: Number(match._priority || 0), matchId: match.id, error: String(error.message), kickoff: match.date, title: matchTitle(match), updatedAt: failedAt }) });
       console.error(`Failed ${match.title}: ${error.message}`);
     }
   }
-  console.log(JSON.stringify({ detected: matches.length, eligible: eligible.length, selected: selected.length, posted, skippedByRateLimit: Math.max(0, eligible.length - selected.length) }));
+  console.log(JSON.stringify({ scheduled: manual.length, detected: detected.length, merged: matches.length, eligible: eligible.length, selected: selected.length, posted, skippedByRateLimit: Math.max(0, eligible.length - selected.length) }));
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

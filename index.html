@@ -243,7 +243,7 @@
     <button data-tab="generator-tab" onclick="Gen.showTab(this,'generator-tab'); UnifiedGenerator.onTabOpen();">🔮 Event Generator</button>
     <button data-tab="manage-tab" onclick="Gen.showTab(this,'manage-tab'); Gen.refreshManageList();">Manage Events</button>
     <button data-tab="channels-tab" onclick="Gen.showTab(this,'channels-tab'); Gen.loadChannels();">Channel Manager</button>
-    <button data-tab="calendar-tab" onclick="Gen.showTab(this,'calendar-tab'); Gen.renderCalendar();">Calendar</button>
+    <button data-tab="calendar-tab" onclick="Gen.showTab(this,'calendar-tab'); Gen.renderCalendar(); Gen.loadScheduledEvents();">Calendar</button>
     <button data-tab="compose-tab" onclick="Gen.showTab(this,'compose-tab'); Compose.onTabOpen();">✍️ Compose &amp; Post</button>
     <button data-tab="io-tab" onclick="Gen.showTab(this,'io-tab');">Import / Export</button>
 </div>
@@ -579,6 +579,39 @@ CALENDAR TAB
 <div class="tab-panel" id="calendar-tab">
     <div class="panel">
         <h2>Calendar View — All scheduled events</h2>
+        <div class="schedule-priority-panel" id="schedule-priority-panel">
+            <h3>Priority Schedule</h3>
+            <p class="hint">Add events here before you go offline. GitHub Actions will read this queue every 10 minutes, give these events priority over detected fixtures, sync them to Firebase, and post them to Blogger once per event.</p>
+            <div class="field-row">
+                <div class="field"><label>Schedule ID</label><input id="sch-id" placeholder="e.g. arsenal-chelsea-2026-08-16" /></div>
+                <div class="field"><label>Priority</label><input id="sch-priority" type="number" value="1000" min="1" max="9999" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>League / competition</label><input id="sch-league" placeholder="Premier League" /></div>
+                <div class="field"><label>Sport</label><select id="sch-category"><option value="football">Football / Soccer</option><option value="basketball">Basketball</option><option value="american-football">American Football</option><option value="hockey">Hockey</option><option value="baseball">Baseball</option><option value="motorsport">Motorsport</option><option value="boxing">Boxing</option><option value="mma">MMA</option><option value="other">Other</option></select></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Event date</label><input id="sch-date" type="date" /></div>
+                <div class="field"><label>Kickoff time</label><input id="sch-time" type="time" /></div>
+                <div class="field"><label>Duration (minutes)</label><input id="sch-duration" type="number" value="120" min="1" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Home / entrant</label><input id="sch-home" placeholder="Arsenal" /></div>
+                <div class="field"><label>Away / opponent</label><input id="sch-away" placeholder="Chelsea" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Home logo URL</label><input id="sch-home-logo" placeholder="https://..." /></div>
+                <div class="field"><label>Away logo URL</label><input id="sch-away-logo" placeholder="https://..." /></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Stream label</label><input id="sch-stream-label" value="Stream 1" /></div>
+                <div class="field"><label>Raw stream or player URL</label><input id="sch-stream-url" placeholder="https://..." /></div>
+            </div>
+            <label class="toggle-row"><input id="sch-enabled" type="checkbox" checked="checked" /> <span>Enabled and ready for automatic publishing</span></label>
+            <div class="copy-row"><button class="btn-primary" onclick="Gen.saveScheduledEvent()">Save priority event</button><button class="btn-secondary" onclick="Gen.clearScheduleForm()">Clear</button><button class="btn-secondary" onclick="Gen.loadScheduledEvents()">Refresh queue</button></div>
+            <p class="status-text" id="schedule-status"></p>
+            <div id="scheduled-events-list" class="fixture-list" style="max-height:360px;margin-top:12px;"></div>
+        </div>
         <div class="calendar-nav">
             <button onclick="Gen.calPrev()">&lt; Prev</button>
             <span class="cal-title" id="cal-title">July 2026</span>
@@ -1804,6 +1837,116 @@ var Gen = {
         Gen.toast('Opened stream in new tab for testing.');
     },
 
+    // ---- Priority Schedule ----
+    scheduleBase: function() {
+        return document.getElementById('fb-url').value.replace(/\/$/, '') + '/automation/scheduledEvents';
+    },
+    scheduleOutboxKey: 's803_schedule_outbox',
+    buildScheduledPayload: function() {
+        var date = document.getElementById('sch-date').value;
+        var time = document.getElementById('sch-time').value;
+        if (!date || !time) throw new Error('Choose a date and kickoff time.');
+        var id = document.getElementById('sch-id').value.trim();
+        if (!id) throw new Error('Enter a stable Schedule ID.');
+        var streamUrl = document.getElementById('sch-stream-url').value.trim();
+        var streamLabel = document.getElementById('sch-stream-label').value.trim() || 'Stream 1';
+        var category = document.getElementById('sch-category').value || 'other';
+        var homeName = document.getElementById('sch-home').value.trim();
+        var awayName = document.getElementById('sch-away').value.trim();
+        return {
+            id: id,
+            enabled: document.getElementById('sch-enabled').checked,
+            priority: Math.max(1, Math.min(9999, parseInt(document.getElementById('sch-priority').value, 10) || 1000)),
+            kickoff: date + 'T' + time + ':00',
+            duration: Math.max(1, parseInt(document.getElementById('sch-duration').value, 10) || 120),
+            league: document.getElementById('sch-league').value.trim() || 'Scheduled event',
+            category: category,
+            sport: category,
+            homeName: homeName || 'Scheduled event',
+            homeLogo: document.getElementById('sch-home-logo').value.trim(),
+            awayName: awayName,
+            awayLogo: document.getElementById('sch-away-logo').value.trim(),
+            streams: streamUrl ? [{ label: streamLabel, src: streamUrl }] : [],
+            updatedAt: Date.now(),
+            _manual: true
+        };
+    },
+    queueScheduleDraft: function(payload) {
+        var list = [];
+        try { list = JSON.parse(localStorage.getItem(Gen.scheduleOutboxKey) || '[]'); } catch (e) {}
+        list = list.filter(function(item) { return item.id !== payload.id; });
+        list.push(payload);
+        try { localStorage.setItem(Gen.scheduleOutboxKey, JSON.stringify(list)); } catch (e) {}
+    },
+    flushScheduleOutbox: function() {
+        var list = [];
+        try { list = JSON.parse(localStorage.getItem(Gen.scheduleOutboxKey) || '[]'); } catch (e) {}
+        if (!list.length || !navigator.onLine) return Promise.resolve();
+        return Promise.all(list.map(function(payload) {
+            return fetch(Gen.scheduleBase() + '/' + encodeURIComponent(payload.id) + '.json', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); });
+        })).then(function(){ localStorage.removeItem(Gen.scheduleOutboxKey); Gen.toast('Offline schedule drafts synchronized.'); }).catch(function(){ /* retain drafts for the next online attempt */ });
+    },
+    saveScheduledEvent: function() {
+        var status = document.getElementById('schedule-status');
+        var payload;
+        try { payload = Gen.buildScheduledPayload(); } catch (e) { status.textContent = '⚠️ ' + e.message; return; }
+        status.textContent = 'Saving priority event…';
+        if (!navigator.onLine) {
+            Gen.queueScheduleDraft(payload);
+            status.textContent = '📴 Saved on this device. It will sync when you are online.';
+            Gen.renderScheduledEvents();
+            return;
+        }
+        fetch(Gen.scheduleBase() + '/' + encodeURIComponent(payload.id) + '.json', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
+        .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+        .then(function(){ status.textContent = '✅ Priority event saved. GitHub Actions will process it automatically.'; Gen.clearScheduleForm(); Gen.loadScheduledEvents(); })
+        .catch(function(err){ Gen.queueScheduleDraft(payload); status.textContent = '📴 Could not reach Firebase (' + err.message + '). Saved locally and will retry later.'; });
+    },
+    loadScheduledEvents: function() {
+        var list = document.getElementById('scheduled-events-list');
+        if (!list) return;
+        list.textContent = 'Loading priority queue…';
+        Gen.flushScheduleOutbox().finally(function(){
+            fetch(Gen.scheduleBase() + '.json')
+            .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+            .then(function(data){ Gen._scheduledEvents = data || {}; Gen.renderScheduledEvents(); })
+            .catch(function(err){ Gen._scheduledEvents = {}; Gen.renderScheduledEvents(); var status=document.getElementById('schedule-status'); if(status) status.textContent='⚠️ Queue unavailable: '+err.message; });
+        });
+    },
+    renderScheduledEvents: function() {
+        var list = document.getElementById('scheduled-events-list'); if (!list) return;
+        list.innerHTML = '';
+        var events = Object.keys(Gen._scheduledEvents || {}).map(function(id){ return Object.assign({id:id}, Gen._scheduledEvents[id] || {}); });
+        try { var drafts=JSON.parse(localStorage.getItem(Gen.scheduleOutboxKey)||'[]'); events=events.concat(drafts.map(function(x){return Object.assign({},x,{_offlineDraft:true});})); } catch(e) {}
+        events.sort(function(a,b){ return new Date(a.kickoff||0)-new Date(b.kickoff||0); });
+        if (!events.length) { list.textContent = 'No priority events scheduled yet.'; return; }
+        events.forEach(function(ev){
+            var item=document.createElement('div'); item.className='manage-item';
+            var label=document.createElement('span'); label.className='manage-label'; label.textContent=(ev.enabled===false?'⏸ ':'✅ ')+(ev.homeName||'Event')+(ev.awayName?' vs '+ev.awayName:'')+' · '+(ev.league||ev.leagueName||'Scheduled')+' · '+(ev.kickoff?new Date(ev.kickoff).toLocaleString(): 'No time')+(ev._offlineDraft?' · offline draft':''); item.appendChild(label);
+            var actions=document.createElement('span'); actions.className='manage-actions';
+            var edit=document.createElement('button'); edit.className='btn-edit'; edit.textContent='✏️ Edit'; edit.onclick=function(){Gen.editScheduledEvent(ev);}; actions.appendChild(edit);
+            var toggle=document.createElement('button'); toggle.className='btn-secondary'; toggle.textContent=ev.enabled===false?'Enable':'Pause'; toggle.onclick=function(){ev.enabled=ev.enabled===false; Gen.saveScheduledObject(ev);}; actions.appendChild(toggle);
+            var del=document.createElement('button'); del.className='btn-danger'; del.textContent='Delete'; del.onclick=function(){Gen.deleteScheduledEvent(ev.id);}; actions.appendChild(del);
+            item.appendChild(actions); list.appendChild(item);
+        });
+    },
+    saveScheduledObject: function(payload) {
+        fetch(Gen.scheduleBase() + '/' + encodeURIComponent(payload.id) + '.json', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status); return r.json();}).then(function(){Gen.loadScheduledEvents();}).catch(function(){Gen.queueScheduleDraft(payload); Gen.renderScheduledEvents();});
+    },
+    editScheduledEvent: function(ev) {
+        document.getElementById('sch-id').value=ev.id||''; document.getElementById('sch-priority').value=ev.priority||1000; document.getElementById('sch-league').value=ev.league||ev.leagueName||''; document.getElementById('sch-category').value=ev.category||'other';
+        var dt=ev.kickoff?new Date(ev.kickoff):new Date(); document.getElementById('sch-date').value=dt.toISOString().slice(0,10); document.getElementById('sch-time').value=dt.toTimeString().slice(0,5); document.getElementById('sch-duration').value=ev.duration||120; document.getElementById('sch-home').value=ev.homeName||''; document.getElementById('sch-away').value=ev.awayName||''; document.getElementById('sch-home-logo').value=ev.homeLogo||''; document.getElementById('sch-away-logo').value=ev.awayLogo||''; document.getElementById('sch-enabled').checked=ev.enabled!==false;
+        var stream=(ev.streams||ev.channels||[])[0]||{}; document.getElementById('sch-stream-label').value=stream.label||'Stream 1'; document.getElementById('sch-stream-url').value=stream.src||stream.streamUrl||''; document.getElementById('schedule-status').textContent='Editing '+ev.id; document.getElementById('schedule-priority-panel').scrollIntoView({behavior:'smooth'});
+    },
+    deleteScheduledEvent: function(id) {
+        if (!id || !confirm('Delete priority event '+id+'?')) return;
+        fetch(Gen.scheduleBase() + '/' + encodeURIComponent(id) + '.json', {method:'DELETE'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status); return r.json();}).then(function(){Gen.toast('Priority event deleted.'); Gen.loadScheduledEvents();}).catch(function(err){Gen.toast('Could not delete: '+err.message,'error');});
+    },
+    clearScheduleForm: function() {
+        ['sch-id','sch-league','sch-home','sch-away','sch-home-logo','sch-away-logo','sch-stream-url'].forEach(function(id){var el=document.getElementById(id); if(el)el.value='';});
+        document.getElementById('sch-stream-label').value='Stream 1'; document.getElementById('sch-priority').value=1000; document.getElementById('sch-duration').value=120; document.getElementById('sch-enabled').checked=true; document.getElementById('schedule-status').textContent='';
+    },
+
     // ---- Calendar ----
     calPrev: function() {
         if (Gen._calMonth === 0) { Gen._calMonth = 11; Gen._calYear--; } else { Gen._calMonth--; }
@@ -1864,20 +2007,21 @@ var Gen = {
     },
 
     loadCalendarData: function() {
-        fetch(Gen.fbBase() + '.json')
-        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(function(data) {
+        Promise.all([fetch(Gen.fbBase() + '.json').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}), fetch(Gen.scheduleBase() + '.json').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).catch(function(){return {};})])
+        .then(function(results) {
             Gen._calEvents = {};
-            if (!data) return;
-            Object.keys(data).forEach(function(key) {
-                var ev = data[key];
-                if (!ev || !ev.kickoff) return;
-                var dt = new Date(ev.kickoff);
-                var dateKey = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
-                ev._key = key;
-                ev._id = key;
-                if (!Gen._calEvents[dateKey]) Gen._calEvents[dateKey] = [];
-                Gen._calEvents[dateKey].push(ev);
+            [results[0] || {}, results[1] || {}].forEach(function(data, sourceIndex){
+                Object.keys(data).forEach(function(key) {
+                    var ev = data[key];
+                    if (!ev || !ev.kickoff) return;
+                    var dt = new Date(ev.kickoff);
+                    var dateKey = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+                    ev._key = sourceIndex === 1 ? key : key;
+                    ev._id = key;
+                    ev._scheduled = sourceIndex === 1;
+                    if (!Gen._calEvents[dateKey]) Gen._calEvents[dateKey] = [];
+                    Gen._calEvents[dateKey].push(ev);
+                });
             });
             Gen.renderCalendar();
         })
@@ -4116,6 +4260,8 @@ var Compose = {
 
 document.addEventListener('DOMContentLoaded', function() {
     Gen.init();
+    Gen.loadScheduledEvents();
+    window.addEventListener('online', function(){ Gen.flushScheduleOutbox(); Gen.loadScheduledEvents(); });
     Compose.loadSettings();
     Compose.updateAuthStatus();
     Compose.initGoogleAuth();

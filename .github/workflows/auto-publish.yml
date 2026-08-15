@@ -46,6 +46,9 @@ jobs:
           MAX_POSTS_PER_RUN: '5'
           EVENT_WINDOW_HOURS: '24'
           ACTIVE_GRACE_HOURS: '2'
+          MANUAL_SCHEDULE_PATH: 'automation/scheduledEvents'
+          MANUAL_WINDOW_HOURS: '24'
+          MANUAL_PRIORITY: '1000'
           AI_ENABLED: ${{ vars.AI_ENABLED || 'false' }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           NVIDIA_API_URL: ${{ vars.NVIDIA_API_URL || 'https://integrate.api.nvidia.com/v1' }}
