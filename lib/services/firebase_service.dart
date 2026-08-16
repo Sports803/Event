@@ -16,7 +16,7 @@ class FirebaseService {
       value.forEach((key, raw) {
         if (raw is Map) {
           final event = SportsEvent.fromMap(key.toString(), raw);
-          if (event.isLive && event.channels.any((channel) => channel.src.isNotEmpty)) results.add(event);
+          if (event.isVisible && event.channels.any((channel) => channel.src.isNotEmpty)) results.add(event);
         }
       });
     } else if (value is List) {
@@ -24,11 +24,14 @@ class FirebaseService {
         final raw = value[i];
         if (raw is Map) {
           final event = SportsEvent.fromMap('$i', raw);
-          if (event.isLive && event.channels.any((channel) => channel.src.isNotEmpty)) results.add(event);
+          if (event.isVisible && event.channels.any((channel) => channel.src.isNotEmpty)) results.add(event);
         }
       }
     }
-    results.sort((a, b) => (a.kickoff ?? DateTime.now()).compareTo(b.kickoff ?? DateTime.now()));
+    results.sort((a, b) {
+      if (a.isLive != b.isLive) return a.isLive ? -1 : 1;
+      return (a.kickoff ?? DateTime.now()).compareTo(b.kickoff ?? DateTime.now());
+    });
     return results;
   }
 

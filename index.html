@@ -1213,8 +1213,18 @@ var Gen = {
         var awayName = (document.getElementById('ev-away-name').value || '').trim();
         var category = document.getElementById('ev-category').value;
         var meta = Gen.CATEGORY_META[category] || Gen.CATEGORY_META.other;
+        var kickoff = new Date(isoDateTime).toISOString();
+        var duration = parseInt(document.getElementById('ev-duration').value, 10) || 120;
+        var endTime = new Date(new Date(kickoff).getTime() + duration * 60000).toISOString();
+        var leagueName = document.getElementById('ev-league').value || 'Live Event';
         return {
-            kickoff: new Date(isoDateTime).toISOString(),
+            id: '',
+            title: homeName + (awayName ? ' vs ' + awayName : ''),
+            competition: leagueName,
+            kickoff: kickoff,
+            startTime: kickoff,
+            endTime: endTime,
+            status: 'scheduled',
             sport: meta.sport,
             isRacing: !awayName,
             homeName: homeName,
@@ -1225,7 +1235,7 @@ var Gen = {
             scoreHome: '',
             scoreAway: '',
             statusType: 'STATUS_SCHEDULED',
-            leagueName: document.getElementById('ev-league').value,
+            leagueName: leagueName,
             leagueEmoji: meta.leagueEmoji,
             leagueId: meta.leagueId,
             postUrl: '',
@@ -1233,8 +1243,12 @@ var Gen = {
             channelName: '',
             venue: '',
             updatedAt: Date.now(),
-            duration: parseInt(document.getElementById('ev-duration').value, 10) || 120,
+            duration: duration,
             category: category,
+            homeTeam: homeName,
+            awayTeam: awayName,
+            streams: channels,
+            description: '',
             channels: channels
         };
     },
@@ -1255,6 +1269,7 @@ var Gen = {
         var editingId = Gen._editingEventId;
 
         if (editingId) {
+            payload.id = editingId;
             statusEl.textContent = 'Saving changes…';
             fetch(Gen.fbBase() + '/' + editingId + '.json', {
                 method: 'PUT',
@@ -1267,7 +1282,14 @@ var Gen = {
                 return r.json();
             })
             .then(function() {
-                statusEl.textContent = '✅ Updated ' + editingId + ' — changes (including streams) are live.';
+                return fetch(Gen.fbBase() + '/' + encodeURIComponent(editingId) + '.json').then(function(read) {
+                    if (!read.ok) throw new Error('Read-back HTTP ' + read.status);
+                    return read.json();
+                });
+            })
+            .then(function(saved) {
+                if (!saved || saved.id !== editingId || saved.title !== payload.title || saved.startTime !== payload.startTime) throw new Error('Read-back validation failed');
+                statusEl.textContent = '✅ Updated ' + editingId + ' — verified in Firebase and live for connected clients.';
             })
             .catch(function(err) {
                 statusEl.textContent = '❌ Could not save changes (' + err.message + ').';
@@ -1277,6 +1299,7 @@ var Gen = {
 
         statusEl.textContent = 'Pushing…';
         var key = 'match_' + Date.now();
+        payload.id = key;
         var body = {};
         body[key] = payload;
 
@@ -1291,7 +1314,14 @@ var Gen = {
             return r.json();
         })
         .then(function() {
-            statusEl.textContent = '✅ Pushed as ' + key + ' — it will appear on your site automatically.';
+            return fetch(Gen.fbBase() + '/' + encodeURIComponent(key) + '.json').then(function(read) {
+                if (!read.ok) throw new Error('Read-back HTTP ' + read.status);
+                return read.json();
+            });
+        })
+        .then(function(saved) {
+            if (!saved || saved.id !== key || saved.title !== payload.title || saved.startTime !== payload.startTime) throw new Error('Read-back validation failed');
+            statusEl.textContent = '✅ Pushed as ' + key + ' — verified in Firebase and available to connected site/app clients.';
         })
         .catch(function(err) {
             statusEl.textContent = '❌ Could not push (' + err.message + ').';

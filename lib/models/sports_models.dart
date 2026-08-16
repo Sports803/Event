@@ -41,8 +41,17 @@ class SportsEvent {
     return now.isAfter(kickoff!) && now.isBefore(end);
   }
 
+  bool get isUpcoming {
+    if (kickoff == null || isLive) return false;
+    final normalized = statusType.toUpperCase();
+    const ended = {'FINAL', 'FULL_TIME', 'STATUS_FINAL', 'STATUS_FINISHED', 'ENDED', 'CANCELLED'};
+    return !ended.contains(normalized) && DateTime.now().toUtc().isBefore(kickoff!);
+  }
+
+  bool get isVisible => isLive || isUpcoming;
+
   factory SportsEvent.fromMap(String id, Map<dynamic, dynamic> raw) {
-    final channelsRaw = raw['channels'];
+    final channelsRaw = raw['channels'] ?? raw['streams'];
     final parsedChannels = <StreamSource>[];
     if (channelsRaw is List) {
       for (var i = 0; i < channelsRaw.length; i++) {
