@@ -1214,7 +1214,7 @@ var Gen = {
         var category = document.getElementById('ev-category').value;
         var meta = Gen.CATEGORY_META[category] || Gen.CATEGORY_META.other;
         return {
-            kickoff: isoDateTime,
+            kickoff: new Date(isoDateTime).toISOString(),
             sport: meta.sport,
             isRacing: !awayName,
             homeName: homeName,
@@ -1242,6 +1242,16 @@ var Gen = {
     pushEventToFirebase: function() {
         var statusEl = document.getElementById('push-status');
         var payload = Gen.buildEventPayload();
+        var kickoffMs = Date.parse(payload.kickoff);
+        var durationMs = Number(payload.duration || 120) * 60000;
+        if (!Number.isFinite(kickoffMs)) {
+            statusEl.textContent = '❌ Please enter a valid event date and time.';
+            return;
+        }
+        if (kickoffMs + durationMs <= Date.now()) {
+            statusEl.textContent = '❌ This event has already ended. Choose a current or future date/time before pushing.';
+            return;
+        }
         var editingId = Gen._editingEventId;
 
         if (editingId) {
