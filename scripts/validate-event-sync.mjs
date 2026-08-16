@@ -7,7 +7,7 @@ if (!scripts.length) throw new Error('No inline scripts found');
 fs.writeFileSync('/tmp/event-inline.js', scripts.join('\n'));
 console.log(`Extracted ${scripts.length} inline scripts`);
 
-const publisherChecks = ['startTime', 'endTime', 'homeTeam', 'awayTeam', 'streams', 'Read-back validation failed'];
+const publisherChecks = ['startTime', 'endTime', 'homeTeam', 'awayTeam', 'streams', 'STATUS_LIVE', 'statusType = isLiveNow', 'Read-back validation failed'];
 for (const check of publisherChecks) {
   if (!html.includes(check)) throw new Error(`Missing publisher contract field/check: ${check}`);
 }

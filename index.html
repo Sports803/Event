@@ -1217,6 +1217,8 @@ var Gen = {
         var duration = parseInt(document.getElementById('ev-duration').value, 10) || 120;
         var endTime = new Date(new Date(kickoff).getTime() + duration * 60000).toISOString();
         var leagueName = document.getElementById('ev-league').value || 'Live Event';
+        var isLiveNow = new Date(kickoff).getTime() <= Date.now() && Date.now() < new Date(endTime).getTime();
+        var statusType = isLiveNow ? 'STATUS_LIVE' : 'STATUS_SCHEDULED';
         return {
             id: '',
             title: homeName + (awayName ? ' vs ' + awayName : ''),
@@ -1224,7 +1226,7 @@ var Gen = {
             kickoff: kickoff,
             startTime: kickoff,
             endTime: endTime,
-            status: 'scheduled',
+            status: isLiveNow ? 'live' : 'scheduled',
             sport: meta.sport,
             isRacing: !awayName,
             homeName: homeName,
@@ -1234,7 +1236,8 @@ var Gen = {
             score: '- -',
             scoreHome: '',
             scoreAway: '',
-            statusType: 'STATUS_SCHEDULED',
+            statusType: statusType,
+            isLive: isLiveNow,
             leagueName: leagueName,
             leagueEmoji: meta.leagueEmoji,
             leagueId: meta.leagueId,
