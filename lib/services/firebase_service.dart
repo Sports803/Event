@@ -28,11 +28,23 @@ class FirebaseService {
         }
       }
     }
-    results.sort((a, b) {
+    final unique = <String, SportsEvent>{};
+    for (final event in results) {
+      final key = _eventIdentity(event);
+      final previous = unique[key];
+      if (previous == null || event.channels.length > previous.channels.length || (event.isLive && !previous.isLive)) unique[key] = event;
+    }
+    final deduped = unique.values.toList();
+    deduped.sort((a, b) {
       if (a.isLive != b.isLive) return a.isLive ? -1 : 1;
       return (a.kickoff ?? DateTime.now()).compareTo(b.kickoff ?? DateTime.now());
     });
-    return results;
+    return deduped;
+  }
+
+  String _eventIdentity(SportsEvent event) {
+    final kickoff = event.kickoff?.millisecondsSinceEpoch;
+    return '${event.homeName.toLowerCase().trim()}|${event.awayName.toLowerCase().trim()}|${kickoff == null ? 'unknown' : (kickoff ~/ 60000)}';
   }
 
   Future<List<LiveChannel>> fetchChannels() async {

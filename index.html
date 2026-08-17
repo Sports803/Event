@@ -935,6 +935,25 @@ var Gen = {
         var path = document.getElementById('fb-path').value.replace(/^\//, '').replace(/\/$/, '');
         return url + '/' + path;
     },
+    eventIdentity: function(event) {
+        var fixtureId = event && (event.fixtureId || event.fixture_id);
+        if (fixtureId != null && String(fixtureId).trim()) return 'fixture:' + String(fixtureId).trim();
+        var clean = function(value) { return String(value || '').toLowerCase().trim().replace(/\\s+/g, ' ').replace(/[^a-z0-9]+/g, ' '); };
+        var home = clean(event && (event.homeName || event.homeTeam));
+        var away = clean(event && (event.awayName || event.awayTeam));
+        var kickoff = Date.parse(event && (event.kickoff || event.startTime || event.date));
+        return home + '|' + away + '|' + (Number.isFinite(kickoff) ? Math.round(kickoff / 60000) : 'unknown');
+    },
+    findExistingEvent: function(data, payload, ignoreId) {
+        var identity = Gen.eventIdentity(payload);
+        var found = null;
+        Object.keys(data || {}).some(function(id) {
+            if (id === ignoreId || !data[id]) return false;
+            if (Gen.eventIdentity(data[id]) === identity) { found = { id: id, event: data[id] }; return true; }
+            return false;
+        });
+        return found;
+    },
 
     toast: function(message, type) {
         type = type || 'success';
@@ -1316,31 +1335,36 @@ var Gen = {
             return;
         }
 
-        statusEl.textContent = 'Pushing…';
-        var key = 'match_' + Date.now();
-        payload.id = key;
-        var body = {};
-        body[key] = payload;
-
-        fetch(Gen.fbBase() + '.json', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
+        statusEl.textContent = 'Checking for an existing matching event…';
+        fetch(Gen.fbBase() + '.json')
+        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(existingData) {
+            var existing = Gen.findExistingEvent(existingData, payload, editingId);
+            var key = existing ? existing.id : 'match_' + Date.now();
+            payload.id = key;
+            var method = existing ? 'PUT' : 'PATCH';
+            var target = existing ? Gen.fbBase() + '/' + encodeURIComponent(key) + '.json' : Gen.fbBase() + '.json';
+            var body = existing ? payload : (function() { var next = {}; next[key] = payload; return next; }());
+            statusEl.textContent = existing ? 'Updating the existing matching event…' : 'Pushing…';
+            return fetch(target, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function(r) {
+                if (r.status === 401 || r.status === 403) throw new Error('401 Permission Denied — this path isn\'t writable under your current database rules');
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return { key: key, existing: !!existing, response: r };
+            });
         })
-        .then(function(r) {
-            if (r.status === 401 || r.status === 403) throw new Error('401 Permission Denied — this path isn\'t writable under your current database rules');
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.json();
-        })
-        .then(function() {
+        .then(function(result) {
+            var key = result.key;
             return fetch(Gen.fbBase() + '/' + encodeURIComponent(key) + '.json').then(function(read) {
                 if (!read.ok) throw new Error('Read-back HTTP ' + read.status);
                 return read.json();
+            }).then(function(saved) {
+                return { key: key, existing: result.existing, saved: saved };
             });
         })
-        .then(function(saved) {
-            if (!saved || saved.id !== key || saved.title !== payload.title || saved.startTime !== payload.startTime) throw new Error('Read-back validation failed');
-            statusEl.textContent = '✅ Pushed as ' + key + ' — verified in Firebase and available to connected site/app clients.';
+        .then(function(result) {
+            var saved = result.saved;
+            if (!saved || saved.id !== result.key || saved.title !== payload.title || saved.startTime !== payload.startTime) throw new Error('Read-back validation failed');
+            statusEl.textContent = (result.existing ? '✅ Existing event updated as ' : '✅ New event pushed as ') + result.key + ' — verified in Firebase without creating a duplicate card.';
         })
         .catch(function(err) {
             statusEl.textContent = '❌ Could not push (' + err.message + ').';
@@ -3096,15 +3120,16 @@ var UnifiedGenerator = {
             var match = UnifiedGenerator._selectedIds[id];
             if (!match) { failed++; checkDone(); return; }
 
-            var payload = UnifiedGenerator.buildFirebasePayload(match);
-            var key = 'unified_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
-            var body = {};
-            body[key] = payload;
-
-            fetch(Gen.fbBase() + '.json', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                        var payload = UnifiedGenerator.buildFirebasePayload(match);
+            fetch(Gen.fbBase() + '.json')
+            .then(function(read) { if (!read.ok) throw new Error('HTTP ' + read.status); return read.json(); })
+            .then(function(existingData) {
+                var existing = Gen.findExistingEvent(existingData, payload);
+                var key = existing ? existing.id : 'unified_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
+                payload.id = key;
+                var target = existing ? Gen.fbBase() + '/' + encodeURIComponent(key) + '.json' : Gen.fbBase() + '.json';
+                var body = existing ? payload : (function() { var next = {}; next[key] = payload; return next; }());
+                return fetch(target, { method: existing ? 'PUT' : 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             })
             .then(function(r) {
                 if (r.status === 401 || r.status === 403) throw new Error('Permission Denied');
