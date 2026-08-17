@@ -2771,7 +2771,7 @@ var UnifiedGenerator = {
     },
 
     COMPETITION_META: {
-        'premier-league': 'Premier League', 'la-liga': 'La Liga', 'serie-a': 'Serie A', 'coppa-italia': 'Coppa Italia', 'bundesliga': 'Bundesliga', 'ligue-1': 'Ligue 1', 'champions-league': 'UEFA Champions League', 'europa-league': 'UEFA Europa League', 'conference-league': 'UEFA Conference League', 'club-friendlies': 'International Club Friendlies', 'international-friendlies': 'International Friendlies', 'world-cup': 'World Cup', 'african-cup': 'Africa Cup of Nations', 'other': 'Other Competition'
+        'premier-league': 'Premier League', 'la-liga': 'La Liga', 'serie-a': 'Serie A', 'coppa-italia': 'Coppa Italia', 'bundesliga': 'Bundesliga', 'ligue-1': 'Ligue 1', 'champions-league': 'UEFA Champions League', 'europa-league': 'UEFA Europa League', 'conference-league': 'UEFA Conference League', 'club-friendlies': 'International Club Friendlies', 'international-friendlies': 'International Friendlies', 'world-cup': 'World Cup', 'african-cup': 'Africa Cup of Nations', 'nba': 'NBA', 'wnba': 'WNBA', 'euroleague': 'EuroLeague', 'ncaa-basketball': 'NCAA Basketball', 'acb': 'Liga ACB', 'bbl': 'British Basketball League', 'nbl': 'NBL', 'nfl': 'NFL', 'nhl': 'NHL', 'mlb': 'MLB', 'ufc': 'UFC', 'atp': 'ATP Tennis', 'wta': 'WTA Tennis', 'other': 'Other Competition'
     },
     competitionOptionsHtml: function(selected) {
         var html = '';
@@ -2780,6 +2780,19 @@ var UnifiedGenerator = {
     },
     detectCompetition: function(league, home, away, sources) {
         var text = (league + ' ' + home + ' ' + away + ' ' + sources.join(' ')).toLowerCase();
+        if (/\b(nba|national basketball association)\b/.test(text)) return 'nba';
+        if (/\b(wnba)\b/.test(text)) return 'wnba';
+        if (/\b(euroleague|euro\s*league)\b/.test(text)) return 'euroleague';
+        if (/\b(ncaa|college basketball|march madness)\b/.test(text)) return 'ncaa-basketball';
+        if (/\b(liga acb|acb)\b/.test(text)) return 'acb';
+        if (/\b(british basketball league|\bbbl\b)\b/.test(text)) return 'bbl';
+        if (/\b(nbl australia|nbl)\b/.test(text)) return 'nbl';
+        if (/\b(nfl|national football league)\b/.test(text)) return 'nfl';
+        if (/\b(nhl|national hockey league)\b/.test(text)) return 'nhl';
+        if (/\b(mlb|major league baseball)\b/.test(text)) return 'mlb';
+        if (/\b(ufc|ultimate fighting championship)\b/.test(text)) return 'ufc';
+        if (/\b(atp|tennis)\b/.test(text)) return 'atp';
+        if (/\b(wta)\b/.test(text)) return 'wta';
         if (/\b(coppa\s+italia|italian\s+cup)\b/.test(text)) return 'coppa-italia';
         if (/\b(premier\s+league|epl)\b/.test(text)) return 'premier-league';
         if (/\b(la\s+liga|laliga|primera\s+division)\b/.test(text)) return 'la-liga';
