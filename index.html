@@ -2514,7 +2514,7 @@ var UnifiedGenerator = {
             });
 
         // ---- 4. OneBall TV ----
-        var fetchOneBall = Gen.scrFetch('https://oneball.tv/')
+        var fetchOneBall = Gen.scrFetch('https://oneball.live/')
             .then(function(html) {
                 var parser = new DOMParser();
                 var doc = parser.parseFromString(html, 'text/html');
