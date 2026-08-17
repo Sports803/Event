@@ -1269,6 +1269,12 @@ var Gen = {
     pushEventToFirebase: function() {
         var statusEl = document.getElementById('push-status');
         var payload = Gen.buildEventPayload();
+        var requiresProviderCheck = payload.category === 'football' && payload.homeName && payload.awayName;
+        if (requiresProviderCheck) {
+            var lookupMessage = Gen._providerFixtureId ? 'Provider fixture confirmed\n\n' + payload.homeName + ' vs ' + payload.awayName + '\nSportmonks fixtureId: ' + Gen._providerFixtureId + '\n\nContinue with Firebase push?' : 'No Sportmonks fixture was matched for this event.\n\nContinue without fixtureId?';
+            if (!window.confirm(lookupMessage)) { statusEl.textContent = 'Push cancelled — review provider lookup first.'; return; }
+            if (Gen._providerFixtureId) payload.fixtureId = Number(Gen._providerFixtureId);
+        }
         var kickoffMs = Date.parse(payload.kickoff);
         var durationMs = Number(payload.duration || 120) * 60000;
         if (!Number.isFinite(kickoffMs)) {
@@ -2584,11 +2590,12 @@ var UnifiedGenerator = {
         var allFetches = [fetchStreamed, fetchProg, fetchDDK, fetchOneBall];
         Promise.all(allFetches)
             .then(function() {
-                // ---- Smart matching ----
+                                // ---- Smart matching ----
                 var matched = UnifiedGenerator.smartMatch(allRawMatches);
-
-                // Sort by date
-                matched.sort(function(a,b) { return (a.date || 0) - (b.date || 0); });
+                return UnifiedGenerator.enrichProviderFixtures(matched).then(function(enrichedMatches) {
+                    matched = enrichedMatches;
+                    // Sort by date
+                    matched.sort(function(a,b) { return (a.date || 0) - (b.date || 0); });
 
                 UnifiedGenerator._unifiedMatches = matched;
                 UnifiedGenerator._selectedIds = {};
@@ -2611,6 +2618,7 @@ var UnifiedGenerator = {
                 bulkBar.style.display = 'flex';
                 document.getElementById('gen-select-all').checked = false;
                 UnifiedGenerator.updateBulkCount();
+                });
             })
             .catch(function(err) {
                 statusEl.className = 'scraper-status error';
@@ -2618,6 +2626,15 @@ var UnifiedGenerator = {
                 if (btn) btn.disabled = false;
                 UnifiedGenerator._isFetching = false;
             });
+    },
+
+    enrichProviderFixtures: function(matches) {
+        var endpoint = (Compose._settings && Compose._settings.providerEndpoint) || 'https://sports803tv-ufk2plhq.manus.space/api/sports/fixture-lookup';
+        var eligible = matches.filter(function(match) { return !match.fixtureId && match.category === 'football' && match.homeName && match.awayName; });
+        var workers = Math.min(4, eligible.length);
+        var cursor = 0;
+        var worker = function() { var match = eligible[cursor++]; if (!match) return Promise.resolve(); var date = new Date(Number(match.date || 0)).toISOString().slice(0, 10); var url = endpoint.replace(/\/$/, '') + '?home=' + encodeURIComponent(match.homeName) + '&away=' + encodeURIComponent(match.awayName) + '&date=' + encodeURIComponent(date); return fetch(url).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function(data) { if (data.found && data.fixture && data.fixture.fixtureId) { match.fixtureId = Number(data.fixture.fixtureId); match.providerLookup = { status: 'matched', fixtureId: match.fixtureId, checkedAt: Date.now() }; } else { match.providerLookup = { status: 'not-found', checkedAt: Date.now() }; } }).catch(function() { match.providerLookup = { status: 'unavailable', checkedAt: Date.now() }; }).then(worker); };
+        return Promise.all(Array.from({ length: workers }, worker)).then(function() { return matches; });
     },
 
     // ---- Smart matching ----

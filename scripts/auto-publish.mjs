@@ -114,6 +114,28 @@ async function autoImportRefooty() {
   }
 }
 
+const LOOKUP_ENDPOINT = process.env.SPORTMONKS_LOOKUP_ENDPOINT || 'https://sports803tv-ufk2plhq.manus.space/api/sports/fixture-lookup';
+async function lookupProviderFixture(match) {
+  if (match.fixtureId || match.fixture_id || !match.homeName || !match.awayName || match._refooty) return match;
+  const date = new Date(Number(match.date || 0)).toISOString().slice(0, 10);
+  const url = `${LOOKUP_ENDPOINT.replace(/\/$/, '')}?home=${encodeURIComponent(match.homeName)}&away=${encodeURIComponent(match.awayName)}&date=${encodeURIComponent(date)}`;
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (data.found && data.fixture?.fixtureId) return { ...match, fixtureId: Number(data.fixture.fixtureId), providerLookup: { status: 'matched', checkedAt: Date.now(), fixtureId: Number(data.fixture.fixtureId) } };
+    return { ...match, providerLookup: { status: 'not-found', checkedAt: Date.now() } };
+  } catch (error) {
+    console.warn(`[SPORTMONKS] Lookup skipped for ${match.homeName} vs ${match.awayName}: ${error.message}`);
+    return { ...match, providerLookup: { status: 'unavailable', checkedAt: Date.now() } };
+  }
+}
+async function enrichProviderFixtureIds(matches) {
+  const results = [];
+  for (const match of matches) results.push(await lookupProviderFixture(match));
+  return results;
+}
+
 async function collectMatches() {
   const browser = await chromium.launch({ headless: true });
   try {
@@ -121,7 +143,8 @@ async function collectMatches() {
     await page.goto(`file://${process.cwd()}/index.html`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => UnifiedGenerator.fetchAllSources());
     await page.waitForFunction(() => !UnifiedGenerator._isFetching, null, { timeout: 120000 });
-    return await page.evaluate(() => UnifiedGenerator._unifiedMatches || []);
+    const matches = await page.evaluate(() => UnifiedGenerator._unifiedMatches || []);
+    return enrichProviderFixtureIds(matches);
   } finally {
     await browser.close();
   }
