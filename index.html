@@ -401,6 +401,7 @@ EVENT CARD GENERATOR
             <br />
             <button class="btn-primary" onclick="Gen.buildEventCard()">Preview</button>
             <button class="btn-primary" id="push-btn" style="background:var(--gradient-gold); color:#1a1300;" onclick="Gen.pushEventToFirebase()">🔥 Push to Firebase</button>
+            <button class="btn-secondary" onclick="Compose.loadFromEventForm(); Compose.lookupProviderFixture();">🔎 Find Sportmonks fixture</button>
             <p class="hint" id="push-status"></p>
             <button class="btn-compose" style="width:100%;" onclick="Compose.loadFromEventForm()">✍️ Send this event to Compose &amp; Post</button>
         </div>
@@ -685,6 +686,14 @@ COMPOSE & POST TAB
                 <input id="cp-title" placeholder="e.g. Manchester City vs Arsenal – Premier League Live Stream" oninput="Compose.onTitleChange()" />
             </div>
             <button class="btn-secondary" onclick="Compose.loadFromEventForm()">⬅ Pull details from Event Card tab</button>
+            <div class="panel" style="margin-top:12px;background:rgba(76,201,240,.06);border-color:rgba(76,201,240,.25);">
+                <h3 style="margin-top:0;">Sportmonks fixture lookup</h3>
+                <p class="hint">Match the current teams and date against the secure Sports803TV provider proxy. A successful match is saved as <code>fixtureId</code> when you push the event to Firebase.</p>
+                <div class="field"><label>Provider lookup endpoint</label><input id="cp-provider-endpoint" value="https://sports803tv-ufk2plhq.manus.space/api/sports/fixture-lookup" /></div>
+                <button class="btn-secondary" onclick="Compose.lookupProviderFixture()">🔎 Find provider fixture</button>
+                <span id="cp-provider-status" class="hint" style="margin-left:8px;"></span>
+                <input id="cp-fixture-id" type="hidden" />
+            </div>
 
             <h2 style="margin-top:18px;">Thumbnail</h2>
             <div class="thumb-wrap">
@@ -1250,6 +1259,7 @@ var Gen = {
             category: category,
             homeTeam: homeName,
             awayTeam: awayName,
+            ...(Gen._providerFixtureId ? { fixtureId: Number(Gen._providerFixtureId) } : {}),
             streams: channels,
             description: '',
             channels: channels
@@ -1417,6 +1427,8 @@ var Gen = {
 
     editEvent: function(id, ev) {
         Gen._editingEventId = id;
+        Gen._providerFixtureId = ev.fixtureId || ev.fixture_id || null;
+        Compose._providerFixtureId = Gen._providerFixtureId;
         document.getElementById('ev-league').value = ev.leagueName || '';
         if (ev.kickoff) {
             var dt = new Date(ev.kickoff);
@@ -3384,6 +3396,7 @@ var Compose = {
     _thumbRequestId: 0,
     _thumbTimeout: null,
     _liveStats: null,
+    _providerFixtureId: null,
 
     onTabOpen: function() {
         Compose.loadSettings();
@@ -3490,9 +3503,11 @@ var Compose = {
                 if (document.getElementById('cp-clientid')) document.getElementById('cp-clientid').value = Compose._settings.clientId || '';
                 if (document.getElementById('cp-imgbb')) document.getElementById('cp-imgbb').value = Compose._settings.imgbbKey || '';
                 if (document.getElementById('cp-player')) document.getElementById('cp-player').value = Compose._settings.playerUrl || '';
+                if (document.getElementById('cp-provider-endpoint')) document.getElementById('cp-provider-endpoint').value = Compose._settings.providerEndpoint || 'https://sports803tv-ufk2plhq.manus.space/api/sports/fixture-lookup';
             } else {
                 if (document.getElementById('cp-clientid')) document.getElementById('cp-clientid').value = BUILTIN_CLIENT_ID;
                 if (document.getElementById('cp-imgbb')) document.getElementById('cp-imgbb').value = BUILTIN_IMGBB_KEY;
+                if (document.getElementById('cp-provider-endpoint')) document.getElementById('cp-provider-endpoint').value = 'https://sports803tv-ufk2plhq.manus.space/api/sports/fixture-lookup';
                 Compose._settings.clientId = BUILTIN_CLIENT_ID;
                 Compose._settings.imgbbKey = BUILTIN_IMGBB_KEY;
                 localStorage.setItem('compose-settings', JSON.stringify(Compose._settings));
@@ -3513,6 +3528,7 @@ var Compose = {
             var clientId = (document.getElementById('cp-clientid') && document.getElementById('cp-clientid').value.trim()) || BUILTIN_CLIENT_ID;
             var imgbbKey = (document.getElementById('cp-imgbb') && document.getElementById('cp-imgbb').value.trim()) || BUILTIN_IMGBB_KEY;
             var playerUrl = (document.getElementById('cp-player') && document.getElementById('cp-player').value.trim()) || 'https://sports803.github.io/player/';
+            var providerEndpoint = (document.getElementById('cp-provider-endpoint') && document.getElementById('cp-provider-endpoint').value.trim()) || 'https://sports803tv-ufk2plhq.manus.space/api/sports/fixture-lookup';
 
             if (!blogId || !clientId) {
                 Gen.toast('Blog ID and Client ID are required', 'error');
@@ -3524,6 +3540,7 @@ var Compose = {
                 clientId: clientId,
                 imgbbKey: imgbbKey,
                 playerUrl: playerUrl,
+                providerEndpoint: providerEndpoint,
                 savedAt: new Date().toISOString()
             };
 
@@ -3534,6 +3551,25 @@ var Compose = {
         } catch(e) {
             Gen.toast('Error saving settings: ' + e.message, 'error');
         }
+    },
+
+    lookupProviderFixture: function() {
+        var d = Compose.getTemplateData();
+        var endpoint = (document.getElementById('cp-provider-endpoint') && document.getElementById('cp-provider-endpoint').value.trim()) || '';
+        var status = document.getElementById('cp-provider-status');
+        if (!endpoint) { if (status) status.textContent = 'Enter a lookup endpoint.'; return; }
+        if (!d.homeName || !d.awayName || d.isRacing) { if (status) status.textContent = 'Head-to-head team names are required.'; return; }
+        if (status) status.textContent = 'Searching…';
+        var date = (document.getElementById('ev-date') && document.getElementById('ev-date').value) || d.date || new Date().toISOString().slice(0, 10);
+        var url = endpoint.replace(/\/$/, '') + '?home=' + encodeURIComponent(d.homeName) + '&away=' + encodeURIComponent(d.awayName) + '&date=' + encodeURIComponent(date);
+        fetch(url).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function(data) {
+            if (!data.found || !data.fixture) throw new Error('No provider fixture found for this date');
+            Compose._providerFixtureId = Number(data.fixture.fixtureId);
+            Gen._providerFixtureId = Compose._providerFixtureId;
+            var hidden = document.getElementById('cp-fixture-id'); if (hidden) hidden.value = String(Compose._providerFixtureId);
+            var eventFixture = document.getElementById('ev-fixture-id'); if (eventFixture) eventFixture.value = String(Compose._providerFixtureId);
+            if (status) status.textContent = '✓ ' + data.fixture.homeName + ' vs ' + data.fixture.awayName + ' — fixtureId ' + Compose._providerFixtureId;
+        }).catch(function(error) { Compose._providerFixtureId = null; if (status) status.textContent = 'Lookup failed: ' + error.message; });
     },
 
     updateClientIdWarning: function() {
