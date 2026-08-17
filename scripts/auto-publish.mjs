@@ -347,6 +347,11 @@ function eventKeyForMatch(match) { return match._refooty ? `match_refooty_${matc
 function matchTitle(match) {
   return match.title || (match.awayName ? `${match.homeName} vs ${match.awayName}` : match.homeName) || 'Scheduled event';
 }
+function providerFixtureId(match) {
+  const candidates = [match.sportmonksFixtureId, match.sportmonks_fixture_id, match.fixtureId, match.fixture_id, ...(match.rawMatches || []).flatMap(item => [item?.sportmonksFixtureId, item?.sportmonks_fixture_id, item?.fixtureId, item?.fixture_id])];
+  const value = candidates.find(candidate => /^\d+$/.test(String(candidate ?? '').trim()));
+  return value == null ? undefined : Number(value);
+}
 async function refreshExistingLifecycles(matches, now) {
   for (const match of matches) {
     const eventKey = eventKeyForMatch(match);
@@ -394,8 +399,10 @@ async function main() {
     const eventKey = eventKeyForMatch(match);
     const lifecycle = deriveLifecycle(match, now);
     const rankedStreams = await rankStreams(match.streams);
+    const fixtureId = providerFixtureId(match);
     const firebasePayload = {
       id: eventKey,
+      ...(fixtureId ? { fixtureId } : {}),
       kickoff: new Date(match.date).toISOString(), sport: match.category === 'football' ? 'football' : 'other', category: match.category || 'other', isRacing: !match.awayName,
       homeName: match.homeName || 'Home', homeLogo: match.homeLogo || '', awayName: match.awayName || '', awayLogo: match.awayLogo || '',
       score: '- -', scoreHome: '', scoreAway: '', minute: null, period: null, scoreProvider: 'none', statusType: lifecycle.statusType, status: lifecycle.status,
@@ -407,7 +414,7 @@ async function main() {
       _source: match._refooty ? 'refooty' : (match._manual ? 'manual-schedule' : 'unified-auto'), _matchId: match.id, _oneball: !match._manual && !match._refooty, _manual: !!match._manual, _refooty: !!match._refooty, sourceUrl: match.sourceUrl || '', thumbnailUrl: match.thumbnailUrl || '', description: match.description || '', _priority: Number(match._priority || 0), _automation: true
     };
     await writeAndVerifyFirebaseEvent(eventKey, firebasePayload);
-    await firebaseRequest(`automation/bloggerPosts/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ status: 'firebase_synced', eventKey, manual: !!match._manual, priority: Number(match._priority || 0), matchId: match.id, kickoff: match.date, title: matchTitle(match), updatedAt: Date.now() }) });
+    await firebaseRequest(`automation/bloggerPosts/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ status: 'firebase_synced', eventKey, manual: !!match._manual, priority: Number(match._priority || 0), matchId: match.id, ...(fixtureId ? { fixtureId } : {}), kickoff: match.date, title: matchTitle(match), updatedAt: Date.now() }) });
     try {
       const post = await bloggerInsert(accessToken, await buildPostData(match));
       const publishedAt = Date.now();

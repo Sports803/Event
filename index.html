@@ -2717,8 +2717,10 @@ var UnifiedGenerator = {
             var category = UnifiedGenerator.detectCategory(bestLeague, homeName, awayName, allSources);
             var competitionCategory = UnifiedGenerator.detectCompetition(bestLeague, homeName, awayName, allSources);
 
+            var providerFixtureId = group.map(function(item) { return item.match && (item.match.sportmonksFixtureId || item.match.sportmonks_fixture_id || item.match.fixtureId || item.match.fixture_id); }).find(function(value) { return /^\d+$/.test(String(value || '').trim()); });
             unified.push({
                 id: 'unified_' + Date.now() + '_' + Math.random().toString(36).substr(2,6),
+                ...(providerFixtureId ? { fixtureId: Number(providerFixtureId) } : {}),
                 homeName: homeName || 'Home',
                 awayName: awayName || 'Away',
                 homeLogo: logos.home || '',
