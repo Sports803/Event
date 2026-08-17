@@ -19,6 +19,7 @@ for (const check of ['function providerFixtureId', 'fixtureId', 'sportmonksFixtu
 if (!html.includes('providerFixtureId') || !html.includes('fixtureId: Number(providerFixtureId)')) throw new Error('Unified generator does not preserve matched fixtureId');
 console.log('Provider fixture-ID propagation checks present');
 if (!html.includes('enrichProviderFixtures') || !html.includes('window.confirm') || !automation.includes('enrichProviderFixtureIds')) throw new Error('Missing automatic lookup or Firebase push confirmation safeguards');
+if (!html.includes('provider-badge') || !html.includes('No provider match') || !html.includes('Provider unavailable')) throw new Error('Missing provider lookup badges in bulk-post list');
 console.log('Automatic lookup and push confirmation checks present');
 
 const expo = fs.readFileSync(new URL('../expo/App.js', import.meta.url), 'utf8');

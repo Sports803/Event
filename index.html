@@ -2872,6 +2872,8 @@ var UnifiedGenerator = {
                           s === 'oneball' ? 'oneball' : 'streamed';
                 return '<span class="source-badge ' + cls + '">' + s + '</span>';
             }).join('');
+            var providerStatus = match.providerLookup && match.providerLookup.status;
+            var providerBadge = providerStatus === 'matched' || match.fixtureId ? '<span class="provider-badge" style="background:rgba(54,211,153,.14);border:1px solid rgba(54,211,153,.45);color:#36D399;">✓ Sportmonks #' + Gen.esc(String(match.fixtureId || match.providerLookup.fixtureId)) + '</span>' : providerStatus === 'not-found' ? '<span class="provider-badge" style="background:rgba(244,183,64,.12);border:1px solid rgba(244,183,64,.4);color:#F4B740;">○ No provider match</span>' : providerStatus === 'unavailable' ? '<span class="provider-badge" style="background:rgba(245,107,125,.12);border:1px solid rgba(245,107,125,.4);color:#F56B7D;">⚠ Provider unavailable</span>' : '<span class="provider-badge" style="background:rgba(154,166,190,.12);border:1px solid rgba(154,166,190,.3);color:var(--color-text-dim);">… Lookup pending</span>';
 
             var infoHtml = '<div class="match-info">';
             infoHtml += '<div class="teams">' + Gen.esc(match.homeName) + ' vs ' + Gen.esc(match.awayName) + '</div>';
@@ -2881,6 +2883,7 @@ var UnifiedGenerator = {
             infoHtml += '<span>' + dateStr + '</span>';
             infoHtml += '<span class="stream-count">📡 ' + match.streams.length + ' stream(s)</span>';
             infoHtml += '<span class="source-tags">' + sourceTags + '</span>';
+            infoHtml += providerBadge;
             infoHtml += '<span class="category-badge" style="font-size:9px;color:var(--color-text-dim);">' + Gen.esc(match.category) + '</span>';
             infoHtml += '<select class="competition-override" aria-label="Competition category for ' + Gen.esc(match.homeName) + '" style="font-size:10px;max-width:190px;" data-match-key="' + Gen.esc(matchKey) + '">' + UnifiedGenerator.competitionOptionsHtml(match.competitionCategory) + '</select>';
             infoHtml += '</div>';
