@@ -348,8 +348,13 @@ EVENT CARD GENERATOR
                             <option value="racing|nascar-premier">NASCAR Cup Series</option>
                             <option value="racing|irl">IndyCar</option>
                         </optgroup>
-                        <optgroup label="MMA">
+                        <optgroup label="MMA / Combat">
                             <option value="mma|ufc">UFC</option>
+                            <option value="mma|boxing">Boxing</option>
+                        </optgroup>
+                        <optgroup label="Motorsport / Entertainment">
+                            <option value="racing|motogp">MotoGP</option>
+                            <option value="wwe|wwe">WWE</option>
                         </optgroup>
                     </select>
                 </div>
@@ -813,6 +818,7 @@ COMPOSE & POST TAB
             <button class="btn-compose" id="cp-publish-btn" onclick="Compose.publish()" style="width:100%;">📤 Publish to Blogger</button>
             <button class="btn-secondary" onclick="Compose.preview()" style="width:100%;margin-top:6px;">👁 Preview</button>
             <p class="hint" id="cp-publish-status"></p>
+            <div id="cp-scheduled-posts" style="display:none;margin-top:10px;"></div>
         </div>
 
         <div class="panel">
@@ -985,8 +991,62 @@ var Gen = {
         hockey: 'hockey',
         baseball: 'baseball',
         racing: 'motorsport',
-        mma: 'mma'
+        mma: 'mma',
+        wwe: 'other'
     },
+
+    // Maps fx-league sport values to TheSportsDB free-API sport names
+    TSDB_SPORT: {
+        soccer: 'Soccer',
+        basketball: 'Basketball',
+        football: 'American Football',
+        hockey: 'Ice Hockey',
+        baseball: 'Baseball',
+        tennis: 'Tennis',
+        mma: 'MMA',
+        racing: 'Motorsport'
+    },
+
+    // Embedded 2026 MotoGP calendar (fallback when ESPN/TheSportsDB have nothing)
+    // Round date + 08:00 local; MotoGP race day
+    MotoGP_CALENDAR_2026: [
+        { name: 'Qatar Grand Prix', circuit: 'Lusail International Circuit', date: '2026-03-08', country: 'Qatar' },
+        { name: 'Argentina Grand Prix', circuit: 'Termas de Río Hondo', date: '2026-03-22', country: 'Argentina' },
+        { name: 'Americas Grand Prix', circuit: 'Circuit of the Americas', date: '2026-04-05', country: 'USA' },
+        { name: 'Spanish Grand Prix', circuit: 'Circuit de Barcelona-Catalunya', date: '2026-04-26', country: 'Spain' },
+        { name: 'French Grand Prix', circuit: 'Le Mans', date: '2026-05-10', country: 'France' },
+        { name: 'Italian Grand Prix', circuit: 'Mugello', date: '2026-05-31', country: 'Italy' },
+        { name: 'Catalan Grand Prix', circuit: 'Circuit de Barcelona-Catalunya', date: '2026-06-14', country: 'Spain' },
+        { name: 'German Grand Prix', circuit: 'Sachsenring', date: '2026-07-05', country: 'Germany' },
+        { name: 'British Grand Prix', circuit: 'Silverstone', date: '2026-07-26', country: 'United Kingdom' },
+        { name: 'Dutch TT', circuit: 'TT Circuit Assen', date: '2026-08-09', country: 'Netherlands' },
+        { name: 'Austrian Grand Prix', circuit: 'Red Bull Ring', date: '2026-08-16', country: 'Austria' },
+        { name: 'San Marino Grand Prix', circuit: 'Misano', date: '2026-09-06', country: 'Italy' },
+        { name: 'Aragon Grand Prix', circuit: 'MotorLand Aragón', date: '2026-09-20', country: 'Spain' },
+        { name: 'Indonesian Grand Prix', circuit: 'Mandalika', date: '2026-10-11', country: 'Indonesia' },
+        { name: 'Australian Grand Prix', circuit: 'Phillip Island', date: '2026-10-18', country: 'Australia' },
+        { name: 'Japanese Grand Prix', circuit: 'Mobility Resort Motegi', date: '2026-11-01', country: 'Japan' },
+        { name: 'Malaysian Grand Prix', circuit: 'Sepang', date: '2026-11-08', country: 'Malaysia' },
+        { name: 'Thai Grand Prix', circuit: 'Buriram', date: '2026-11-22', country: 'Thailand' },
+        { name: 'Valencia Grand Prix', circuit: 'Circuit Ricardo Tormo', date: '2026-11-15', country: 'Spain' }
+    ],
+
+    // WWE weekly shows + 2026 Premium Live Event calendar (fallback calendar)
+    WWE_WEEKLY: { 1: 'WWE Raw', 2: 'WWE NXT', 5: 'WWE Friday Night SmackDown' },
+    WWE_PLE_2026: [
+        { name: 'WWE Royal Rumble 2026', date: '2026-01-24' },
+        { name: 'WWE Elimination Chamber 2026', date: '2026-02-21' },
+        { name: 'WWE WrestleMania 42 — Night 1', date: '2026-04-04' },
+        { name: 'WWE WrestleMania 42 — Night 2', date: '2026-04-05' },
+        { name: 'WWE Backlash 2026', date: '2026-05-03' },
+        { name: 'WWE Money in the Bank 2026', date: '2026-06-07' },
+        { name: 'WWE Great American Bash 2026', date: '2026-06-21' },
+        { name: 'WWE SummerSlam 2026', date: '2026-08-08' },
+        { name: 'WWE Clash at the Castle 2026', date: '2026-08-30' },
+        { name: 'WWE Wrestlepalooza 2026', date: '2026-09-27' },
+        { name: 'WWE Survivor Series 2026', date: '2026-11-22' },
+        { name: 'WWE TLC 2026', date: '2026-12-13' }
+    ],
 
     CATEGORY_META: {
         football: { sport: 'football', leagueEmoji: '⚽', leagueId: 'custom.football', singleEntrant: false, labels: ['Home team name', 'Away team name'] },
@@ -998,6 +1058,7 @@ var Gen = {
         darts: { sport: 'other', leagueEmoji: '🎯', leagueId: 'darts', singleEntrant: false, labels: ['Player 1 name', 'Player 2 name'] },
         boxing: { sport: 'other', leagueEmoji: '🥊', leagueId: 'boxing', singleEntrant: false, labels: ['Fighter 1 name', 'Fighter 2 name'] },
         mma: { sport: 'other', leagueEmoji: '🥋', leagueId: 'mma-ufc', singleEntrant: false, labels: ['Fighter 1 name', 'Fighter 2 name'] },
+        wwe: { sport: 'other', leagueEmoji: '🤼', leagueId: 'wwe', singleEntrant: false, labels: ['Home team name', 'Away team name'] },
         volleyball: { sport: 'other', leagueEmoji: '🏐', leagueId: 'volleyball', singleEntrant: false, labels: ['Home team name', 'Away team name'] },
         handball: { sport: 'other', leagueEmoji: '🤾', leagueId: 'handball', singleEntrant: false, labels: ['Home team name', 'Away team name'] },
         rugby: { sport: 'other', leagueEmoji: '🏉', leagueId: 'rugby', singleEntrant: false, labels: ['Home team name', 'Away team name'] },
@@ -1136,7 +1197,7 @@ var Gen = {
         return Gen.ZH_EN[name] || name;
     },
 
-    // ---- ESPN fixture fetch ----
+    // ---- Multi-source fixture fetch (ESPN → week-scan → TheSportsDB → built-in calendars) ----
     fetchFixtures: function() {
         var val = document.getElementById('fx-league').value.split('|');
         var sport = val[0], league = val[1];
@@ -1145,6 +1206,7 @@ var Gen = {
         var d = dateVal ? new Date(dateVal + 'T00:00:00') : new Date();
         var pad = function(n) { return String(n).padStart(2, '0'); };
         var dateParam = '' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate());
+        var isoDate = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
         var list = document.getElementById('fixture-list');
         var bulkBar = document.getElementById('fixture-bulk-bar');
         list.innerHTML = 'Loading…';
@@ -1152,97 +1214,330 @@ var Gen = {
         Gen._fetchedFixtures = [];
         Gen._selectedFixtureIdx = {};
 
-        fetch('https://site.api.espn.com/apis/site/v2/sports/' + sport + '/' + league + '/scoreboard?dates=' + dateParam)
-            .then(function(r) { return r.json(); })
-            .then(function(json) {
-                var events = (json && json.events) || [];
-                if (!events.length) { list.innerHTML = '<div class="hint">No fixtures found for that date.</div>'; return; }
-                list.innerHTML = '';
-                var isSingleEntrant = (sport === 'racing');
+        if (sport === 'wwe' || league === 'wwe') { Gen.renderWweFixtures(d, leagueLabel); return; }
+        if (sport === 'racing' && league === 'motogp') { Gen.renderMotoGP(d, leagueLabel, isoDate); return; }
 
-                var getName = function(c) {
-                    if (!c) return null;
-                    if (c.team) return c.team.shortDisplayName || c.team.displayName;
-                    if (c.athlete) return c.athlete.displayName;
-                    return null;
-                };
-                var getLogo = function(c) {
-                    if (!c) return '';
-                    if (c.team) return c.team.logo || '';
-                    if (c.athlete) return c.athlete.headshot ? c.athlete.headshot.href : '';
-                    return '';
-                };
+        var espnUrl = 'https://site.api.espn.com/apis/site/v2/sports/' + sport + '/' + league + '/scoreboard?dates=' + dateParam;
+        var scanDates = function(base, offsetStart, offsetEnd) {
+            var jobs = [];
+            for (var off = offsetStart; off <= offsetEnd; off++) {
+                var day = new Date(base.getTime() + off * 86400000);
+                var ds = day.getFullYear() + pad(day.getMonth() + 1) + pad(day.getDate());
+                jobs.push(Gen.espnGet('https://site.api.espn.com/apis/site/v2/sports/' + sport + '/' + league + '/scoreboard?dates=' + ds).then(function(json) { return { ds: ds, json: json }; }));
+            }
+            return Promise.all(jobs);
+        };
 
-                events.forEach(function(ev, idx) {
-                    var comp = (ev.competitions && ev.competitions[0]) || {};
-                    var competitors = comp.competitors || [];
-                    var dt = new Date(ev.date);
-                    var home, away, label;
-
-                    if (isSingleEntrant) {
-                        home = null; away = null;
-                        label = ev.name || ev.shortName || 'Race';
-                    } else {
-                        home = competitors.find(function(c) { return c.homeAway === 'home'; }) || competitors[0];
-                        away = competitors.find(function(c) { return c.homeAway === 'away'; }) || competitors[1];
-                        label = (getName(home) || '?') + ' vs ' + (getName(away) || '?');
+        Gen.espnGet(espnUrl).then(function(json) {
+            var events = (json && json.events) || [];
+            if (events.length) { Gen.renderEspnFixtures(events, sport, leagueLabel, 'ESPN', true); return; }
+            // Exact date empty → scan ±5 days for the nearest day ESPN has data
+            var base = dateVal ? d : new Date();
+            return scanDates(base, 0, 5).then(function(results) {
+                for (var i = 0; i < results.length; i++) {
+                    var r = results[i];
+                    if (r && r.json && r.json.events && r.json.events.length) {
+                        var note = (r.ds === dateParam) ? '' : (' — nearest available date (' + r.ds.slice(0, 4) + '-' + r.ds.slice(4, 6) + '-' + r.ds.slice(6, 8) + ')');
+                        return Gen.renderEspnFixtures(r.json.events, sport, leagueLabel, 'ESPN' + note, true);
                     }
+                }
+                // Scan backwards too (yesterday etc.)
+                return scanDates(base, -5, -1).then(function(results2) {
+                    for (var j = 0; j < results2.length; j++) {
+                        var r2 = results2[j];
+                        if (r2 && r2.json && r2.json.events && r2.json.events.length) {
+                            var note2 = ' — nearest available date (' + r2.ds.slice(0, 4) + '-' + r2.ds.slice(4, 6) + '-' + r2.ds.slice(6, 8) + ')';
+                            return Gen.renderEspnFixtures(r2.json.events, sport, leagueLabel, 'ESPN' + note2, true);
+                        }
+                    }
+                    return null;
+                });
+            }).then(function(done) {
+                if (done) return;
+                // Still nothing → try TheSportsDB free API (no key, CORS enabled)
+                return Gen.tsdbFetch(d, sport, leagueLabel, isoDate);
+            });
+        }).catch(function() {
+            // ESPN unreachable → straight to TheSportsDB
+            return Gen.tsdbFetch(d, sport, leagueLabel, isoDate);
+        });
+    },
 
+    // CORS-safe JSON GET with Accept header (some ESPN endpoints need it)
+    espnGet: function(url) {
+        return fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    },
+
+    // TheSportsDB free API fallback
+    tsdbFetch: function(d, sport, leagueLabel, isoDate) {
+        var list = document.getElementById('fixture-list');
+        var tsdbSport = Gen.TSDB_SPORT[sport] || 'Soccer';
+        var isSingleEntrant = (sport === 'racing');
+        var url = 'https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d=' + isoDate + '&s=' + encodeURIComponent(tsdbSport);
+        list.innerHTML = 'ESPN had no fixtures — checking TheSportsDB…';
+        return Gen.espnGet(url).then(function(json) {
+            var events = (json && json.events) || [];
+            if (isSingleEntrant && sport === 'racing') {
+                events = events.filter(function(e) { return (e.strLeague || '').toLowerCase().indexOf('motogp') !== -1 || (e.strEvent || '').toLowerCase().indexOf('motogp') !== -1; });
+            }
+            if (!events.length) {
+                list.innerHTML = '<div class="hint">No fixtures found on ESPN or TheSportsDB for that date — ESPN may not have published the calendar yet, or the league has no events that day. Try a different date, or fill the form manually.</div>';
+                return;
+            }
+            list.innerHTML = '';
+            events.forEach(function(ev, idx) {
+                var ts = (ev.strTime || '19:00').replace(/\.[0-9]+/, '').slice(0, 5);
+                var dt = new Date((ev.dateEvent || '') + 'T' + ts + ':00');
+                var label = isSingleEntrant ? (ev.strEvent || 'Event') : ((ev.strHomeTeam || 'Home') + ' vs ' + (ev.strAwayTeam || 'Away'));
+                var fixture = {
+                    label: label,
+                    dt: dt,
+                    sport: sport,
+                    leagueLabel: (ev.strLeague || leagueLabel),
+                    isSingleEntrant: isSingleEntrant,
+                    homeName: isSingleEntrant ? label : (ev.strHomeTeam || 'Home'),
+                    homeLogo: isSingleEntrant ? '' : (ev.strHomeTeamBadge || ''),
+                    awayName: isSingleEntrant ? '' : (ev.strAwayTeam || 'Away'),
+                    awayLogo: isSingleEntrant ? '' : (ev.strAwayTeamBadge || '')
+                };
+                Gen._fetchedFixtures.push(fixture);
+                Gen.appendFixtureItem(fixture, idx, 'TheSportsDB');
+            });
+            Gen.finishFixtureRender();
+            try { Gen._fxCache[sport + '|' + leagueLabel + '|' + isoDate] = { sport: sport, leagueLabel: leagueLabel, fixtures: Gen._fetchedFixtures.slice(), ts: Date.now() }; } catch(e) {}
+        }).catch(function() {
+            list.innerHTML = '<div class="hint">Couldn\'t load fixtures right now — you can still fill the form manually.</div>';
+        });
+    },
+
+    // Render ESPN events into the fixture list
+    renderEspnFixtures: function(events, sport, leagueLabel, source, isSingleEntrant) {
+        var list = document.getElementById('fixture-list');
+        list.innerHTML = '';
+        var getName = function(c) {
+            if (!c) return null;
+            if (c.team) return c.team.shortDisplayName || c.team.displayName;
+            if (c.athlete) return c.athlete.displayName;
+            return null;
+        };
+        var getLogo = function(c) {
+            if (!c) return '';
+            if (c.team) return c.team.logo || '';
+            if (c.athlete) return c.athlete.headshot ? c.athlete.headshot.href : '';
+            return '';
+        };
+        events.forEach(function(ev, idx) {
+            var comp = (ev.competitions && ev.competitions[0]) || {};
+            var competitors = comp.competitors || [];
+            var dt = new Date(ev.date);
+            var home, away, label;
+            if (isSingleEntrant) {
+                home = null; away = null;
+                label = ev.name || ev.shortName || 'Race';
+            } else {
+                home = competitors.find(function(c) { return c.homeAway === 'home'; }) || competitors[0];
+                away = competitors.find(function(c) { return c.homeAway === 'away'; }) || competitors[1];
+                label = (getName(home) || '?') + ' vs ' + (getName(away) || '?');
+            }
+            var fixture = {
+                label: label,
+                dt: dt,
+                sport: sport,
+                leagueLabel: leagueLabel,
+                isSingleEntrant: isSingleEntrant,
+                homeName: isSingleEntrant ? label : (getName(home) || 'Home'),
+                homeLogo: isSingleEntrant ? '' : getLogo(home),
+                awayName: isSingleEntrant ? '' : (getName(away) || 'Away'),
+                awayLogo: isSingleEntrant ? '' : getLogo(away)
+            };
+            Gen._fetchedFixtures.push(fixture);
+            Gen.appendFixtureItem(fixture, idx, source);
+        });
+        Gen.finishFixtureRender();
+        try { Gen._fxCache[document.getElementById('fx-league').value + '|' + (document.getElementById('fx-day').value || '')] = { sport: sport, leagueLabel: leagueLabel, fixtures: Gen._fetchedFixtures.slice(), ts: Date.now() }; } catch(e) {}
+    },
+
+    appendFixtureItem: function(fixture, idx, source) {
+        var list = document.getElementById('fixture-list');
+        var item = document.createElement('div');
+        item.className = 'fixture-item';
+        var timeStr = fixture.dt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        var srcTag = source ? ' <small style="color:var(--color-success);">(' + Gen.esc(source) + ')</small>' : '';
+        item.innerHTML =
+            '<span class="fixture-main">' +
+            '<input type="checkbox" class="pick-checkbox" data-idx="' + idx + '"/>' +
+            '<span class="fixture-label">' + Gen.esc(fixture.label) + '</span>' +
+            '</span>' +
+            '<span class="time">' + timeStr + srcTag + '</span>';
+        var checkbox = item.querySelector('.pick-checkbox');
+        checkbox.addEventListener('click', function(e) { e.stopPropagation(); });
+        checkbox.addEventListener('change', function() {
+            if (checkbox.checked) Gen._selectedFixtureIdx[idx] = true;
+            else delete Gen._selectedFixtureIdx[idx];
+            Gen.updateFixtureBulkBar();
+        });
+        item.addEventListener('click', function() {
+            document.getElementById('ev-league').value = fixture.leagueLabel;
+            document.getElementById('ev-date').value = fixture.dt.toISOString().slice(0, 10);
+            document.getElementById('ev-time').value = fixture.dt.toTimeString().slice(0, 5);
+            document.getElementById('ev-home-name').value = fixture.homeName;
+            document.getElementById('ev-home-logo').value = fixture.homeLogo;
+            document.getElementById('ev-away-name').value = fixture.awayName;
+            document.getElementById('ev-away-logo').value = fixture.awayLogo;
+        });
+        list.appendChild(item);
+    },
+
+    finishFixtureRender: function() {
+        var bulkBar = document.getElementById('fixture-bulk-bar');
+        bulkBar.style.display = 'flex';
+        document.getElementById('fixture-select-all').checked = false;
+        Gen.updateFixtureBulkBar();
+    },
+
+    // ---- WWE fixture calendar (deterministic weekly shows + 2026 PLEs) ----
+    renderWweFixtures: function(d, leagueLabel) {
+        var list = document.getElementById('fixture-list');
+        list.innerHTML = '';
+        Gen._fetchedFixtures = [];
+        var pad = function(n) { return String(n).padStart(2, '0'); };
+        var dateStr = function(dd) { return dd.getFullYear() + '-' + pad(dd.getMonth() + 1) + '-' + pad(dd.getDate()); };
+        var dayKey = dateStr(d);
+        var fixtures = [];
+        // Selected-date entries
+        var dow = d.getDay();
+        if (Gen.WWE_WEEKLY[dow]) fixtures.push({ name: Gen.WWE_WEEKLY[dow], dt: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 20, 0), venue: 'Weekly show' });
+        Gen.WWE_PLE_2026.forEach(function(ple) { if (ple.date === dayKey) fixtures.push({ name: ple.name, dt: new Date(ple.date + 'T00:00:00'), venue: 'Premium Live Event' }); });
+        // If nothing on the exact date, show the weekly shows nearest to the selected date (prev/next Mon/Tue/Fri)
+        if (!fixtures.length) {
+            var candDates = [];
+            for (var off = -7; off <= 7; off++) {
+                var dd = new Date(d.getTime() + off * 86400000);
+                if (Gen.WWE_WEEKLY[dd.getDay()]) candDates.push(dd);
+            }
+            candDates.sort(function(a, b) { return Math.abs(a.getTime() - d.getTime()) - Math.abs(b.getTime() - d.getTime()); });
+            candDates.slice(0, 3).forEach(function(dd) {
+                var showName = Gen.WWE_WEEKLY[dd.getDay()];
+                fixtures.push({ name: showName, dt: new Date(dd.getFullYear(), dd.getMonth(), dd.getDate(), 20, 0), venue: showName + ' — nearest show date (' + dateStr(dd) + ')', isNearest: true });
+            });
+        }
+        if (!fixtures.length) { list.innerHTML = '<div class="hint">No WWE events found — pick a Monday (Raw), Tuesday (NXT) or Friday (SmackDown), or a Premium Live Event date.</div>'; return; }
+        fixtures.sort(function(a, b) { return a.dt.getTime() - b.dt.getTime(); });
+        fixtures.forEach(function(f, idx) {
+            var fixture = {
+                label: f.name,
+                dt: f.dt,
+                sport: 'wwe',
+                leagueLabel: leagueLabel,
+                isSingleEntrant: false,
+                homeName: f.name,
+                homeLogo: 'https://upload.wikimedia.org/wikipedia/en/thumb/7/74/WWE_Logo.svg/1200px-WWE_Logo.svg.png',
+                awayName: '',
+                awayLogo: ''
+            };
+            Gen._fetchedFixtures.push(fixture);
+            Gen.appendFixtureItem(fixture, idx, f.isNearest ? 'WWE calendar' : 'WWE weekly');
+        });
+        Gen.finishFixtureRender();
+        try { Gen._fxCache['wwe|' + (document.getElementById('fx-day').value || '')] = { sport: 'wwe', leagueLabel: leagueLabel, fixtures: Gen._fetchedFixtures.slice(), ts: Date.now() }; } catch(e) {}
+    },
+
+    // ---- MotoGP calendar (ESPN → TheSportsDB → embedded 2026 calendar) ----
+    renderMotoGP: function(d, leagueLabel, isoDate) {
+        var list = document.getElementById('fixture-list');
+        list.innerHTML = 'Loading…';
+        Gen._fetchedFixtures = [];
+        var pad = function(n) { return String(n).padStart(2, '0'); };
+        var dateParam = '' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate());
+        var exactUrl = 'https://site.api.espn.com/apis/site/v2/sports/racing/motogp/scoreboard?dates=' + dateParam;
+        var tsdbThenEmbedded = function() {
+            return Gen.espnGet('https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d=' + isoDate + '&s=Motorsport').then(function(tsdb) {
+                var tsdbEvents = ((tsdb && tsdb.events) || []).filter(function(e) { return (e.strLeague || '').toLowerCase().indexOf('motogp') !== -1 || (e.strEvent || '').toLowerCase().indexOf('motogp') !== -1; });
+                if (tsdbEvents.length) {
+                    list.innerHTML = '';
+                    tsdbEvents.forEach(function(ev, idx) {
+                        var ts = (ev.strTime || '14:00').replace(/\.[0-9]+/, '').slice(0, 5);
+                        var dt = new Date((ev.dateEvent || '') + 'T' + ts + ':00');
+                        var fixture = {
+                            label: ev.strEvent || 'MotoGP Race',
+                            dt: dt,
+                            sport: 'racing',
+                            leagueLabel: ev.strLeague || leagueLabel,
+                            isSingleEntrant: true,
+                            homeName: ev.strEvent || 'MotoGP Race',
+                            homeLogo: '',
+                            awayName: '',
+                            awayLogo: ''
+                        };
+                        Gen._fetchedFixtures.push(fixture);
+                        Gen.appendFixtureItem(fixture, idx, 'TheSportsDB');
+                    });
+                    Gen.finishFixtureRender();
+                    return;
+                }
+                // Embedded 2026 calendar: show the round(s) nearest to the selected date
+                list.innerHTML = '';
+                var target = d.getTime();
+                var rows = Gen.MotoGP_CALENDAR_2026.slice().sort(function(a, b) {
+                    return Math.abs(new Date(a.date + 'T00:00:00').getTime() - target) - Math.abs(new Date(b.date + 'T00:00:00').getTime() - target);
+                }).slice(0, 5);
+                rows.forEach(function(round, idx) {
+                    var dt = new Date(round.date + 'T14:00:00');
                     var fixture = {
-                        label: label,
+                        label: round.name + ' — MotoGP',
                         dt: dt,
-                        sport: sport,
-                        leagueLabel: leagueLabel,
-                        isSingleEntrant: isSingleEntrant,
-                        homeName: isSingleEntrant ? label : (getName(home) || 'Home'),
-                        homeLogo: isSingleEntrant ? '' : getLogo(home),
-                        awayName: isSingleEntrant ? '' : (getName(away) || 'Away'),
-                        awayLogo: isSingleEntrant ? '' : getLogo(away)
+                        sport: 'racing',
+                        leagueLabel: 'MotoGP',
+                        isSingleEntrant: true,
+                        homeName: round.name,
+                        homeLogo: '',
+                        awayName: round.circuit + ' · ' + round.country,
+                        awayLogo: ''
                     };
                     Gen._fetchedFixtures.push(fixture);
-
-                    var item = document.createElement('div');
-                    item.className = 'fixture-item';
-                    item.innerHTML =
-                        '<span class="fixture-main">' +
-                        '<input type="checkbox" class="pick-checkbox" data-idx="' + idx + '"/>' +
-                        '<span class="fixture-label">' + Gen.esc(label) + '</span>' +
-                        '</span>' +
-                        '<span class="time">' + dt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</span>';
-
-                    var checkbox = item.querySelector('.pick-checkbox');
-                    checkbox.addEventListener('click', function(e) { e.stopPropagation(); });
-                    checkbox.addEventListener('change', function() {
-                        if (checkbox.checked) Gen._selectedFixtureIdx[idx] = true;
-                        else delete Gen._selectedFixtureIdx[idx];
-                        Gen.updateFixtureBulkBar();
-                    });
-
-                    item.addEventListener('click', function() {
-                        document.getElementById('ev-league').value = leagueLabel;
-                        document.getElementById('ev-date').value = dt.toISOString().slice(0, 10);
-                        document.getElementById('ev-time').value = dt.toTimeString().slice(0, 5);
-                        document.getElementById('ev-home-name').value = fixture.homeName;
-                        document.getElementById('ev-home-logo').value = fixture.homeLogo;
-                        document.getElementById('ev-away-name').value = fixture.awayName;
-                        document.getElementById('ev-away-logo').value = fixture.awayLogo;
-                    });
-                    list.appendChild(item);
+                    Gen.appendFixtureItem(fixture, idx, '2026 calendar');
                 });
-
-                bulkBar.style.display = 'flex';
-                document.getElementById('fixture-select-all').checked = false;
-                Gen.updateFixtureBulkBar();
-                try {
-                    Gen._fxCache[val + '|' + dateVal] = {
-                        sport: sport,
-                        leagueLabel: leagueLabel,
-                        fixtures: Gen._fetchedFixtures.slice(),
-                        ts: Date.now()
-                    };
-                } catch(e) {}
-            })
-            .catch(function() { list.innerHTML = '<div class="hint">Couldn\'t load fixtures right now — you can still fill the form manually.</div>'; });
+                Gen.finishFixtureRender();
+                try { Gen._fxCache['racing|motogp|' + (document.getElementById('fx-day').value || '')] = { sport: 'racing', leagueLabel: 'MotoGP', fixtures: Gen._fetchedFixtures.slice(), ts: Date.now() }; } catch(e) {}
+            }).catch(function() { genEmbedded(); });
+        };
+        var genEmbedded = function() {
+            list.innerHTML = '';
+            var target = d.getTime();
+            var rows = Gen.MotoGP_CALENDAR_2026.slice().sort(function(a, b) {
+                return Math.abs(new Date(a.date + 'T00:00:00').getTime() - target) - Math.abs(new Date(b.date + 'T00:00:00').getTime() - target);
+            }).slice(0, 5);
+            rows.forEach(function(round, idx) {
+                var dt = new Date(round.date + 'T14:00:00');
+                var fixture = {
+                    label: round.name + ' — MotoGP',
+                    dt: dt,
+                    sport: 'racing',
+                    leagueLabel: 'MotoGP',
+                    isSingleEntrant: true,
+                    homeName: round.name,
+                    homeLogo: '',
+                    awayName: round.circuit + ' · ' + round.country,
+                    awayLogo: ''
+                };
+                Gen._fetchedFixtures.push(fixture);
+                Gen.appendFixtureItem(fixture, idx, '2026 calendar');
+            });
+            Gen.finishFixtureRender();
+            try { Gen._fxCache['racing|motogp|' + (document.getElementById('fx-day').value || '')] = { sport: 'racing', leagueLabel: 'MotoGP', fixtures: Gen._fetchedFixtures.slice(), ts: Date.now() }; } catch(e) {}
+        };
+        Gen.espnGet(exactUrl).then(function(json) {
+            var events = (json && json.events) || [];
+            if (events.length) { Gen.renderEspnFixtures(events, 'racing', leagueLabel, 'ESPN', true); return; }
+            list.innerHTML = 'No MotoGP on ESPN for that date — checking TheSportsDB…';
+            return tsdbThenEmbedded();
+        }).catch(function() {
+            // ESPN rejected the request (unknown slug / rate limit) — go straight to TSDB, then embedded calendar
+            return tsdbThenEmbedded();
+        }).catch(function() {
+            genEmbedded();
+        });
     },
 
     toggleFixtureSelectAll: function(checked) {
@@ -3579,6 +3874,8 @@ var Compose = {
         Compose.renderThumbnail();
         Compose.autoGenerateMetaDescription();
         Compose.updateSEOMetrics();
+        Compose.renderScheduledPostPanel();
+        if (Compose.isTokenValid()) Compose.startSchedulePoller();
         var clientEl = document.getElementById('cp-clientid');
         var imgbbEl = document.getElementById('cp-imgbb');
         if (clientEl && !clientEl.value) clientEl.value = BUILTIN_CLIENT_ID;
@@ -5055,6 +5352,16 @@ var Compose = {
 
         if (status === 'SCHEDULE') {
             var scheduleTime = document.getElementById('cp-schedule-dt').value;
+            if (!scheduleTime) {
+                // Default: publish 30 minutes from now when "Schedule for later" is chosen
+                var defaultDt = new Date(Date.now() + 30 * 60000);
+                var dtPad = function(n) { return String(n).padStart(2, '0'); };
+                scheduleTime = defaultDt.getFullYear() + '-' + dtPad(defaultDt.getMonth() + 1) + '-' + dtPad(defaultDt.getDate()) +
+                    'T' + dtPad(defaultDt.getHours()) + ':' + dtPad(defaultDt.getMinutes());
+                var dtEl = document.getElementById('cp-schedule-dt');
+                if (dtEl) dtEl.value = scheduleTime;
+                Compose.onStatusChange();
+            }
             if (scheduleTime) {
                 postData.publishedAt = new Date(scheduleTime).toISOString();
             }
@@ -5089,14 +5396,17 @@ var Compose = {
         })
         .then(function(post) {
             if (statusEl) {
-                statusEl.textContent = '✅ Post published! ID: ' + post.id;
+                statusEl.textContent = '✅ Post submitted! ID: ' + post.id;
                 statusEl.style.color = 'var(--color-success)';
             }
-            Gen.toast('Post published successfully!');
+            Gen.toast('Post submitted successfully!');
             if (metaDescription && navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(metaDescription).then(function() {
                     Gen.toast('Search description copied — paste into Post settings → Search description if needed.', 'info');
                 }).catch(function() { /* non-critical */ });
+            }
+            if (postData.status === 'SCHEDULE' && postData.publishedAt) {
+                Compose.queueScheduledPost(post.id, post.title, postData.publishedAt);
             }
         })
         .catch(function(err) {
@@ -5133,6 +5443,9 @@ var Compose = {
                 statusEl.style.color = 'var(--color-success)';
             }
             Gen.toast('Post updated successfully!');
+            if (postData.status === 'SCHEDULE' && postData.publishedAt) {
+                Compose.queueScheduledPost(Compose._editingPostId, post.title || postData.title, postData.publishedAt);
+            }
         })
         .catch(function(err) {
             if (statusEl) {
@@ -5140,6 +5453,93 @@ var Compose = {
                 statusEl.style.color = '#ff6b6b';
             }
             Gen.toast('Update failed: ' + err.message, 'error');
+        });
+    },
+
+    // ---- Scheduled post queue (auto-post monitoring) ----
+    SCHEDULED_POSTS_KEY: 'compose_scheduled_posts',
+    queueScheduledPost: function(postId, title, publishedAt) {
+        try {
+            var list = [];
+            try { list = JSON.parse(localStorage.getItem(Compose.SCHEDULED_POSTS_KEY) || '[]'); } catch (e) {}
+            list = list.filter(function(item) { return item.postId !== postId; });
+            list.push({ postId: postId, title: title || 'Scheduled post', publishedAt: publishedAt, queuedAt: new Date().toISOString() });
+            localStorage.setItem(Compose.SCHEDULED_POSTS_KEY, JSON.stringify(list));
+            Compose.renderScheduledPostPanel();
+            Compose.startSchedulePoller();
+        } catch (e) { console.warn('Could not queue scheduled post:', e); }
+    },
+    getScheduledPosts: function() {
+        try { return JSON.parse(localStorage.getItem(Compose.SCHEDULED_POSTS_KEY) || '[]'); } catch (e) { return []; }
+    },
+    renderScheduledPostPanel: function() {
+        var panel = document.getElementById('cp-scheduled-posts');
+        if (!panel) return;
+        var list = Compose.getScheduledPosts();
+        if (!list.length) { panel.style.display = 'none'; return; }
+        panel.style.display = 'block';
+        panel.innerHTML = '<h3 style="margin:10px 0 6px; font-size:13px;">📅 Scheduled posts (Blogger will auto-publish)</h3>';
+        list.forEach(function(item) {
+            var row = document.createElement('div');
+            row.className = 'manage-item';
+            var label = document.createElement('span');
+            label.className = 'manage-label';
+            label.textContent = (item.title || 'Post') + ' · publishes ' + new Date(item.publishedAt).toLocaleString() + ' · ID ' + item.postId;
+            row.appendChild(label);
+            var actions = document.createElement('span');
+            actions.className = 'manage-actions';
+            var openBtn = document.createElement('button');
+            openBtn.className = 'btn-edit';
+            openBtn.textContent = 'Open';
+            openBtn.onclick = function() { window.open('https://draft.blogger.com/blog/posts/' + (Compose._settings.blogId || ''), '_blank'); };
+            actions.appendChild(openBtn);
+            var removeBtn = document.createElement('button');
+            removeBtn.className = 'btn-danger';
+            removeBtn.textContent = 'Remove';
+            removeBtn.onclick = function() {
+                var cur = Compose.getScheduledPosts().filter(function(x) { return x.postId !== item.postId; });
+                localStorage.setItem(Compose.SCHEDULED_POSTS_KEY, JSON.stringify(cur));
+                Compose.renderScheduledPostPanel();
+                Gen.toast('Removed from the local watchlist');
+            };
+            actions.appendChild(removeBtn);
+            row.appendChild(actions);
+            panel.appendChild(row);
+        });
+        var hint = document.createElement('p');
+        hint.className = 'hint';
+        hint.textContent = 'Blogger publishes scheduled posts on its own — this panel simply tracks them locally and shows a notification when one goes live.';
+        panel.appendChild(hint);
+    },
+    startSchedulePoller: function() {
+        if (Compose._schedulePoller) return;
+        Compose._schedulePoller = setInterval(function() {
+            Compose.pollScheduledPosts();
+        }, 60000);
+        Compose.pollScheduledPosts();
+    },
+    pollScheduledPosts: function() {
+        if (!Compose.isTokenValid() || !Compose._settings.blogId) return;
+        var list = Compose.getScheduledPosts();
+        if (!list.length) { Compose.renderScheduledPostPanel(); return; }
+        list.forEach(function(item) {
+            fetch('https://www.googleapis.com/blogger/v3/blogs/' + Compose._settings.blogId + '/posts/' + encodeURIComponent(item.postId) + '?access_token=' + Compose._authToken)
+                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(function(post) {
+                    if (post && post.status === 'LIVE') {
+                        var cur = Compose.getScheduledPosts().filter(function(x) { return x.postId !== item.postId; });
+                        localStorage.setItem(Compose.SCHEDULED_POSTS_KEY, JSON.stringify(cur));
+                        Compose.renderScheduledPostPanel();
+                        var statusEl = document.getElementById('cp-publish-status');
+                        if (statusEl && document.getElementById('cp-status') && document.getElementById('cp-status').value === 'SCHEDULE') {
+                            statusEl.textContent = '✅ Your scheduled post is now LIVE on Blogger!';
+                            statusEl.style.color = 'var(--color-success)';
+                        }
+                        Gen.toast('🎉 Scheduled post is now live: ' + (item.title || ''));
+                        try { if (post.url && navigator.clipboard) navigator.clipboard.writeText(post.url).then(function() { Gen.toast('Post URL copied to clipboard', 'info'); }).catch(function() {}); } catch(e) {}
+                    }
+                })
+                .catch(function() { /* keep watching */ });
         });
     },
 
