@@ -50,7 +50,43 @@
         .tabs-nav button.is-active { background:var(--gradient-brand); color:#fff; border-color:transparent; box-shadow:0 4px 12px rgba(224,16,42,.25); }
         .tabs-nav button[data-tab="generator-tab"].is-active { background:linear-gradient(135deg,#6c5ce7,#0ea5e9); box-shadow:0 4px 12px rgba(108,92,231,.25); }
         .tabs-nav button[data-tab="compose-tab"].is-active { background:linear-gradient(135deg,#7209b7,#4cc9f0); box-shadow:0 4px 12px rgba(114,9,183,.25); }
+        .tabs-nav button[data-tab="videos-tab"].is-active { background:linear-gradient(135deg,#059669,#10b981); box-shadow:0 4px 12px rgba(16,185,129,.25); }
         .tab-panel { display:none; animation:fade-in .25s ease; }
+        /* ReFooty video cards (refooty.com-style design) */
+        .rf-sub { padding:9px 16px; }
+        .rf-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
+        .rf-card { background:rgba(255,255,255,.03); border:1px solid var(--color-border); border-radius:var(--radius-md); overflow:hidden; cursor:pointer; transition:border-color .2s,transform .15s ease; }
+        .rf-card:hover { border-color:rgba(16,185,129,.5); transform:translateY(-2px); }
+        .rf-thumb { position:relative; aspect-ratio:16/9; overflow:hidden; }
+        .rf-thumb .rf-bg { position:absolute; inset:0; background-size:cover; background-position:center; }
+        .rf-thumb .rf-vs { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:64px; height:24px; object-fit:contain; z-index:1; pointer-events:none; }
+        .rf-thumb .rf-logo { position:absolute; top:50%; width:76px; height:76px; object-fit:contain; z-index:2; pointer-events:none; filter:drop-shadow(0 2px 6px rgba(0,0,0,.55)); }
+        .rf-thumb .rf-logo.rf-l { left:14%; transform:translateY(-50%); }
+        .rf-thumb .rf-logo.rf-r { right:14%; transform:translateY(-50%); }
+        .rf-thumb .rf-overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.45); opacity:0; transition:opacity .18s; z-index:3; }
+        .rf-card:hover .rf-overlay { opacity:1; }
+        .rf-thumb .rf-play { width:54px; height:54px; border-radius:50%; background:rgba(0,212,255,.85); display:flex; align-items:center; justify-content:center; box-shadow:0 0 18px rgba(0,212,255,.5); }
+        .rf-thumb .rf-play svg { width:22px; height:22px; margin-left:4px; fill:#04101a; }
+        .rf-thumb .rf-hd { position:absolute; top:8px; right:8px; background:#10b981; color:#04101a; font-size:10px; font-weight:800; letter-spacing:.4px; padding:3px 7px; border-radius:6px; z-index:4; pointer-events:none; }
+        .rf-thumb .rf-date { position:absolute; bottom:8px; left:8px; background:rgba(4,16,26,.85); color:#c7cbdb; font-size:10px; font-weight:700; padding:3px 8px; border-radius:6px; z-index:4; pointer-events:none; }
+        .rf-thumb .rf-league { position:absolute; top:8px; left:8px; background:rgba(4,16,26,.85); color:#e6e8f0; font-size:10px; font-weight:700; padding:3px 8px; border-radius:6px; z-index:4; pointer-events:none; max-width:55%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .rf-title { padding:10px 12px 12px; font-size:13px; font-weight:700; color:#fff; line-height:1.35; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+        .rf-title .rf-teams { flex:1; }
+        .rf-title .rf-vs-text { color:#00d4ff; font-weight:800; }
+        .rf-title .rf-type { font-size:10px; font-weight:700; letter-spacing:.4px; color:#04101a; background:#10b981; padding:3px 7px; border-radius:6px; white-space:nowrap; }
+        /* ReFooty player modal */
+        .rf-modal { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; }
+        .rf-modal-backdrop { position:absolute; inset:0; background:rgba(2,6,12,.82); }
+        .rf-modal-dialog { position:relative; background:#0a1018; border:1px solid rgba(16,185,129,.45); border-radius:var(--radius-md); width:min(96vw,980px); max-height:94vh; display:flex; flex-direction:column; box-shadow:0 24px 60px rgba(0,0,0,.6); }
+        .rf-modal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; border-bottom:1px solid var(--color-border); }
+        .rf-modal-head span { font-size:14px; font-weight:700; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .rf-close { background:transparent; border:1px solid rgba(255,255,255,.15); color:#fff; border-radius:8px; width:30px; height:30px; cursor:pointer; font-size:14px; }
+        .rf-player-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; }
+        .rf-player-wrap iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+        .rf-modal-foot { padding:10px 16px; border-top:1px solid var(--color-border); display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+        .rf-empty { grid-column:1/-1; text-align:center; padding:38px 14px; color:var(--color-text-dim); }
+        .rf-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(16,185,129,.35); border-top-color:#10b981; border-radius:50%; animation:rf-spin .7s linear infinite; vertical-align:-2px; margin-right:6px; }
+        @keyframes rf-spin { to { transform:rotate(360deg); } }
         .tab-panel.is-active { display:block; }
         @keyframes fade-in { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
         .layout { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
@@ -245,6 +281,7 @@
     <button data-tab="channels-tab" onclick="Gen.showTab(this,'channels-tab'); Gen.loadChannels();">Channel Manager</button>
     <button data-tab="calendar-tab" onclick="Gen.showTab(this,'calendar-tab'); Gen.renderCalendar(); Gen.loadScheduledEvents();">Calendar</button>
     <button data-tab="compose-tab" onclick="Gen.showTab(this,'compose-tab'); Compose.onTabOpen();">✍️ Compose &amp; Post</button>
+    <button data-tab="videos-tab" onclick="Gen.showTab(this,'videos-tab'); ReFooty.onTabOpen();">🎬 Highlights &amp; Full Matches</button>
     <button data-tab="io-tab" onclick="Gen.showTab(this,'io-tab');">Import / Export</button>
 </div>
 
@@ -826,6 +863,57 @@ IMPORT / EXPORT TAB
         <p><code>category</code> — one of: football, basketball, nfl, hockey, baseball, f1, nascar, motorsport, boxing, mma, cycling, cricket, other.</p>
         <p><code>duration</code> — minutes, controls the live window length.</p>
         <p><code>isRacing</code> — boolean, hides away-team markup for single-entrant events.</p>
+    </div>
+</div>
+
+<!-- ============================================================
+     🎬 Highlights & Full Matches (ReFooty)
+============================================================= -->
+<div class="tab-panel" id="videos-tab">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <div>
+            <h2 style="margin:0;font-size:18px;text-transform:none;letter-spacing:0;color:#fff;">🎬 Highlights &amp; Full Matches</h2>
+            <p class="hint" style="margin:4px 0 0;">Live feed from <a href="https://refooty.com/" target="_blank" rel="noopener" style="color:var(--color-link);">refooty.com</a> — click a card to play the stream in the Sports803 player.</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-primary rf-sub" id="rf-btn-highlights" onclick="ReFooty.loadView('highlights')">⚡ Highlights</button>
+            <button class="btn-primary rf-sub" id="rf-btn-full" onclick="ReFooty.loadView('full')">🎥 Full Matches</button>
+            <button class="btn-secondary" onclick="ReFooty.refresh()" title="Force reload from refooty.com">🔄 Refresh</button>
+        </div>
+    </div>
+
+    <div class="rf-view" id="rf-view-highlights">
+        <div id="rf-highlights-grid" class="rf-grid"></div>
+        <p class="hint" id="rf-highlights-status">Loading latest highlights…</p>
+    </div>
+
+    <div class="rf-view" id="rf-view-full" style="display:none;">
+        <div id="rf-full-grid" class="rf-grid"></div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap;">
+            <button class="btn-secondary" id="rf-full-prev" onclick="ReFooty.fullPageNav(-1)" disabled>← Previous page</button>
+            <span class="hint" id="rf-full-pageinfo">Page 1</span>
+            <button class="btn-secondary" id="rf-full-next" onclick="ReFooty.fullPageNav(1)" disabled>Next page →</button>
+        </div>
+        <p class="hint" id="rf-full-status">Loading full match replays…</p>
+    </div>
+</div>
+
+<!-- ReFooty player modal -->
+<div id="rf-player-modal" class="rf-modal" style="display:none;">
+    <div class="rf-modal-backdrop" onclick="ReFooty.closePlayer()"></div>
+    <div class="rf-modal-dialog">
+        <div class="rf-modal-head">
+            <span id="rf-modal-title">Playing…</span>
+            <button class="rf-close" onclick="ReFooty.closePlayer()" title="Close">✕</button>
+        </div>
+        <div class="rf-player-wrap">
+            <iframe id="rf-player-iframe" src="about:blank" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>
+        </div>
+        <div class="rf-modal-foot">
+            <span class="hint" id="rf-modal-m3u8" style="word-break:break-all;"></span>
+            <button class="btn-secondary" id="rf-modal-open" onclick="ReFooty.openInNewTab()">↗ Open player in new tab</button>
+            <button class="btn-secondary" onclick="ReFooty.copyStreamUrl()">📋 Copy stream URL</button>
+        </div>
     </div>
 </div>
 
@@ -5196,6 +5284,418 @@ document.addEventListener('DOMContentLoaded', function() {
         Compose.updateClientIdWarning();
     }
 });
+var ReFooty = {
+    CDN: 'https://img.refooty.com',
+    SITE: 'https://refooty.com',
+    JINA: 'https://r.jina.ai/',
+    FALLBACK: 'https://api.allorigins.win/raw?url=',
+    PLAYER: 'https://sports803.github.io/player/',
+    CACHE_TTL: 5 * 60 * 1000,
+    _currentView: 'highlights',
+    _fullPage: 1,
+    _fullMaxPage: 1,
+    _modal: null,
+    _currentStream: null,
+
+    // ---------- public ----------
+    onTabOpen: function() {
+        if (this._currentView === 'highlights') { this.loadView('highlights'); }
+        else { this.loadView('full'); }
+    },
+    refresh: function() {
+        this._clearCache();
+        if (this._currentView === 'highlights') { this.loadView('highlights'); }
+        else { this.loadView('full'); }
+    },
+
+    loadView: function(view) {
+        this._currentView = view;
+        document.getElementById('rf-view-highlights').style.display = view === 'highlights' ? '' : 'none';
+        document.getElementById('rf-view-full').style.display = view === 'full' ? '' : 'none';
+        var bh = document.getElementById('rf-btn-highlights');
+        var bf = document.getElementById('rf-btn-full');
+        bh.style.opacity = view === 'highlights' ? '1' : '.55';
+        bf.style.opacity = view === 'full' ? '1' : '.55';
+        if (view === 'highlights') { this.loadHighlights(); }
+        else { this.loadFullMatches(); }
+    },
+
+    // ---------- highlights (homepage) ----------
+    loadHighlights: function() {
+        var grid = document.getElementById('rf-highlights-grid');
+        var status = document.getElementById('rf-highlights-status');
+        grid.innerHTML = '';
+        status.innerHTML = '<span class="rf-spinner"></span>Loading latest highlights from refooty.com…';
+        this.fetchJina('/', 'rf:home', function(md) {
+            var cards = this.parseListingCards(md, false);
+            this.renderCards(grid, cards, 'HL');
+            status.textContent = cards.length ? cards.length + ' highlights loaded. Click a card to play.' : 'No highlights found on refooty.com right now.';
+        }.bind(this), function(err) {
+            grid.innerHTML = '<div class="rf-empty">Could not reach refooty.com (' + err + ').<br/>Try again in a moment — the reader service may be rate-limited (20 requests/min).</div>';
+            status.textContent = '';
+        });
+    },
+
+    // ---------- full matches ----------
+    loadFullMatches: function() {
+        var self = this;
+        var page = this._fullPage;
+        var grid = document.getElementById('rf-full-grid');
+        var status = document.getElementById('rf-full-status');
+        grid.innerHTML = '';
+        status.innerHTML = '<span class="rf-spinner"></span>Loading full match replays…';
+        this.fetchJina('/full-matches?page=' + page, 'rf:full:' + page, function(md) {
+            var cards = self.parseListingCards(md, true);
+            if (!cards.length) { self._fullMaxPage = Math.max(1, page - 1); self._fullPage = self._fullMaxPage; status.textContent = 'No more full match replays.'; grid.innerHTML = '<div class="rf-empty">End of the list.</div>'; return; }
+            self._fullMaxPage = Math.max(page, self._fullMaxPage);
+            // auto-warm the next page while the user browses the current one
+            self.fetchJina('/full-matches?page=' + (page + 1), 'rf:full:' + (page + 1), function(md) { if (self.parseListingCards(md, true).length) { self._fullMaxPage = Math.max(self._fullMaxPage, page + 1); self.updateFullNav(); } else { self._fullMaxPage = Math.max(1, page); self.updateFullNav(); } }, function() {});
+            status.innerHTML = '<span class="rf-spinner"></span>Resolving stream URLs for ' + cards.length + ' replays…';
+            self.resolveM3u8Batch(cards, function(resolved, failed) {
+                self.renderCards(grid, resolved, 'FM');
+                var note = resolved.length + ' replays ready';
+                if (failed.length) note += ' · ' + failed.length + ' could not be resolved';
+                note += '. Click a card to play.';
+                status.textContent = note;
+                self.updateFullNav();
+            });
+        }, function(err) {
+            grid.innerHTML = '<div class="rf-empty">Could not reach refooty.com (' + err + ').<br/>Try again in a moment — the reader service may be rate-limited.</div>';
+            status.textContent = '';
+        });
+    },
+
+    fullPageNav: function(delta) {
+        this._fullPage = Math.max(1, this._fullPage + delta);
+        this.loadView('full');
+        window.scrollTo({ top: document.getElementById('videos-tab').offsetTop - 10, behavior: 'smooth' });
+    },
+    updateFullNav: function() {
+        document.getElementById('rf-full-prev').disabled = this._fullPage <= 1;
+        document.getElementById('rf-full-next').disabled = this._fullPage >= this._fullMaxPage;
+        document.getElementById('rf-full-pageinfo').textContent = 'Page ' + this._fullPage + ' of ' + this._fullMaxPage;
+    },
+
+    // ---------- fetch + cache ----------
+    // refooty.com sends no CORS headers, so pages are fetched through r.jina.ai
+    // (which renders any URL to Markdown with CORS enabled), with a secondary
+    // raw-text fallback proxy when the reader is busy or rate-limited.
+    fetchJina: function(path, cacheKey, onOk, onFail) {
+        var self = this;
+        var cached = this.readCache(cacheKey);
+        if (cached) { onOk(cached); return; }
+        var tryDirect = function() {
+            fetch(self.JINA + self.SITE + path, { cache: 'no-store' })
+                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+                .then(function(md) { self.writeCache(cacheKey, md); onOk(md); })
+                .catch(function() {
+                    fetch(self.FALLBACK + encodeURIComponent(self.SITE + path), { cache: 'no-store' })
+                        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+                        .then(function(html) { self.writeCache(cacheKey, html); onOk(html); })
+                        .catch(onFail);
+                });
+        };
+        tryDirect();
+    },
+    readCache: function(key) {
+        try {
+            var raw = localStorage.getItem(key);
+            if (!raw) return null;
+            var obj = JSON.parse(raw);
+            if (Date.now() - obj.ts > this.CACHE_TTL) { localStorage.removeItem(key); return null; }
+            return obj.html;
+        } catch (e) { return null; }
+    },
+    writeCache: function(key, html) {
+        try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), html: html })); } catch (e) {}
+    },
+    _clearCache: function() {
+        for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('rf:') === 0) localStorage.removeItem(k); }
+    },
+
+    // ---------- parsers (r.jina.ai Markdown or raw HTML fallback) ----------
+    parseListingCards: function(text, isFull) {
+        var self = this;
+        var lines = text.split('\n');
+        var cards = [];
+        // matches both '![Image...] HD](url)' and simple '[HD](url)' anchors
+        // NOTE: inner image markdown is '![alt](url)' (starts with !), so the repeated inner group uses !?\[...\]
+        var reAnchor = /\[(?:!?\[[^\]]*\]\([^)]*\)\s*)*(?:Full Match )?HD[^\]]*\]\(https:\/\/refooty\.com\/video\/([^)\s]+)/;
+        var reLogo = /!\[Image \d+: ([^\]]*)\]\((https:\/\/img\.refooty\.com\/logo\/teams\/\d+\.webp)\)/g;
+        lines.forEach(function(line, i) {
+            var am = reAnchor.exec(line);
+            if (!am) return;
+            var slug = am[1].split('?')[0];
+            // team logos from the anchor itself (full-matches cards include them)
+            var teamLogos = [];
+            var imgm;
+            while ((imgm = reLogo.exec(am[0])) !== null) teamLogos.push({ name: imgm[1], url: imgm[2] });
+            reLogo.lastIndex = 0;
+            // team-name text line(s) immediately after the anchor line
+            var teams = [];
+            var t = i + 1;
+            var blanks = 0;
+            while (t < lines.length && !lines[t].trim()) { blanks++; t++; }
+            if (blanks > 1) { /* gap too large — the line belongs to another card */ t = lines.length; }
+            if (t < lines.length && !reAnchor.test(lines[t]) && !/^#|\[[^\]]+\]\(/.test(lines[t])) {
+                var tl = lines[t].trim().replace(/\s+/g, ' ');
+                // drop trailing quality tag like ' Full Match HD'
+                tl = tl.replace(/\bFull Match HD\s*$/i, '').replace(/\bHD\s*$/i, '').trim();
+                // strip leading 'View all →' link markup if present
+                tl = tl.replace(/^\[[^\]]*\]\([^)]*\)\s*/i, '').trim();
+                tl = tl.replace(/\bFull Match HD\s*$/i, '').replace(/\bHD\s*$/i, '').trim();
+                if (/\s(?:vs|v)\s/i.test(tl)) {
+                    var tpm = tl.match(/^(.+?)\s+(?:vs|v)\s+(.+)$/i);
+                    if (tpm) teams = [self.cap(tpm[1].trim()), self.cap(tpm[2].trim())];
+                } else if (tl) {
+                    teams = [self.cap(tl)];
+                }
+            }
+            // league & relative date: nearest preceding league anchor line within 8 lines
+            var league = '', dateStr = '';
+            // news/behind-the-scenes blocks use a plain-text line like ' News  3 days ago '
+            // immediately before the [HD](...) anchor (no markdown link)
+            for (var p = i - 1; p >= Math.max(0, i - 4) && !league; p--) {
+                var pl = lines[p].trim().replace(/\s+/g, ' ');
+                var pm = pl.match(/^(News|Behind the Scenes|[A-Za-z][A-Za-z ,'.:&\-]{2,28})\s+(yesterday|today|\d+ days? ago|\d+ weeks? ago|\d+ months? ago)?\s*$/i);
+                if (pm) { league = pm[1]; if (pm[2]) dateStr = pm[2]; }
+            }
+            for (var b = i - 1; b >= Math.max(0, i - 12) && !league; b--) {
+                var lm = lines[b].match(/\[([^\]\n]+)\]\(https:\/\/refooty\.com\/([^)\s]+)\)\s+((?:yesterday|today|\d+ days? ago|\d+ weeks? ago|\d+ months? ago))\s*$/);
+                if (lm && lm[2].indexOf('/video/') === -1 && lm[2].indexOf('/all-') === -1) {
+                    league = lm[1];
+                    dateStr = lm[3];
+                } else {
+                    var lm2 = lines[b].match(/\[([^\]\n]+)\]\(https:\/\/refooty\.com\/([^)\s]+)(?:\s+"[^"]*")?\)/);
+                    if (lm2 && lm2[2].indexOf('/video/') === -1 && lm2[2].indexOf('/all-') === -1 && lm2[1].length > 2 && lm2[1].length < 30 && !/view\s+all/i.test(lm2[1]) && !/^(hd|full|news|videos|image)$/i.test(lm2[1]) && !/^image\s+\d+/i.test(lm2[1])) { league = lm2[1]; }
+                }
+            }
+            if (!league) {
+                for (var a = i + 1; a < Math.min(lines.length, i + 8) && !league; a++) {
+                    var lf = lines[a].trim().replace(/\s+/g, ' ');
+                    var lfm = lf.match(/\[([^\]\n]+)\]\(https:\/\/refooty\.com\/([^)\s]+)(?:\s+"[^"]*")?\)\s+((?:yesterday|today|\d+ days? ago|\d+ weeks? ago|\d+ months? ago))?\s*$/);
+                    if (lfm && lfm[2].indexOf('/video/') === -1 && lfm[2].indexOf('/all-') === -1 && lfm[1].length > 2 && lfm[1].length < 30 && !/view\s+all/i.test(lfm[1]) && !/^(hd|full|news|videos|image)$/i.test(lfm[1]) && !/^image\s+\d+/i.test(lfm[1])) {
+                        league = lfm[1];
+                        if (lfm[3]) dateStr = lfm[3];
+                    }
+                }
+            }
+            if (isFull) league = league.replace(/Full Matches?$/i, '').trim();
+            var home = teamLogos[0] ? teamLogos[0].name : (teams[0] || '');
+            var away = teamLogos[1] ? teamLogos[1].name : (teams[1] || '');
+            cards.push({
+                slug: slug,
+                title: '',
+                home: home,
+                away: away,
+                homeLogo: teamLogos[0] ? teamLogos[0].url : '',
+                awayLogo: teamLogos[1] ? teamLogos[1].url : '',
+                cover: '',
+                date: self.readableDate(dateStr),
+                league: league,
+                m3u8: null,
+                needsResolve: true
+            });
+        });
+        cards.forEach(function(c) {
+            c.title = (c.home ? c.home : c.slug.replace(/-/g, ' ')) + (c.away ? ' vs ' + c.away : '');
+            if (!c.m3u8) {
+                // don't guess — the real m3u8 name is embedded in the video page (JSON-LD / markdown);
+                // resolve on click via fetchVideoPageM3u8 instead
+                c.m3u8 = null;
+            }
+        });
+        // dedupe same slug
+        var seen = {};
+        return cards.filter(function(c) {
+            if (seen[c.slug]) return false;
+            seen[c.slug] = 1;
+            return !!c.title.trim();
+        });
+    },
+    readableDate: function(rel) {
+        if (!rel) return '';
+        var now = new Date();
+        var d;
+        if (rel === 'today') d = now;
+        else if (rel === 'yesterday') d = new Date(now.getTime() - 864e5);
+        else {
+            var mm = rel.match(/(\d+) (\w+) ago/);
+            if (mm) {
+                var n = parseInt(mm[1], 10);
+                var unit = mm[2].replace(/s$/, '');
+                var ms = unit === 'day' ? n * 864e5 : unit === 'week' ? n * 7 * 864e5 : n * 30 * 864e5;
+                d = new Date(now.getTime() - ms);
+            } else return '';
+        }
+        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    },
+    slugToM3u8: function(slug) {
+        // barcelona-v-al-ahly-2026-08-19 -> Barcelona_v_Al_Ahly_2026_08_19
+        var clean = slug.replace(/_\d+$/, '').replace(/-full-match$/, '').replace(/-highlights$/, '');
+        var parts = clean.split('-');
+        if (!/[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(clean)) return null;
+        var date = parts.slice(-3);
+        var words = parts.slice(0, parts.length - 3);
+        if (!words.length) return null;
+        return this.CDN + '/m3u8/' + words.map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join('_') + '_' + date.join('_') + '.m3u8';
+    },
+    cap: function(s) { return s.replace(/\b\w/g, function(ch) { return ch.toUpperCase(); }); },
+
+    // ---------- m3u8 resolution for full matches ----------
+    resolveM3u8Batch: function(cards, done) {
+        var self = this;
+        var resolved = [], failed = [], i = 0, pending = 0;
+        function finish() { done(resolved, failed); }
+        function next() {
+            while (i < cards.length && pending < 3) {
+                var c = cards[i++];
+                if (c.m3u8) { resolved.push(c); continue; }
+                pending++;
+                self.fetchVideoPageM3u8(c.slug, function(m3u8, title) {
+                    pending--;
+                    if (m3u8) { c.m3u8 = m3u8; if (title) c.title = title; resolved.push(c); }
+                    else { failed.push(c); }
+                    next();
+                    if (pending === 0 && i >= cards.length) finish();
+                });
+            }
+            if (i >= cards.length && pending === 0) finish();
+        }
+        next();
+    },
+    fetchVideoPageM3u8: function(slug, cb) {
+        var cacheKey = 'rf:vp:' + slug;
+        var self = this;
+        var cached = this.readCache(cacheKey);
+        if (cached) {
+            var m3 = (cached.match(/\(https:\/\/img\.refooty\.com\/m3u8\/[^)\s]+\.m3u8\)/) || [])[0] || (cached.match(/"contentUrl":"(https:\/\/[^"\s]+m3u8[^"\s]*)"/) || [])[1] || null;
+            var t = (cached.match(/^Title:\s*(.+)$/m) || [])[1] || ((cached.match(/<title>([^<]*)<\/title>/) || [])[1] || '');
+            if (m3) { cb(m3, t ? t.replace(/\s*-\s*Watch.*/i, '').trim() : null); return; }
+            // cached html (e.g. jina markdown) contains no stream — refetch live
+        }
+        function extractM3u8(html) { return (html.match(/"contentUrl":"(https:\/\/[^"\s]+m3u8[^"\s]*)"/) || [])[1] || null; }
+        function extractTitle(html) { return ((html.match(/^Title:\s*(.+)$/m) || [])[1] || (html.match(/<title>([^<]*)<\/title>/) || [])[1] || '').replace(/\s*-\s*Watch.*/i, '').trim(); }
+        function tryCorsSh() {
+            return fetch('https://proxy.cors.sh/' + self.SITE + '/video/' + slug, { cache: 'no-store' })
+                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+                .then(function(html) {
+                    var m3 = extractM3u8(html);
+                    if (m3) try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), html: html })); } catch (e) {}
+                    cb(m3, m3 ? extractTitle(html) : null);
+                })
+                .catch(function() { cb(null, null); });
+        }
+        function tryAllOrigins() {
+            return fetch(self.FALLBACK + encodeURIComponent(self.SITE + '/video/' + slug), { cache: 'no-store' })
+                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+                .then(function(html) {
+                    var m3 = extractM3u8(html);
+                    if (m3) { try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), html: html })); } catch (e) {} cb(m3, extractTitle(html)); }
+                    else tryCorsSh();
+                })
+                .catch(tryCorsSh);
+        }
+        fetch(this.JINA + this.SITE + '/video/' + slug, { cache: 'no-store' })
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(function(md) {
+                var m3 = (md.match(/https:\/\/img\.refooty\.com\/m3u8\/[^)\s]+\.m3u8/) || [])[0] || null;
+                var t = (md.match(/^Title:\s*(.+)$/m) || [])[1] || '';
+                if (m3) { try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), html: md })); } catch (e) {} cb(m3, t.replace(/\s*-\s*Watch.*/i, '').trim()); }
+                else tryAllOrigins(); // jina strips JSON-LD; fall through to raw-HTML tiers
+            })
+            .catch(tryAllOrigins);
+    },
+
+    // ---------- rendering ----------
+    renderCards: function(grid, cards, type) {
+        var self = this;
+        grid.innerHTML = '';
+        if (!cards.length) { grid.innerHTML = '<div class="rf-empty">No videos found.</div>'; return; }
+        cards.forEach(function(c) {
+            var playable = !!c.m3u8;
+            var card = document.createElement('div');
+            card.className = 'rf-card';
+            card.setAttribute('role', 'button');
+            card.setAttribute('aria-label', 'Play ' + c.title);
+            card.innerHTML =
+                '<div class="rf-thumb">' +
+                    '<div class="rf-bg"' + (c.cover ? ' style="background-image:url(\'' + c.cover + '\')"' : '') + '></div>' +
+                    '<img class="rf-vs" src="' + self.SITE + '/vs.webp" alt="VS" onerror="this.style.display=\'none\'" loading="lazy"/>' +
+                    (c.homeLogo ? '<img class="rf-logo rf-l" src="' + c.homeLogo + '" alt="' + self.esc(c.home) + '" loading="lazy" onerror="this.style.display=\'none\'"/>' : '') +
+                    (c.awayLogo ? '<img class="rf-logo rf-r" src="' + c.awayLogo + '" alt="' + self.esc(c.away) + '" loading="lazy" onerror="this.style.display=\'none\'"/>' : '') +
+                    '<div class="rf-overlay"><div class="rf-play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>' +
+                    '<span class="rf-hd">HD</span>' +
+                    (c.date ? '<span class="rf-date">' + c.date + '</span>' : '') +
+                    (c.league ? '<span class="rf-league">' + self.esc(c.league) + '</span>' : '') +
+                '</div>' +
+                '<div class="rf-title"><span class="rf-teams">' + self.esc(c.title) + '</span>' +
+                '<span class="rf-type">' + (type === 'FM' ? 'FULL MATCH' : 'HIGHLIGHT') + '</span></div>';
+            card.onclick = function() { self.playCard(c); };
+            if (!playable) {
+                card.style.opacity = '.65';
+                card.setAttribute('title', 'Stream URL not available — the replay may still be processing.');
+            }
+            grid.appendChild(card);
+        });
+    },
+    esc: function(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); },
+
+    // ---------- player modal ----------
+    playCard: function(card) {
+        var self = this;
+        var modal = document.getElementById('rf-player-modal');
+        document.getElementById('rf-modal-title').textContent = card.title + (card.date ? ' · ' + card.date : '');
+        document.getElementById('rf-modal-m3u8').textContent = 'Resolving stream…';
+        document.getElementById('rf-player-iframe').src = 'about:blank';
+        modal.style.display = 'flex';
+        function openWith(m3u8) {
+            if (!m3u8) { self.toast('This replay has no stream available yet — try again later.', 4000); return; }
+            self._currentStream = m3u8;
+            card.m3u8 = m3u8;
+            document.getElementById('rf-modal-m3u8').textContent = m3u8;
+            document.getElementById('rf-player-iframe').src = self.PLAYER + '?mora=' + encodeURIComponent(m3u8);
+        }
+        // prefer the real m3u8 from the video page (cached); slug-based CDN guess is unreliable
+        self.fetchVideoPageM3u8(card.slug, function(m3u8, title) {
+            openWith(m3u8);
+        });
+    },
+    closePlayer: function() {
+        var modal = document.getElementById('rf-player-modal');
+        modal.style.display = 'none';
+        var iframe = document.getElementById('rf-player-iframe');
+        iframe.src = 'about:blank';
+        this._currentStream = null;
+    },
+    openInNewTab: function() {
+        if (this._currentStream) window.open(this.PLAYER + '?mora=' + encodeURIComponent(this._currentStream), '_blank', 'noopener');
+    },
+    copyStreamUrl: function() {
+        if (!this._currentStream) return;
+        var tf = document.createElement('textarea');
+        tf.value = this._currentStream;
+        document.body.appendChild(tf);
+        tf.select();
+        try { document.execCommand('copy'); this.toast('Stream URL copied to clipboard.', 2500); } catch (e) { this.toast('Copy failed — select the URL manually.', 3000); }
+        document.body.removeChild(tf);
+    },
+    toast: function(msg, ms) {
+        var box = document.createElement('div');
+        box.textContent = msg;
+        box.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0a1018;border:1px solid rgba(16,185,129,.5);color:#fff;font-size:13px;font-weight:600;padding:10px 18px;border-radius:10px;z-index:10000;box-shadow:0 8px 24px rgba(0,0,0,.5);max-width:88vw;';
+        document.body.appendChild(box);
+        setTimeout(function() { box.style.opacity = '0'; box.style.transition = 'opacity .4s'; setTimeout(function() { box.remove(); }, 400); }, ms || 3000);
+    }
+};
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        var m = document.getElementById('rf-player-modal');
+        if (m && m.style.display !== 'none') ReFooty.closePlayer();
+    }
+});
+
 
 //]]>
 </script>
