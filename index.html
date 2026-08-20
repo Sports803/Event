@@ -718,11 +718,28 @@ COMPOSE & POST TAB
 
             <h2 style="margin-top:18px;">Article body</h2>
             <button class="btn-secondary" onclick="Compose.fetchLiveStats()">⚡ Fetch Live Score &amp; Goals (ESPN)</button>
-            <p class="hint" id="cp-live-status">Optional — fetches score and goal scorers for head-to-head team sports.</p>
+            <button class="btn-secondary" onclick="Compose.fillAllSections()" style="margin-left:6px;">🤖 Auto-fill All Sections</button>
+            <p class="hint" id="cp-live-status">Optional — fetches score and goal scorers for head-to-head team sports. Auto-fill pulls every data-backed section for the current match status in one pass.</p>
+            <p class="hint" id="cp-match-status"></p>
+            <div class="tpl-btn-row">
+                <button class="tpl-btn" onclick="Compose.insertSection('overview')">+ Match Overview</button>
+                <button class="tpl-btn" onclick="Compose.insertSection('details')">+ Match Details</button>
+                <button class="tpl-btn" onclick="Compose.insertSection('form')">+ Team Form</button>
+                <button class="tpl-btn" onclick="Compose.insertSection('h2h')">+ Head-to-Head</button>
+                <button class="tpl-btn" onclick="Compose.insertSection('keyPlayers')">+ Key Players</button>
+                <button class="tpl-btn" onclick="Compose.insertSection('analysis')">+ Match Analysis</button>
+            </div>
+            <div class="tpl-btn-row">
+                <button class="tpl-btn" onclick="Compose.insertSection('liveEvents')">+ Live Match Events</button>
+                <button class="tpl-btn" onclick="Compose.insertSection('result')">+ Full-Time Result</button>
+                <button class="tpl-btn" onclick="Compose.insertSection('recap')">+ Detailed Recap</button>
+                <button class="tpl-btn" onclick="Compose.insertSection('stats')">+ Match Statistics</button>
+                <button class="tpl-btn" onclick="Compose.insertSection('implications')">+ What This Result Means</button>
+                <button class="tpl-btn" onclick="Compose.insertSection('related')">+ Related Articles</button>
+            </div>
             <div class="tpl-btn-row">
                 <button class="tpl-btn" onclick="Compose.insertTemplate('preview')">+ Match Preview</button>
                 <button class="tpl-btn" onclick="Compose.insertTemplate('howtowatch')">+ How To Watch</button>
-                <button class="tpl-btn" onclick="Compose.insertTemplate('h2h')">+ H2H Block</button>
                 <button class="tpl-btn" onclick="Compose.insertTemplate('faq')">+ FAQ (SEO)</button>
                 <button class="tpl-btn" onclick="Compose.insertTemplate('cta')">+ Stream CTA</button>
                 <button class="tpl-btn" onclick="Compose.insertTemplate('highlights')">+ Highlights Recap</button>
@@ -3350,9 +3367,11 @@ var UnifiedGenerator = {
                         var thumbUrl = data.data.url;
                         document.getElementById('cp-thumb-url').value = thumbUrl;
 
-                        var templates = ['preview', 'howtowatch', 'h2h', 'faq', 'cta', 'highlights'];
-                        templates.forEach(function(t) {
-                            Compose.insertTemplate(t);
+                        Compose.fillAllSections().then(function() {
+                            Compose.insertTemplate('preview');
+                            Compose.insertTemplate('howtowatch');
+                            Compose.insertTemplate('faq');
+                            Compose.insertTemplate('cta');
                         });
 
                         var titleEl = document.getElementById('cp-title');
@@ -3455,6 +3474,9 @@ var Compose = {
     _thumbTimeout: null,
     _liveStats: null,
     _providerFixtureId: null,
+    _espn: null,
+    _espnLoading: false,
+    _matchStatusText: '',
 
     onTabOpen: function() {
         Compose.loadSettings();
@@ -4073,6 +4095,24 @@ var Compose = {
         }
     },
 
+    // ============================================================
+    // RICH SECTION TEMPLATES (data-backed, status-conditional)
+    // ============================================================
+    SECTION_TEMPLATES: {
+        overview: '<h2>Match Overview: {homeName} vs {awayName}</h2>{overviewP1}{overviewP2}{overviewP3}{overviewP4}',
+        details: '<h2>Match Details</h2><table style="width:100%;border-collapse:collapse;max-width:520px;"><tbody><tr style="border-bottom:1px solid rgba(255,255,255,.12);"><td style="padding:8px 12px;font-weight:700;width:150px;">Date &amp; Time</td><td style="padding:8px 12px;">{date} at {time}</td></tr><tr style="border-bottom:1px solid rgba(255,255,255,.12);"><td style="padding:8px 12px;font-weight:700;">Competition</td><td style="padding:8px 12px;">{league}</td></tr>{detailsVenueRow}</tbody></table>',
+        form: '<h2>Team Form: Last 5</h2><table style="width:100%;border-collapse:collapse;max-width:640px;"><tbody><tr style="border-bottom:1px solid rgba(255,255,255,.12);"><td style="padding:8px 12px;font-weight:700;">{homeName}</td><td style="padding:8px 12px;">{homeFormStrip}</td></tr>{homeFormRows}<tr style="border-bottom:1px solid rgba(255,255,255,.12);"><td style="padding:8px 12px;font-weight:700;">{awayName}</td><td style="padding:8px 12px;">{awayFormStrip}</td></tr>{awayFormRows}</tbody></table>',
+        h2h: '<h2>Head-to-Head</h2>{h2hSummary}<table style="width:100%;border-collapse:collapse;max-width:640px;"><tbody>{h2hRows}</tbody></table>',
+        keyPlayers: '<h2>Key Players to Watch</h2><table style="width:100%;border-collapse:collapse;max-width:640px;"><tbody>{keyPlayersRows}</tbody></table>',
+        analysis: '<h2>Match Analysis</h2><p>{analysisText}</p>',
+        liveEvents: '<h2>Live Match Events</h2>{liveEventsContent}',
+        result: '<h2>Full-Time Result</h2>{resultContent}',
+        recap: '<h2>Detailed Recap: {homeName} vs {awayName}</h2>{recapContent}',
+        stats: '<h2>Match Statistics</h2>{statsContent}',
+        implications: '<h2>What This Result Means</h2><p>{implicationsText}</p>',
+        related: '<h2>Related Articles</h2>{relatedContent}'
+    },
+
     getTemplateData: function() {
         var titleEl = document.getElementById('cp-title');
         var title = (titleEl && titleEl.value) || '';
@@ -4294,6 +4334,585 @@ var Compose = {
             setStatus('⚠️ Could not reach ESPN (' + err.message + '). Check your connection and try again.');
             return Compose._liveStats;
         });
+    },
+
+    // ============================================================
+    // ESPNRICH — data layer for rich, status-conditional sections
+    // ============================================================
+    _espnCacheTtlMs: 10 * 60 * 1000, // 10 minutes
+    _statusStateMap: {
+        '1': 'STATUS_SCHEDULED',
+        '2': 'STATUS_LIVE',
+        '3': 'STATUS_FINAL',
+        '8': 'STATUS_FINAL'
+    },
+    fbCacheBase: function() {
+        var url = document.getElementById('fb-url').value.replace(/\/$/, '');
+        return url + '/s803config/espnCache';
+    },
+    readCache: function(key) {
+        try {
+            var raw = localStorage.getItem('espn-rich-' + key);
+            if (!raw) return null;
+            var o = JSON.parse(raw);
+            if (o && o.ts && Date.now() - o.ts < Compose._espnCacheTtlMs) return o.data;
+            localStorage.removeItem('espn-rich-' + key);
+            return null;
+        } catch(e) { return null; }
+    },
+    writeCache: function(key, data) {
+        try {
+            localStorage.setItem('espn-rich-' + key, JSON.stringify({ ts: Date.now(), data: data }));
+            // Back up to Firebase so other tabs/sessions share the cache.
+            var body = {};
+            body[key] = { ts: Date.now(), data: data };
+            fetch(Compose.fbCacheBase() + '.json', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            }).catch(function() { /* cache still works locally */ });
+        } catch(e) { /* ignore */ }
+    },
+    espnFetch: function(url) {
+        var key = 'url:' + btoa(url);
+        var cached = Compose.readCache(key);
+        if (cached) return Promise.resolve(cached);
+        var tryFetch = function(attempt) {
+            return new Promise(function(resolve) {
+                var ctrl = window.AbortController ? new AbortController() : null;
+                var timer = setTimeout(function() { if (ctrl) ctrl.abort(); }, 20000);
+                var opts = { method: 'GET' };
+                if (ctrl) opts.signal = ctrl.signal;
+                fetch(url, opts)
+                .then(function(r) {
+                    clearTimeout(timer);
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(function(j) { resolve({ data: j, fresh: true }); })
+                .catch(function() {
+                    clearTimeout(timer);
+                    if (attempt < 2) { setTimeout(function() { tryFetch(attempt + 1).then(resolve); }, 1500); }
+                    else { var c = Compose.readCache(key); resolve(c ? { data: c, fresh: false } : null); }
+                });
+            });
+        };
+        return tryFetch(0).then(function(res) {
+            if (res && res.data) Compose.writeCache(key, res.data);
+            return res ? res.data : null;
+        }).catch(function() { return Compose.readCache(key); });
+    },
+    norm: function(s) { return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); },
+    findMatchEvent: function(data) {
+        var d = Compose.getTemplateData();
+        var resolved = Compose.resolveEspnLeague(d.league);
+        if (!resolved || d.isRacing) return null;
+        var events = (data && data.events) || [];
+        var homeKey = Compose.norm(d.homeName), awayKey = Compose.norm(d.awayName);
+        for (var i = 0; i < events.length; i++) {
+            var comp = events[i].competitions && events[i].competitions[0];
+            if (!comp || !comp.competitors) continue;
+            var names = comp.competitors.map(function(c) { return Compose.norm(c.team && c.team.displayName); });
+            var hasHome = names.some(function(n) { return n && (n.indexOf(homeKey) !== -1 || homeKey.indexOf(n) !== -1); });
+            var hasAway = names.some(function(n) { return n && (n.indexOf(awayKey) !== -1 || awayKey.indexOf(n) !== -1); });
+            if (hasHome && hasAway) { return { event: events[i], comp: comp, resolved: resolved }; }
+        }
+        return null;
+    },
+    _formKey: function() {
+        var d = Compose.getTemplateData();
+        return (d.homeName + '|' + d.awayName + '|' + d.league + '|' + d.date).toLowerCase();
+    },
+    fetchEspnContext: function(force) {
+        if (Compose._espn && Compose._espn._formKey === Compose._formKey() && !force) return Promise.resolve(Compose._espn);
+        Compose._espn = null;
+        if (Compose._espnLoading) return new Promise(function(resolve) { var w = setInterval(function() { if (!Compose._espnLoading) { clearInterval(w); resolve(Compose._espn); } }, 100); });
+        Compose._espnLoading = true;
+        var d = Compose.getTemplateData();
+        var resolved = Compose.resolveEspnLeague(d.league);
+        var empty = { found: false, status: 'STATUS_SCHEDULED', reason: 'unsupported-league' };
+        if (!resolved || d.isRacing) {             Compose._espn = Object.assign(empty, { _formKey: Compose._formKey() }); Compose._espnLoading = false; Compose.updateMatchStatus(); return Promise.resolve(Compose._espn); }
+        var statusEl = document.getElementById('cp-match-status');
+        var setMsg = function(m) { if (statusEl) statusEl.textContent = m; };
+        setMsg('⏳ Pulling match context from ESPN…');
+        var dateStr = (d.date || '').replace(/-/g, '');
+        var sbUrl = 'https://site.api.espn.com/apis/site/v2/sports/' + resolved.sport + '/' + resolved.league + '/scoreboard' +
+            (dateStr ? '?dates=' + dateStr : '');
+        var homeKey = Compose.norm(d.homeName), awayKey = Compose.norm(d.awayName);
+        // Find the event: try the form date first, then scan the week around it.
+        var findEvent = function(data) {
+            var m = Compose.findMatchEvent(data);
+            if (m) return m;
+            return null;
+        };
+        var scanDates = function(base, offsetStart, offsetEnd) {
+            var jobs = [];
+            for (var off = offsetStart; off <= offsetEnd; off++) {
+                var day = new Date(base.getTime() + off * 86400000);
+                var ds = day.getFullYear() + String(day.getMonth() + 1).padStart(2, '0') + String(day.getDate()).padStart(2, '0');
+                jobs.push(Compose.espnFetch('https://site.api.espn.com/apis/site/v2/sports/' + resolved.sport + '/' + resolved.league + '/scoreboard?dates=' + ds).then(findEvent));
+            }
+            return Promise.all(jobs).then(function(results) { for (var i = 0; i < results.length; i++) { if (results[i]) return results[i]; } return null; });
+        };
+        var baseDate = (function() {
+            if (!d.date) return new Date(NaN);
+            var dd = d.date.replace(/\s+.*$/, '').trim();
+            var m = /^([0-9]{1,2})-([0-9]{1,2})-([0-9]{4})$/.exec(dd);
+            if (m) return new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+            var iso = /^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})/.exec(dd);
+            if (iso) return new Date(parseInt(iso[1], 10), parseInt(iso[2], 10) - 1, parseInt(iso[3], 10));
+            return new Date(dd);
+        })();
+        if (!isNaN(baseDate.getTime())) {
+            var startScan = scanDates(baseDate, -3, 3);
+        } else {
+            startScan = Compose.espnFetch(sbUrl).then(findEvent).then(function(m) { return m || scanDates(new Date(), -3, 3); });
+        }
+        return startScan.then(function(found) {
+            if (!found) {
+                Compose._espn = Object.assign(empty, { reason: 'no-match', _formKey: Compose._formKey() });
+                Compose._espnLoading = false;
+                Compose.updateMatchStatus();
+                setMsg('⚠️ Fixture not found on ESPN around the given date — pre-match sections will use general wording.');
+                return Compose._espn;
+            }
+            var ev = found.event, comp = found.comp;
+            var state = ev.status && ev.status.type ? ev.status.type.state : 'pre';
+            var stId = ev.status && ev.status.type ? ev.status.type.id : '';
+            var status = Compose._statusStateMap[stId] || (state === 'in' ? 'STATUS_LIVE' : (state === 'post' ? 'STATUS_FINAL' : 'STATUS_SCHEDULED'));
+            var homeC = comp.competitors.find(function(c) { return c.homeAway === 'home'; }) || comp.competitors[0];
+            var awayC = comp.competitors.find(function(c) { return c.homeAway === 'away'; }) || comp.competitors[1];
+            var _fk = Compose._formKey();
+            var ctx = {
+                found: true,
+                resolved: resolved,
+                eventId: ev.id,
+                eventDate: ev.date,
+                status: status,
+                statusText: (ev.status && ev.status.type && ev.status.type.description) || '',
+                homeScore: (homeC && homeC.score) || '0',
+                awayScore: (awayC && awayC.score) || '0',
+                homeTeamId: (homeC && homeC.team && homeC.team.id) || null,
+                awayTeamId: (awayC && awayC.team && awayC.team.id) || null,
+                homeName: (homeC && homeC.team && homeC.team.displayName) || d.homeName,
+                awayName: (awayC && awayC.team && awayC.team.displayName) || d.awayName,
+                venue: '',
+                scorers: [],
+                details: [],
+                stats: {},
+                form: { home: [], away: [] },
+                h2h: { summary: '', events: [] },
+                keyPlayers: { home: [], away: [] },
+                standings: null,
+                _formKey: _fk
+            };
+            // venue from competition
+            try { ctx.venue = ((comp.venue && comp.venue.fullName) || '') + (((comp.venue && comp.venue.address && comp.venue.address.city) ? ', ' + comp.venue.address.city : '')); } catch(e) {}
+            var sc = (homeC && homeC.score) || '0', sac = (awayC && awayC.score) || '0';
+            Compose._liveStats = { found: true, eventId: ctx.eventId, statusText: ctx.statusText, homeScore: sc, awayScore: sac, scorers: [] };
+            // Summary pulls the rest
+            return Compose.espnFetch('https://site.api.espn.com/apis/site/v2/sports/' + resolved.sport + '/' + resolved.league + '/summary?event=' + ctx.eventId)
+            .then(function(summary) {
+                if (summary) Compose.parseEspnSummary(ctx, summary, sc, sac);
+                Compose._espn = ctx;
+                Compose._espnLoading = false;
+                Compose.updateMatchStatus();
+                setMsg('✓ ESPN context loaded (' + ctx.statusText + '). Sections are ready to insert.');
+                return ctx;
+            });
+        })
+        .catch(function() {
+            Compose._espn = Object.assign(empty, { _formKey: Compose._formKey() });
+            Compose._espnLoading = false;
+            Compose.updateMatchStatus();
+            setMsg('⚠️ Could not reach ESPN — sections will use general wording where possible.');
+            return Compose._espn;
+        });
+    },
+    parseEspnSummary: function(ctx, summary, sc, sac) {
+        try {
+            var hc = summary.header && summary.header.competitions && summary.header.competitions[0];
+            if (hc) {
+                var det = hc.details || [];
+                ctx.details = det.filter(function(e) { return e && (e.scoringPlay || e.type); }).slice(0, 30);
+                var scorers = [];
+                det.forEach(function(e) {
+                    if (!e || !e.scoringPlay) return;
+                    var who = (e.athletesInvolved && e.athletesInvolved[0] && e.athletesInvolved[0].displayName) ||
+                        (e.participants && e.participants[0] && e.participants[0].athlete && e.participants[0].athlete.displayName) ||
+                        (e.type && e.type.text) || 'Goal';
+                    var clock = (e.clock && e.clock.displayValue) || '';
+                    scorers.push(who + (clock ? ' (' + clock + ')' : ''));
+                });
+                if (scorers.length) { ctx.scorers = scorers.slice(0, 12); Compose._liveStats.scorers = ctx.scorers; }
+                try { ctx.venue = ((hc.venue && hc.venue.fullName) || ctx.venue) + (((hc.venue && hc.venue.address && hc.venue.address.city) ? ', ' + hc.venue.address.city : '')); } catch(e) {}
+                // match statistics from boxscore
+                var bb = summary.boxscore || {};
+                (bb.teams || []).forEach(function(tm) {
+                    var side = tm.homeAway === 'home' ? 'home' : 'away';
+                    (tm.statistics || []).forEach(function(st) {
+                        if (st && st.name && st.displayValue !== null && st.displayValue !== undefined) ctx.stats[side + '.' + st.name] = st.displayValue;
+                    });
+                });
+            }
+            // lastFiveGames -> form
+            try {
+                var lfg = summary.lastFiveGames || [];
+                lfg.forEach(function(entry) {
+                    var side = entry.team && String(entry.team.id) === String(ctx.homeTeamId) ? 'home' :
+                               (entry.team && String(entry.team.id) === String(ctx.awayTeamId) ? 'away' : null);
+                    if (!side) return;
+                    var games = (entry.events || []).map(function(g) {
+                        var opp = (g.opponent && g.opponent.displayName) || '';
+                        var atVs = g.atVs || '';
+                        var res = g.gameResult || (g.result && g.result.type) || '';
+                        return { date: g.gameDate || g.date || '', opponent: opp, atVs: atVs, result: res,
+                            score: g.score || ((g.homeTeamScore != null && g.awayTeamScore != null) ? g.homeTeamScore + '-' + g.awayTeamScore : ''),
+                            competition: g.competitionName || '' };
+                    }).filter(function(g) { return g.date; }).slice(0, 6);
+                    ctx.form[side] = games.slice(0, 5);
+                });
+            } catch(e) {}
+            // seasonseries -> H2H
+            try {
+                var ss = summary.seasonseries || [];
+                var hs = (ss.find(function(x) { return x.type === 'head-to-head' || x.seriesLabel === 'Head-to-Head'; }) || ss[0]) || {};
+                ctx.h2h.summary = hs.summary || '';
+                ctx.h2h.events = (hs.events || []).map(function(e) {
+                    var comps = e.competitions || [];
+                    var c = comps[0] || {};
+                    var teams = (c.competitors || []).map(function(t) { return { name: t.team && t.team.displayName, score: t.score }; });
+                    return { date: e.date || '', detail: (c.status && c.status.type && (c.status.type.detail || c.status.type.shortDetail || c.status.type.description)) || '', teams: teams };
+                }).filter(function(e) { return e.date; }).slice(0, 5);
+            } catch(e) {}
+            // rosters -> key players
+            try {
+                (summary.rosters || []).forEach(function(r) {
+                    var side = String(r.team && r.team.id) === String(ctx.homeTeamId) ? 'home' :
+                               (String(r.team && r.team.id) === String(ctx.awayTeamId) ? 'away' : null);
+                    if (!side) return;
+                    var sorted = (r.athletes || []).map(function(a) {
+                        var s = {};
+                        (a.stats || []).forEach(function(st) { if (st && st.name) s[st.name] = st.displayValue; });
+                        return { name: a.displayName, pos: a.position && a.position.abbreviation, stats: s, starter: a.starter };
+                    }).filter(function(a) { return a.name; });
+                    sorted.sort(function(a, b) { return (b.starter ? 1 : 0) - (a.starter ? 1 : 0); });
+                    ctx.keyPlayers[side] = sorted.slice(0, 5);
+                });
+            } catch(e) {}
+            // standings
+            try {
+                var st = summary.standings || {};
+                var grp = (st.groups || [])[0];
+                if (grp) {
+                    var entries = (grp.standings && grp.standings.entries) || [];
+                    var rows = entries.map(function(e) {
+                        var vals = {};
+                        (e.stats || []).forEach(function(s) { vals[s.name] = s.value; });
+                        return { team: e.team, pts: vals.points, gp: vals.gamesPlayed, wins: vals.wins, draws: vals.ties, losses: vals.losses };
+                    });
+                    var hi = rows.findIndex(function(r) { return String(r.team) === String(ctx.homeName); });
+                    var ai = rows.findIndex(function(r) { return String(r.team) === String(ctx.awayName); });
+                    ctx.standings = { leagueName: (grp.standings && grp.standings.header) || st.header || '', home: hi >= 0 ? hi + 1 : null, away: ai >= 0 ? ai + 1 : null, rows: rows.slice(0, 6) };
+                }
+            } catch(e) {}
+        } catch(e) { /* skip */ }
+    },
+    updateMatchStatus: function() {
+        var el = document.getElementById('cp-match-status');
+        if (!el) return;
+        if (Compose._espn && Compose._espn.found) {
+            var s = Compose._espn.status;
+            var label = s === 'STATUS_LIVE' ? '● LIVE — ' + Compose._espn.homeName + ' ' + Compose._espn.homeScore + ' – ' + Compose._espn.awayScore + ' ' + Compose._espn.awayName :
+                        s === 'STATUS_FINAL' ? '■ FULL TIME — ' + Compose._espn.homeName + ' ' + Compose._espn.homeScore + ' – ' + Compose._espn.awayScore + ' ' + Compose._espn.awayName :
+                        '○ SCHEDULED — ' + Compose._espn.statusText + ' (ESPN)';
+            el.textContent = 'Match status: ' + label;
+            el.style.color = s === 'STATUS_LIVE' ? '#ff6b6b' : s === 'STATUS_FINAL' ? 'var(--color-success)' : 'var(--color-secondary)';
+        } else if (Compose._espn && Compose._espn.reason === 'unsupported-league') {
+            el.textContent = 'Match status: ESPN does not cover "' + Compose.getTemplateData().league + '" — data-backed sections will fall back to general wording.';
+        } else {
+            el.textContent = '';
+        }
+    },
+    // NOTE: intentionally no local esc here — use Compose.esc (defined below this block) at call sites.
+    esc: function(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); },
+    ordinal: function(n) { return n + (['th', 'st', 'nd', 'rd'][n % 10 > 3 || (n % 100 > 10 && n % 100 < 14) ? 0 : n % 10] || ''); },
+    isWinner: function(ctx, side) {
+        var hs = parseInt(ctx.homeScore, 10), as = parseInt(ctx.awayScore, 10);
+        if (isNaN(hs) || isNaN(as)) return null;
+        if (hs > as) return side === 'home';
+        if (as > hs) return side === 'away';
+        return null;
+    },
+    formCell: function(g) {
+        var color = g.result === 'W' ? '#4caf50' : g.result === 'L' ? '#ff6b6b' : '#f6b93b';
+        return '<span style="display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;border-radius:50%;background:' + color + ';color:#fff;font-weight:700;font-size:12px;margin-right:4px;" title="' + Compose.esc(g.date.slice(0, 10)) + ' ' + Compose.esc(g.opponent) + ' ' + Compose.esc(g.score) + '">' + (g.result || '?') + '</span>';
+    },
+    buildSection: function(type) {
+        var d = Compose.getTemplateData();
+        var ctx = Compose._espn;
+        var isFinal = ctx && ctx.status === 'STATUS_FINAL';
+        var isLive = ctx && ctx.status === 'STATUS_LIVE';
+        var isScheduled = !ctx || !ctx.found || ctx.status === 'STATUS_SCHEDULED';
+        var H = function(s) { return Compose.esc(s); };
+        var Ord = function(n) { return Compose.ordinal(n); };
+        var Win = function(side) { return Compose.isWinner(ctx, side); };
+        var scoreLine = ctx && ctx.found ? H(ctx.homeName) + ' ' + ctx.homeScore + ' – ' + ctx.awayScore + ' ' + H(ctx.awayName) : '';
+        var sections = Compose.SECTION_TEMPLATES;
+        var html = '';
+        var t = sections[type] || '';
+        switch (type) {
+        case 'overview': {
+            if (!ctx || !ctx.found) { html = '<h2>Match Overview: ' + H(d.homeName) + ' vs ' + H(d.awayName) + '</h2><p>' + H(d.homeName) + ' host ' + H(d.awayName) + ' in this ' + H(d.league) + ' fixture on ' + H(d.date) + ' at ' + H(d.time) + '. Expect a competitive encounter as both sides look to make their mark in the ' + H(d.league) + '.</p>'; break; }
+            var p1 = '<p><strong>' + H(ctx.homeName) + '</strong> take on <strong>' + H(ctx.awayName) + '</strong> in this <strong>' + H(d.league) + '</strong> fixture on <strong>' + H(d.date) + '</strong> at <strong>' + H(d.time) + '</strong>' + (ctx.venue ? ' at ' + H(ctx.venue) : '') + ', a match that could shape both sides of the table.';
+            var standingNote = '';
+            if (ctx.standings) {
+                if (ctx.standings.home && ctx.standings.away) standingNote = ' ' + H(ctx.homeName) + ' sit ' + ctx.standings.home + Ord(ctx.standings.home) + ' in the ' + H(ctx.standings.leagueName) + ', while ' + H(ctx.awayName) + ' occupy ' + ctx.standings.away + Ord(ctx.standings.away) + '.';
+                else if (ctx.standings.home) standingNote = ' ' + H(ctx.homeName) + ' sit ' + ctx.standings.home + Ord(ctx.standings.home) + ' in the ' + H(ctx.standings.leagueName) + '.';
+                else if (ctx.standings.away) standingNote = ' ' + H(ctx.awayName) + ' sit ' + ctx.standings.away + Ord(ctx.standings.away) + ' in the ' + H(ctx.standings.leagueName) + '.';
+            }
+            var p2 = standingNote ? '<p>' + standingNote + '</p>' : '';
+            var formNote = '';
+            var hf = (ctx.form.home || []).map(function(g) { return g.result; });
+            var af = (ctx.form.away || []).map(function(g) { return g.result; });
+            if (hf.length || af.length) {
+                var parts = [];
+                if (hf.length) parts.push(H(ctx.homeName) + ' arrive with recent form of ' + hf.join('/'));
+                if (af.length) parts.push(H(ctx.awayName) + ' bring ' + af.join('/'));
+                formNote = '<p>' + parts.join(', while ') + ' — momentum that could prove decisive on the night.</p>';
+            }
+            var p3 = formNote;
+            var h2hNote = '';
+            if (ctx.h2h.summary) h2hNote = '<p>The two sides have met before in this competition, with ' + H(ctx.h2h.summary) + ' — history that adds extra spice to this encounter.</p>';
+            var p4 = h2hNote;
+            html = sections.overview.replace('{homeName}', H(d.homeName)).replace('{awayName}', H(d.awayName))
+                .replace('{overviewP1}', p1 + '</p>').replace('{overviewP2}', p2).replace('{overviewP3}', p3).replace('{overviewP4}', p4);
+            break;
+        }
+        case 'details': {
+            var venueRow = ctx && ctx.venue ? '<tr style="border-bottom:1px solid rgba(255,255,255,.12);"><td style="padding:8px 12px;font-weight:700;">Venue</td><td style="padding:8px 12px;">' + H(ctx.venue) + '</td></tr>' :
+                (d.venue ? '<tr style="border-bottom:1px solid rgba(255,255,255,.12);"><td style="padding:8px 12px;font-weight:700;">Venue</td><td style="padding:8px 12px;">' + H(d.venue) + '</td></tr>' : '');
+            html = sections.details.replace('{date}', H(d.date)).replace('{time}', H(d.time)).replace('{league}', H(d.league)).replace('{detailsVenueRow}', venueRow);
+            break;
+        }
+        case 'form': {
+            var renderForm = function(side) {
+                var games = (ctx && ctx.form && ctx.form[side]) || [];
+                if (!games.length) return { strip: '', rows: '' };
+                var strip = '<span style="display:inline-flex;align-items:center;">' + games.map(function(g) { return Compose.formCell(g); }).join('') + '</span>';
+                var rows = games.map(function(g) {
+                    return '<tr style="border-bottom:1px solid rgba(255,255,255,.08);"><td style="padding:5px 12px;color:var(--color-text-dim);font-size:12px;">' + H(g.date.slice(0, 10)) + '</td><td style="padding:5px 12px;font-size:12px;">' + (g.atVs === '@' ? 'Away' : 'Home') + ' vs ' + H(g.opponent) + ' (' + H(g.competition || H(d.league)) + ') — <strong>' + H(g.score) + '</strong> — ' + (g.result === 'W' ? 'Win' : g.result === 'L' ? 'Loss' : 'Draw') + '</td></tr>';
+                }).join('');
+                return { strip: strip, rows: rows };
+            };
+            var home = renderForm('home'), away = renderForm('away');
+            if (!home.strip && !away.strip) { html = '<h2>Team Form: Last 5</h2><p>Recent results for both sides could not be sourced from ESPN for this fixture. Check back closer to kickoff as form data populates, or review each club\'s latest results for context.</p>'; break; }
+            html = sections.form
+                .replace('{homeName}', H(d.homeName)).replace('{awayName}', H(d.awayName))
+                .replace('{homeFormStrip}', home.strip || '<em style="color:var(--color-text-dim);">not sourced</em>')
+                .replace('{awayFormStrip}', away.strip || '<em style="color:var(--color-text-dim);">not sourced</em>')
+                .replace('{homeFormRows}', home.rows).replace('{awayFormRows}', away.rows);
+            break;
+        }
+        case 'h2h': {
+            var evs = (ctx && ctx.h2h && ctx.h2h.events) || [];
+            var summaryTxt = ctx && ctx.h2h && ctx.h2h.summary ? '<p><strong>' + H(ctx.h2h.summary) + '</strong></p>' : '';
+            if (!evs.length) { html = '<h2>Head-to-Head</h2>' + summaryTxt + '<p>Previous meetings between <strong>' + H(d.homeName) + '</strong> and <strong>' + H(d.awayName) + '</strong> could not be sourced from ESPN. Historically these fixtures in the ' + H(d.league) + ' have been closely contested, and both teams will study past encounters ahead of this clash.</p>'; break; }
+            var rows = evs.map(function(e) {
+                var scores = e.teams.map(function(tm) { return H(tm.name || '') + ' ' + (tm.score != null ? tm.score : '-'); }).join(' vs ');
+                return '<tr style="border-bottom:1px solid rgba(255,255,255,.08);"><td style="padding:5px 12px;color:var(--color-text-dim);font-size:12px;white-space:nowrap;">' + H(e.date.slice(0, 10)) + '</td><td style="padding:5px 12px;font-size:12px;">' + scores + (e.detail ? ' — ' + H(e.detail) : '') + '</td></tr>';
+            }).join('');
+            html = sections.h2h.replace('{h2hSummary}', summaryTxt).replace('{h2hRows}', rows);
+            break;
+        }
+        case 'keyPlayers': {
+            var hp = (ctx && ctx.keyPlayers && ctx.keyPlayers.home) || [];
+            var ap = (ctx && ctx.keyPlayers && ctx.keyPlayers.away) || [];
+            if (!hp.length && !ap.length) { html = '<h2>Key Players to Watch</h2><p>Player data for this fixture could not be sourced from ESPN. Keep an eye on each side\'s usual attacking threats as the teams prepare for this ' + H(d.league) + ' meeting.</p>'; break; }
+            var makeRows = function(side, players) {
+                return '<tr style="border-bottom:1px solid rgba(255,255,255,.12);"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:13px;">' + (side === 'home' ? H(d.homeName) : H(d.awayName)) + '</td></tr>' +
+                    players.slice(0, 3).map(function(p) {
+                        var statTxt = '';
+                        var keys = Object.keys(p.stats);
+                        if (keys.length) statTxt = ' — <span style="color:var(--color-text-dim);font-size:12px;">' + keys.slice(0, 3).map(function(k) { return H(k) + ': ' + H(String(p.stats[k])); }).join(', ') + '</span>';
+                        return '<tr style="border-bottom:1px solid rgba(255,255,255,.08);"><td style="padding:5px 12px;font-size:13px;">' + H(p.name) + (p.pos ? ' <span style="color:var(--color-text-dim);font-size:11px;">(' + H(p.pos) + ')</span>' : '') + (p.starter ? ' ★' : '') + '</td><td style="padding:5px 12px;font-size:12px;color:var(--color-text-dim);">' + statTxt + '</td></tr>';
+                    }).join('');
+            };
+            html = sections.keyPlayers.replace('{keyPlayersRows}', makeRows('home', hp) + makeRows('away', ap));
+            break;
+        }
+        case 'analysis': {
+            var txt = '';
+            if (!ctx || !ctx.found) {
+                txt = H(d.homeName) + ' and ' + H(d.awayName) + ' go into this ' + H(d.league) + ' fixture with different expectations and plenty to play for. With form, momentum and tactical setup all in play, this matchup has the ingredients for a gripping ' + H(d.league) + ' encounter. Early minutes could set the tone, and both sides will know that small margins often decide fixtures at this level.';
+            } else {
+                var parts = [];
+                var hf = (ctx.form.home || []).filter(function(g) { return g.result === 'W'; }).length;
+                var af = (ctx.form.away || []).filter(function(g) { return g.result === 'W'; }).length;
+                parts.push(H(ctx.homeName) + ' head into this one ' + (hf >= 3 ? 'in strong recent form' : hf >= 2 ? 'with solid recent momentum' : 'looking to steady recent results') + ', while ' + H(ctx.awayName) + ' ' + (af >= 3 ? 'arrive carrying real confidence' : af >= 2 ? 'show encouraging signs of form' : 'will be eager to find consistency'));
+                if (ctx.h2h.summary) parts.push('their head-to-head record (' + H(ctx.h2h.summary) + ') suggests ' + H(ctx.awayName) + (ctx.h2h.summary.toLowerCase().indexOf(H(ctx.awayName).toLowerCase().split(' ')[0]) !== -1 ? ' hold the psychological edge' : ' have struggled historically against their hosts'));
+                if (ctx.keyPlayers.home.length || ctx.keyPlayers.away.length) {
+                    var names = [];
+                    if (ctx.keyPlayers.home.length) names.push(H(ctx.keyPlayers.home[0].name) + ' leads the hosts\' charge');
+                    if (ctx.keyPlayers.away.length) names.push(H(ctx.keyPlayers.away[0].name) + ' is the visitors\' main threat');
+                    parts.push('individually, ' + names.join(' and '));
+                }
+                if (ctx.standings && ctx.standings.home && ctx.standings.away && Math.abs(ctx.standings.home - ctx.standings.away) <= 3) parts.push('with the table positions close, points here carry genuine weight for both campaigns');
+                txt = parts.join('. ') + '.';
+            }
+            html = sections.analysis.replace('{analysisText}', txt);
+            break;
+        }
+        case 'liveEvents': {
+            if (isFinal) { html = '<h2>Live Match Events</h2><p>This match has finished — see the <strong>Full-Time Result</strong> and <strong>Detailed Recap</strong> sections below for the confirmed outcome and match events.</p>'; break; }
+            if (!isLive || !ctx || !ctx.details.length) {
+                html = '<h2>Live Match Events</h2><p>⏳ The match has not kicked off yet. This section will be updated with goals, cards, substitutions and other key moments once the game is live — check back after kickoff.</p>'; break;
+            }
+            var rows = ctx.details.map(function(e) {
+                var icon = e.scoringPlay ? '⚽' : (e.type && /card/i.test(e.type.text || '') ? '🟨' : '•');
+                var who = (e.athletesInvolved && e.athletesInvolved[0] && e.athletesInvolved[0].displayName) ||
+                    (e.participants && e.participants[0] && e.participants[0].athlete && e.participants[0].athlete.displayName) ||
+                    (e.type && e.type.text) || 'Event';
+                var team = (e.team && (e.team.displayName || e.team.name || e.team.location)) || '';
+                var clock = (e.clock && e.clock.displayValue) || '';
+                return '<p style="margin:2px 0;font-size:13px;">' + icon + ' <strong>' + clock + '</strong> — ' + H(who) + (team ? ' (' + H(team) + ')' : '') + (e.scoringPlay ? ' — GOAL' : (e.type && e.type.text ? ' — ' + H(e.type.text) : '')) + '</p>';
+            }).join('');
+            html = '<h2>Live Match Events</h2><p><strong>' + scoreLine + '</strong> (' + H(ctx.statusText) + ', via ESPN)</p>' + rows + '<p style="color:var(--color-text-dim);font-size:12px;">Events refresh as they are recorded — refresh this page for the latest.</p>';
+            break;
+        }
+        case 'result': {
+            if (!isFinal && !isLive) { html = '<h2>Full-Time Result</h2><p>⏳ The match has not been completed yet. The confirmed final score will appear here once the fixture concludes — check back after full time.</p>'; break; }
+            var scorersHtml = ctx.scorers.length ? '<ul>' + ctx.scorers.map(function(s) { return '<li>' + H(s) + '</li>'; }).join('') + '</ul>' : '';
+            html = '<h2>Full-Time Result</h2><p><strong>' + scoreLine + '</strong> (' + H(ctx.statusText) + ', via ESPN)</p>' + (scorersHtml ? '<h3 style="font-size:14px;">Goal scorers</h3>' + scorersHtml : '');
+            break;
+        }
+        case 'recap': {
+            if (!isFinal) { html = '<h2>Detailed Recap: ' + H(d.homeName) + ' vs ' + H(d.awayName) + '</h2><p>⏳ The match is still ongoing or not yet started. A full written recap will be generated here once the fixture finishes — check back after full time.</p>'; break; }
+            var lines = [];
+            lines.push('The ' + H(d.league) + ' fixture between <strong>' + H(ctx.homeName) + '</strong> and <strong>' + H(ctx.awayName) + '</strong> ended <strong>' + scoreLine + '</strong> on ' + H(d.date) + '.');
+            if (ctx.scorers.length) {
+                var scorerTexts = ctx.scorers.slice(0, 8).map(function(s) {
+                    if (s.indexOf('(') !== -1) {
+                        var idx = s.indexOf('(');
+                        return H(s.slice(0, idx).trim()) + ' (' + H(s.slice(idx + 1, -1).trim()) + ')';
+                    }
+                    return H(s);
+                });
+                lines.push('The goals came through ' + scorerTexts.join(', ') + '.');
+            }
+            if (ctx.details.length) {
+                var mins = ctx.details.filter(function(e) { return e.clock && e.clock.displayValue; }).map(function(e) { return e.clock.displayValue; });
+                if (mins.length) lines.push('Key moments were recorded at ' + mins.slice(0, 6).map(function(m) { return H(m) + '\''; }).join(', ') + ' as the game ebbed and flowed.');
+            }
+            if (ctx.stats['home.possessionPct'] || ctx.stats['away.possessionPct']) lines.push(H(ctx.stats['home.possessionPct'] || '—') + '% possession for ' + H(ctx.homeName) + ' against ' + H(ctx.stats['away.possessionPct'] || '—') + '% for ' + H(ctx.awayName) + ' told the story of how each side tried to control proceedings.');
+            lines.push('Full match statistics are listed below for a complete picture of how the game unfolded.');
+            html = sections.recap.replace('{recapContent}', lines.map(function(l) { return '<p>' + l + '</p>'; }).join('')).replace('{homeName}', H(ctx.homeName)).replace('{awayName}', H(ctx.awayName));
+            break;
+        }
+        case 'stats': {
+            if (!isFinal && !isLive) { html = '<h2>Match Statistics</h2><p>⏳ Match statistics will be published here once the game is underway — check back after kickoff for possession, shots, corners and cards.</p>'; break; }
+            var statLabels = {
+                possessionPct: ['Possession %', '%'], totalShots: ['Total shots', ''], shotsOnTarget: ['Shots on target', ''],
+                wonCorners: ['Corners', ''], yellowCards: ['Yellow cards', ''], redCards: ['Red cards', ''], saves: ['Saves', ''], offsides: ['Offsides', ''], foulsCommitted: ['Fouls', '']
+            };
+            var keys = Object.keys(statLabels);
+            var any = keys.some(function(k) { return ctx.stats['home.' + k] !== undefined || ctx.stats['away.' + k] !== undefined; });
+            if (!any) { html = '<h2>Match Statistics</h2><p>⏳ Detailed match statistics are not available yet — they will appear here once ESPN records them for this fixture.</p>'; break; }
+            var rows = keys.map(function(k) {
+                var hv = ctx.stats['home.' + k], av = ctx.stats['away.' + k];
+                if (hv === undefined && av === undefined) return '';
+                var label = statLabels[k][0], suf = statLabels[k][1];
+                return '<tr style="border-bottom:1px solid rgba(255,255,255,.08);"><td style="padding:5px 12px;font-size:13px;text-align:right;width:38%;">' + (hv !== undefined ? H(String(hv)) + suf : '—') + '</td><td style="padding:5px 12px;font-size:12px;color:var(--color-text-dim);text-align:center;">' + H(label) + '</td><td style="padding:5px 12px;font-size:13px;width:38%;">' + (av !== undefined ? H(String(av)) + suf : '—') + '</td></tr>';
+            }).join('');
+            html = '<h2>Match Statistics</h2><table style="width:100%;border-collapse:collapse;max-width:640px;"><thead><tr><th style="padding:6px 12px;font-size:13px;text-align:right;">' + H(ctx.homeName) + '</th><th style="padding:6px 12px;font-size:12px;color:var(--color-text-dim);"></th><th style="padding:6px 12px;font-size:13px;text-align:left;">' + H(ctx.awayName) + '</th></tr></thead><tbody>' + rows + '</tbody></table><p style="color:var(--color-text-dim);font-size:11px;">Statistics via ESPN.</p>';
+            break;
+        }
+        case 'implications': {
+            if (!isFinal) { html = '<h2>What This Result Means</h2><p>⏳ Once the match concludes, an automatic write-up on what the result means for the standings and both teams\' campaigns will appear here.</p>'; break; }
+            var imp = '';
+            if (ctx.standings && ctx.standings.home && ctx.standings.away) {
+                imp = 'In the ' + H(ctx.standings.leagueName) + ', ' + H(ctx.homeName) + ' sit ' + ctx.standings.home + Ord(ctx.standings.home) + ' and ' + H(ctx.awayName) + ' ' + ctx.standings.away + Ord(ctx.standings.away) + '. This result shifts the momentum between the two — '; 
+                if (Win(ctx, 'home')) imp += H(ctx.homeName) + ' strengthen their position while ' + H(ctx.awayName) + ' are left to regroup.';
+                else if (Win(ctx, 'away')) imp += H(ctx.awayName) + ' gain valuable ground on the road while ' + H(ctx.homeName) + ' will want to bounce back quickly.';
+                else imp += 'both sides share the points in what could prove an important draw for their ' + H(d.league) + ' campaigns.';
+                imp += ' Expect both teams to use this result as a reference point as the season progresses.';
+            } else {
+                imp = 'The outcome of this fixture gives ' + (Win(ctx, 'home') ? H(ctx.homeName) : Win(ctx, 'away') ? H(ctx.awayName) : 'both sides') + ' a psychological boost heading into their next ' + H(d.league) + ' outing. Points at this stage of the season are rarely wasted, and this result is likely to echo through upcoming fixtures for both clubs.';
+            }
+            html = sections.implications.replace('{implicationsText}', imp);
+            break;
+        }
+        case 'related': {
+            html = Compose.buildRelatedArticles(d);
+            break;
+        }
+        }
+        return html;
+    },
+    insertSection: function(type) {
+        var body = document.getElementById('cp-body');
+        if (!body) return;
+        var allowed = ['overview', 'details', 'form', 'h2h', 'keyPlayers', 'analysis', 'liveEvents', 'result', 'recap', 'stats', 'implications', 'related'];
+        if (allowed.indexOf(type) === -1) return;
+        // For liveEvents/result/recap/stats/implications we need fresh ESPN data; for pre-match sections cached data is fine.
+        var needsLive = ['liveEvents', 'result', 'recap', 'stats', 'implications'].indexOf(type) !== -1;
+        var html = '';
+        if (needsLive) {
+            Compose.fetchEspnContext(true).then(function(ctx) {
+                html = Compose.buildSection(type);
+                body.value += (body.value ? '\n\n' : '') + html;
+                Compose.onBodyChange();
+                Gen.toast(html.indexOf('⏳') !== -1 ? 'Placeholder inserted — update after kickoff/full time' : 'Section inserted');
+            });
+        } else {
+            html = Compose.buildSection(type);
+            body.value += (body.value ? '\n\n' : '') + html;
+            Compose.onBodyChange();
+            Gen.toast(html.indexOf('⏳') !== -1 ? 'Section inserted with general wording — ESPN data not available for this league' : 'Section inserted');
+        }
+    },
+    fillAllSections: function() {
+        var body = document.getElementById('cp-body');
+        if (!body) return;
+        var statusEl = document.getElementById('cp-live-status');
+        if (statusEl) statusEl.textContent = '⏳ Auto-filling all sections for the current match status…';
+        return Compose.fetchEspnContext(true).then(function(ctx) {
+            var order = ['overview', 'details', 'form', 'h2h', 'keyPlayers', 'analysis', 'liveEvents', 'result', 'recap', 'stats', 'implications', 'related'];
+            var parts = order.map(function(t) { return Compose.buildSection(t); });
+            var hasPlaceholder = parts.some(function(p) { return p.indexOf('⏳') !== -1; });
+            body.value = (body.value ? body.value.trim() + '\n\n' : '') + parts.join('\n\n');
+            Compose.onBodyChange();
+            if (statusEl) statusEl.textContent = hasPlaceholder ? '✓ All sections inserted — placeholder sections will populate after kickoff/full time.' : '✓ All sections inserted with live data.';
+            Gen.toast(hasPlaceholder ? 'All sections inserted — check placeholders after kickoff' : 'All sections auto-filled');
+            return ctx;
+        });
+    },
+    buildRelatedArticles: function(d) {
+        // Related articles based on shared team/league labels from existing Blogger post history.
+        if (!Compose._settings.blogId) {
+            return '<h2>Related Articles</h2><p>Configure your Blog ID in the settings above for related articles to be linked automatically from your post history.</p>';
+        }
+        var labels = ((document.getElementById('cp-labels') && document.getElementById('cp-labels').value) || '').split(',').map(function(l) { return l.trim(); }).filter(function(l) { return l.length; });
+        var teamWords = (d.homeName + ' ' + d.awayName).split(/\s+/).filter(function(w) { return w.length > 2; });
+        var query = labels.concat(teamWords.slice(0, 3)).join(' ');
+        var url = 'https://www.googleapis.com/blogger/v3/blogs/' + Compose._settings.blogId +
+            '/posts/search?q=' + encodeURIComponent(query) + '&fields=items(id,url,title)&access_token=' + (Compose._authToken || '');
+        var placeholder = '<h2>Related Articles</h2><p>Related posts matching <strong>' + Compose.esc(query) + '</strong> will be linked here once your Blogger account is signed in and this post is published.</p>';
+        if (!Compose._authToken) return placeholder;
+        var container = null;
+        try {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', url, false);
+            xhr.send();
+            if (xhr.status === 200) {
+                var data = JSON.parse(xhr.responseText);
+                var items = (data && data.items) || [];
+                if (!items.length) return placeholder;
+                var list = items.map(function(it) { return '<li><a href="' + Compose.esc(it.url) + '" target="_blank" rel="noopener">' + Compose.esc(it.title || 'Related post') + '</a></li>'; }).join('');
+                return '<h2>Related Articles</h2><ul>' + list + '</ul>';
+            }
+        } catch(e) { /* fall through */ }
+        return placeholder;
     },
 
     publish: function() {
