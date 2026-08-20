@@ -70,6 +70,11 @@
         .rf-thumb .rf-hd { position:absolute; top:8px; right:8px; background:#10b981; color:#04101a; font-size:10px; font-weight:800; letter-spacing:.4px; padding:3px 7px; border-radius:6px; z-index:4; pointer-events:none; }
         .rf-thumb .rf-date { position:absolute; bottom:8px; left:8px; background:rgba(4,16,26,.85); color:#c7cbdb; font-size:10px; font-weight:700; padding:3px 8px; border-radius:6px; z-index:4; pointer-events:none; }
         .rf-thumb .rf-league { position:absolute; top:8px; left:8px; background:rgba(4,16,26,.85); color:#e6e8f0; font-size:10px; font-weight:700; padding:3px 8px; border-radius:6px; z-index:4; pointer-events:none; max-width:55%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .rf-card .rf-post-btn { position:absolute; top:8px; right:44px; z-index:5; background:rgba(230,176,48,.95); color:#0a1018; border:0; font-size:11px; font-weight:800; padding:5px 10px; border-radius:7px; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.45); opacity:0; transform:translateY(-3px); transition:opacity .18s, transform .18s; }
+        .rf-card:hover .rf-post-btn { opacity:1; transform:none; }
+        .rf-card .rf-post-btn:hover { background:#f6c444; }
+        .rf-card .rf-post-btn.rf-posting { opacity:1; pointer-events:none; }
+        @media (max-width:760px) { .rf-card .rf-post-btn { opacity:1; transform:none; } }
         .rf-title { padding:10px 12px 12px; font-size:13px; font-weight:700; color:#fff; line-height:1.35; display:flex; align-items:center; justify-content:space-between; gap:8px; }
         .rf-title .rf-teams { flex:1; }
         .rf-title .rf-vs-text { color:#00d4ff; font-weight:800; }
@@ -4490,7 +4495,7 @@ var Compose = {
             return res ? res.data : null;
         }).catch(function() { return Compose.readCache(key); });
     },
-    norm: function(s) { return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); },
+    norm: function(s) { try { s = (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {} return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); },
     findMatchEvent: function(data) {
         var d = Compose.getTemplateData();
         var resolved = Compose.resolveEspnLeague(d.league);
@@ -5632,6 +5637,15 @@ var ReFooty = {
                 '<div class="rf-title"><span class="rf-teams">' + self.esc(c.title) + '</span>' +
                 '<span class="rf-type">' + (type === 'FM' ? 'FULL MATCH' : 'HIGHLIGHT') + '</span></div>';
             card.onclick = function() { self.playCard(c); };
+            // 📝 Post button — compose a Blogger article from this replay using
+            // the Compose & Post templates, ESPN match data and an ImgBB thumbnail
+            var postBtn = document.createElement('button');
+            postBtn.type = 'button';
+            postBtn.className = 'rf-post-btn';
+            postBtn.textContent = '📝 Post';
+            postBtn.title = 'Compose & post an article for this replay (ESPN data + thumbnail + templates)';
+            postBtn.onclick = function(e) { e.stopPropagation(); self.postCard(c); };
+            card.appendChild(postBtn);
             if (!playable) {
                 card.style.opacity = '.65';
                 card.setAttribute('title', 'Stream URL not available — the replay may still be processing.');
@@ -5661,6 +5675,142 @@ var ReFooty = {
             openWith(m3u8);
         });
     },
+    // ---------- 📝 compose & post from a replay card ----------
+    // Fills the Compose & Post fields from this replay, pulls ESPN match data,
+    // paints the refooty cover as the post thumbnail, uploads it to ImgBB,
+    // then inserts the highlight/recap templates ready to publish.
+    postCard: function(card) {
+        var self = this;
+        var composeBtn = document.querySelector('[data-tab="compose-tab"]');
+        if (!composeBtn) { self.toast('Compose tab not found.', 4000); return; }
+
+        // 1. populate the composer fields
+        var cp = function(id, v) { var el = document.getElementById(id); if (el) el.value = v; };
+        var teams = (card.home || '').trim() + (card.away ? ' vs ' + (card.away || '').trim() : '');
+        var title = teams ? teams + ' – ' + (card.league || 'Football') + ' Highlights' : (card.title || 'Football Highlights');
+        cp('cp-title', title);
+        cp('cp-league', card.league || 'Football');
+        cp('cp-datetime', card.date || '');
+        cp('cp-venue', '');
+        cp('cp-home-logo', card.homeLogo || card.awayLogo || '');
+        cp('cp-away-logo', card.awayLogo || '');
+        var labels = 'sports, highlights, ' + (card.league || 'football').toLowerCase();
+        if (card.home) labels += ', ' + card.home.toLowerCase();
+        if (card.away && card.away !== card.home) labels += ', ' + card.away.toLowerCase();
+        cp('cp-labels', labels);
+        cp('cp-body', '');
+
+        Gen.showTab(composeBtn, 'compose-tab');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        // 2. thumbnail: refooty cover (1200px webp) — fetch it, paint into the
+        //    thumbnail canvas and upload to ImgBB
+        var btn = document.querySelector('.rf-post-btn.rf-posting') || null;
+        if (btn) { btn.textContent = '⏳ Composing…'; }
+        self.toast('📝 Composing article for ' + (teams || card.title) + '…', 3500);
+
+        self.fetchPostThumb(card.slug, function(imgUrl) {
+            var statusEl = document.getElementById('cp-thumb-status');
+            var canvas = document.getElementById('cp-canvas');
+            if (canvas && imgUrl) {
+                var img = new Image();
+                img.crossOrigin = 'anonymous';
+                var paint = function() {
+                    var ctx = canvas.getContext('2d');
+                    var W = canvas.width, H = canvas.height;
+                    ctx.clearRect(0, 0, W, H);
+                    // cover-fit the replay thumbnail
+                    var scale = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+                    var iw = img.naturalWidth * scale, ih = img.naturalHeight * scale;
+                    ctx.drawImage(img, (W - iw) / 2, (H - ih) / 2, iw, ih);
+                    // subtle darken scrim so text/logos breathe
+                    var g = ctx.createLinearGradient(0, 0, 0, H);
+                    g.addColorStop(0, 'rgba(0,0,0,0)');
+                    g.addColorStop(0.72, 'rgba(0,0,0,0.15)');
+                    g.addColorStop(1, 'rgba(0,0,0,0.55)');
+                    ctx.fillStyle = g;
+                    ctx.fillRect(0, 0, W, H);
+                    // title bar
+                    ctx.font = 'bold 34px Inter, Poppins, Arial, sans-serif';
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'center';
+                    ctx.shadowColor = 'rgba(0,0,0,.75)';
+                    ctx.shadowBlur = 10;
+                    var txt = teams || title;
+                    if (txt.length > 44) txt = txt.slice(0, 42) + '…';
+                    ctx.fillText(txt, W / 2, H - 44);
+                    ctx.font = 'bold 18px Inter, Poppins, Arial, sans-serif';
+                    ctx.fillStyle = '#ffd94a';
+                    ctx.fillText((card.league || '') + (card.date ? ' · ' + card.date : ''), W / 2, H - 14);
+                    ctx.shadowBlur = 0;
+                    try {
+                        Compose._cachedThumbnail = canvas.toDataURL('image/jpeg', 0.9);
+                        Compose.uploadThumb();
+                    } catch(e) {
+                        if (statusEl) statusEl.textContent = '⚠️ Thumbnail upload skipped: ' + e.message;
+                    }
+                };
+                img.onload = paint;
+                img.onerror = function() {
+                    // cover unavailable — fall back to the usual team-logo thumbnail
+                    Compose.renderThumbnail();
+                };
+                img.src = imgUrl;
+            } else {
+                Compose.renderThumbnail();
+            }
+
+            // 3. ESPN match context: live/final score, scorers, form, h2h, stats…
+            if (typeof Compose !== 'undefined' && Compose.fetchEspnContext) {
+                Compose.fetchEspnContext(true).then(function(ctx) {
+                    var inserted = [];
+                    function insertTpl(t) { Compose.insertTemplate(t); inserted.push(t); }
+                    function insertSec(s) { Compose.insertSection(s); inserted.push(s); }
+                    // headline recap with ESPN score + scorers
+                    insertTpl('highlights');
+                    // full match overview
+                    insertSec('overview');
+                    // final/live score + stats when ESPN has data
+                    if (ctx && ctx.found) {
+                        insertSec('result');
+                        insertSec('stats');
+                        insertSec('recap');
+                    }
+                    // implications/standings context
+                    insertSec('implications');
+                    if (inserted.length) {
+                        self.toast('✅ Article composed with ' + inserted.length + ' ESPN-backed sections.', 4500);
+                    } else {
+                        self.toast('⚠️ ESPN has no data for this league — general sections inserted. League: ' + (card.league || '?'), 5000);
+                    }
+                    Compose.autoGenerateMetaDescription();
+                    Compose.updateSEOMetrics();
+                    if (btn) { btn.textContent = '📝 Post'; btn.className = btn.className.replace(/\s?rf-posting/, ''); }
+                });
+            }
+        });
+    },
+    // Fetch the refooty video page cover (og:image) for a slug.
+    // Tier chain: raw-HTML proxy (og:image lives in the HTML head, which the
+    // jina markdown reader strips). Cached for 5 minutes under 'rf:thumb:{slug}'.
+    fetchPostThumb: function(slug, cb) {
+        var self = this;
+        var cacheKey = 'rf:thumb:' + slug;
+        var cached = this.readCache(cacheKey);
+        if (cached) { var m = (cached.match(/https:\/\/img\.refooty\.com\/thumbnail\/[^"'\s\)]+\.webp/)); cb(m ? m[0] : null); return; }
+        var save = function(html) { try { self.writeCache(cacheKey, html); } catch (e) {} };
+        function tryCorsSh() {
+            fetch('https://proxy.cors.sh/' + self.SITE + '/video/' + slug, { cache: 'no-store' })
+                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+                .then(function(html) { save(html); var m = (html.match(/og:image[^>]*content="([^"]+)"/) || [])[1] || null; cb(m); })
+                .catch(function() { cb(null); });
+        }
+        fetch(self.FALLBACK + encodeURIComponent(self.SITE + '/video/' + slug), { cache: 'no-store' })
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(function(html) { save(html); var m = (html.match(/og:image[^>]*content="([^"]+)"/) || [])[1] || null; if (m) cb(m); else tryCorsSh(); })
+            .catch(tryCorsSh);
+    },
+
     closePlayer: function() {
         var modal = document.getElementById('rf-player-modal');
         modal.style.display = 'none';
