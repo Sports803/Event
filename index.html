@@ -818,9 +818,23 @@ COMPOSE & POST TAB
             <button class="btn-compose" id="cp-publish-btn" onclick="Compose.publish()" style="width:100%;">📤 Publish to Blogger</button>
             <button class="btn-secondary" onclick="Compose.preview()" style="width:100%;margin-top:6px;">👁 Preview</button>
             <p class="hint" id="cp-publish-status"></p>
-            <div id="cp-scheduled-posts" style="display:none;margin-top:10px;"></div>
+                        <div id="cp-scheduled-posts" style="display:none;margin-top:10px;"></div>
         </div>
-
+        <div class="panel">
+            <h2>🤖 Autoposter</h2>
+            <p class="hint" style="margin-bottom:10px;">Runs while this tab is open: every <strong>10 minutes</strong> it picks up to <strong>10 OneBall TV matches with stream links</strong>, posts each to Blogger, pushes it to Firebase, and marks it as posted so it is never posted again.</p>
+            <div class="field-row">
+                <div class="field"><label>Autoposter</label>
+                    <select id="cp-ap-toggle" onchange="Compose.toggleAutoposter()">
+                        <option value="off">Off</option>
+                        <option value="on">On — every 10 minutes</option>
+                    </select>
+                </div>
+                <div class="field"><label>&nbsp;</label><button class="btn-secondary" onclick="Compose.runAutopostNow()" style="width:100%;">⚡ Run now</button></div>
+            </div>
+            <p class="hint" id="cp-ap-status"></p>
+            <div id="cp-ap-log" style="display:none;margin-top:10px;"></div>
+        </div>
         <div class="panel">
             <h2>SEO meter</h2>
             <div style="font-size:12px;color:var(--color-text-dim);">
@@ -5663,7 +5677,322 @@ var Compose = {
     },
 
     loadChannelPicker: function() { Gen.toast('Channel picker available', 'info'); },
-    insertChannelsIntoBody: function() { Gen.toast('Insert channels available', 'info'); }
+    insertChannelsIntoBody: function() { Gen.toast('Insert channels available', 'info'); },
+
+    // ============================================================
+    // AUTOPOSTER — auto post OneBall TV events to Blogger + Firebase
+    // Every 10 min: up to 10 events with OneBall streams. Never re-post.
+    // ============================================================
+    AUTOPPOST_KEY: 'compose_autopost_log',
+    _autopostTimer: null,
+    _autopostRunning: false,
+
+    toggleAutoposter: function() {
+        try {
+            var settings = JSON.parse(localStorage.getItem('compose-settings') || '{}');
+            settings.autoposter = document.getElementById('cp-ap-toggle').value;
+            localStorage.setItem('compose-settings', JSON.stringify(settings));
+            Compose._settings.autoposter = settings.autoposter;
+        } catch (e) { /* ignore */ }
+        if (document.getElementById('cp-ap-toggle').value === 'on') {
+            Compose.startAutopostTimer();
+            Compose.apStatus('🤖 Autoposter ON — next cycle in 10 minutes (or click Run now)');
+        } else {
+            Compose.stopAutopostTimer();
+            Compose.apStatus('Autoposter OFF');
+        }
+    },
+
+    startAutopostTimer: function() {
+        Compose.stopAutopostTimer();
+        Compose._autopostTimer = setInterval(function() { Compose.runAutopostCycle(); }, 10 * 60 * 1000);
+        Compose.apStatus('🤖 Autoposter ON — next cycle in 10 minutes');
+    },
+
+    stopAutopostTimer: function() {
+        if (Compose._autopostTimer) { clearInterval(Compose._autopostTimer); Compose._autopostTimer = null; }
+    },
+
+    runAutopostNow: function() {
+        var toggle = document.getElementById('cp-ap-toggle');
+        if (toggle && toggle.value !== 'on') { toggle.value = 'on'; Compose.toggleAutoposter(); }
+        Compose.runAutopostCycle();
+    },
+
+    apStatus: function(msg) {
+        var el = document.getElementById('cp-ap-status');
+        if (el) el.textContent = msg || '';
+        Compose.renderAutopostLog();
+    },
+
+    getAutopostLog: function() {
+        try { return JSON.parse(localStorage.getItem(Compose.AUTOPPOST_KEY) || '{}'); } catch (e) { return {}; }
+    },
+    saveAutopostLog: function(log) {
+        try { localStorage.setItem(Compose.AUTOPPOST_KEY, JSON.stringify(log)); } catch (e) { /* ignore */ }
+    },
+
+    // Scrape OneBall and return only matches that carry a OneBall stream (sorted soonest first)
+    fetchAutopostCandidates: function() {
+        return Gen.scrFetch('https://oneball.live/')
+            .then(function(html) {
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(html, 'text/html');
+                var cards = doc.querySelectorAll('a.match-card');
+                if (!cards.length) cards = doc.querySelectorAll('[data-match-id]');
+                var matches = [];
+                var seen = {};
+                cards.forEach(function(card) {
+                    try {
+                        var matchId = card.getAttribute('data-match-id');
+                        if (!matchId) {
+                            var href = card.getAttribute('href');
+                            if (href) { var m = href.match(/\/(\d+)\.html$/); if (m) matchId = m[1]; }
+                        }
+                        if (!matchId || seen[matchId]) return;
+                        seen[matchId] = true;
+                        var matchTime = card.getAttribute('data-match-time') || '';
+                        var leagueEl = card.querySelector('.league-badge');
+                        var league = leagueEl ? leagueEl.textContent.trim() : 'OneBall TV';
+                        var homeEl = card.querySelector('.team-home');
+                        var awayEl = card.querySelector('.team-away');
+                        var homeName = '', homeLogo = '', awayName = '', awayLogo = '';
+                        if (homeEl) {
+                            var nameEl = homeEl.querySelector('.team-name');
+                            if (nameEl) homeName = nameEl.textContent.trim();
+                            var logoEl = homeEl.querySelector('.team-logo img');
+                            if (logoEl) homeLogo = logoEl.getAttribute('src') || '';
+                        }
+                        if (awayEl) {
+                            var nameEl2 = awayEl.querySelector('.team-name');
+                            if (nameEl2) awayName = nameEl2.textContent.trim();
+                            var logoEl2 = awayEl.querySelector('.team-logo img');
+                            if (logoEl2) awayLogo = logoEl2.getAttribute('src') || '';
+                        }
+                        if (!homeName && !awayName) return;
+                        var matchDate = null;
+                        if (matchTime) { try { matchDate = new Date(matchTime); } catch(e) {} }
+                        if (!matchDate || isNaN(matchDate.getTime())) matchDate = new Date();
+                        var streamUrl = 'https://hls.live123.fans/live/' + matchId + '.m3u8';
+                        var playerUrl = 'https://sports803.github.io/player/?mora=' + encodeURIComponent(streamUrl);
+                        matches.push({
+                            oneballId: matchId,
+                            homeName: homeName,
+                            awayName: awayName,
+                            homeLogo: homeLogo,
+                            awayLogo: awayLogo,
+                            league: league,
+                            date: matchDate,
+                            title: homeName + ' vs ' + awayName,
+                            playerUrl: playerUrl
+                        });
+                    } catch(e) { /* skip */ }
+                });
+                matches.sort(function(a, b) { return a.date.getTime() - b.date.getTime(); });
+                return matches;
+            });
+    },
+
+    runAutopostCycle: function() {
+        if (Compose._autopostRunning) { Compose.apStatus('⏳ A cycle is already running…'); return; }
+        Compose._autopostRunning = true;
+        Compose.apStatus('⏳ Autopost cycle starting — scanning OneBall TV…');
+
+        var ready = Compose.isTokenValid() && Compose._settings && Compose._settings.blogId;
+        if (!ready) {
+            Compose._autopostRunning = false;
+            Compose.apStatus('⚠️ Autoposter paused: Blogger sign-in expired or Blog ID missing — sign in again to resume');
+            Gen.toast('Autoposter paused: sign in to Blogger first', 'warning');
+            return;
+        }
+
+        Compose.fetchAutopostCandidates().then(function(candidates) {
+            var log = Compose.getAutopostLog();
+            var pending = candidates.filter(function(c) { return !log[c.oneballId]; });
+            Compose.apLogEntry('🔍 Scan complete: ' + candidates.length + ' OneBall matches found, ' + pending.length + ' not yet posted');
+            if (!pending.length) {
+                Compose.apStatus('✅ All ' + candidates.length + ' OneBall matches already posted — nothing to do. Next cycle in 10 minutes.');
+                Compose._autopostRunning = false;
+                return;
+            }
+            var batch = pending.slice(0, 10);
+            Compose.apStatus('🤖 Posting ' + batch.length + ' of ' + pending.length + ' remaining matches (batch of 10)…');
+
+            // Process batch sequentially to stay within API rate limits
+            var chain = Promise.resolve();
+            batch.forEach(function(c) {
+                chain = chain.then(function() {
+                    return Compose.autopostOne(c).then(function(result) {
+                        log[result.oneballId] = result;
+                        Compose.saveAutopostLog(log);
+                        Compose.apLogEntry((result.bloggerOk ? '✅' : '❌') + ' ' + result.title +
+                            (result.firebaseOk ? ' [FB ✓]' : result.firebaseErr ? ' [FB ✗ ' + result.firebaseErr + ']' : '') +
+                            (result.bloggerErr ? ' [Blogger ✗ ' + result.bloggerErr + ']' : ''));
+                    }).catch(function(err) {
+                        Compose.apLogEntry('❌ ' + c.title + ' — unexpected error: ' + (err && err.message || err));
+                    });
+                });
+            });
+            chain.then(function() {
+                var left = pending.length - batch.length;
+                Compose._autopostRunning = false;
+                Compose.apStatus('🤖 Cycle complete — posted ' + batch.length + ' of ' + (candidates.length) + ' OneBall matches' +
+                    (left > 0 ? ' (' + left + ' remaining for next cycle)' : ' — all caught up!') + '. Next cycle in 10 minutes.');
+                Gen.toast('Autopost cycle complete: ' + batch.length + ' events posted');
+            });
+        }).catch(function(err) {
+            Compose._autopostRunning = false;
+            Compose.apStatus('❌ Autopost cycle failed: ' + (err && err.message || err));
+        });
+    },
+
+    // Post ONE event: Blogger LIVE post + Firebase push. Returns result object.
+    autopostOne: function(c) {
+        var labels = 'sports, live, ' + (c.league || 'OneBall TV').toLowerCase().replace(/[^a-z0-9 ,]/g, '').slice(0, 40);
+        var bodyHtml =
+            '<h2>' + Compose.esc(c.homeName) + (c.awayName ? ' vs ' + Compose.esc(c.awayName) : '') + ' — Live Stream</h2>\n' +
+            '<p><strong>Competition:</strong> ' + Compose.esc(c.league || 'OneBall TV') + '<br/>\n' +
+            '<strong>Watch it live below.</strong></p>\n' +
+            '<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;background:#000;margin:16px 0;">' +
+            '<iframe src="' + Compose.esc(c.playerUrl) + '" allow="encrypted-media; fullscreen" allowfullscreen ' +
+            'sandbox="allow-forms allow-pointer-lock allow-same-origin allow-scripts allow-top-navigation" ' +
+            'style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" loading="lazy"></iframe></div>\n' +
+            '<p>Stream provided by OneBall TV — tap the player above to start watching. If one server is slow, the player offers alternatives.</p>';
+
+        var postData = {
+            title: c.title + ' – ' + (c.league || 'OneBall TV') + ' Live Stream',
+            content: bodyHtml,
+            labels: labels.split(',').map(function(l) { return l.trim(); }).filter(Boolean),
+            status: 'LIVE'
+        };
+
+        // Blogger post first
+        var url = 'https://www.googleapis.com/blogger/v3/blogs/' + Compose._settings.blogId + '/posts?access_token=' + Compose._authToken;
+        return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(postData) })
+            .then(function(r) {
+                if (r.status === 401 || r.status === 403) throw new Error('Authentication expired — sign in again');
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function(post) {
+                var bloggerOk = !!(post && post.id);
+                var bloggerId = post ? post.id : '';
+                // Then push to Firebase
+                return Compose.autopostFirebase(c).then(function(fbResult) {
+                    return {
+                        oneballId: c.oneballId,
+                        title: c.title,
+                        date: c.date.toISOString(),
+                        playerUrl: c.playerUrl,
+                        bloggerOk: bloggerOk,
+                        bloggerId: bloggerId,
+                        bloggerUrl: post && post.url ? post.url : '',
+                        bloggerErr: bloggerOk ? '' : 'no post id',
+                        firebaseOk: fbResult.ok,
+                        firebaseKey: fbResult.key,
+                        firebaseErr: fbResult.err,
+                        postedAt: new Date().toISOString()
+                    };
+                });
+            });
+    },
+
+    // Push event to Firebase (s803config/todaysMatches) like the manual push does
+    autopostFirebase: function(c) {
+        try {
+            var fbUrl = document.getElementById('fb-url').value.replace(/\/$/, '');
+            var fbPath = (document.getElementById('fb-path').value || 's803config/todaysMatches').replace(/^\//, '').replace(/\/$/, '');
+            if (!fbUrl || !fbPath) return Promise.resolve({ ok: false, key: '', err: 'Firebase URL/path missing' });
+            var base = fbUrl + '/' + fbPath;
+            var kickoff = c.date;
+            var liveMs = Date.now();
+            var statusType = (kickoff.getTime() > liveMs && kickoff.getTime() - liveMs < 6 * 3600000) ? 'STATUS_SCHEDULED' : 'STATUS_LIVE';
+            var durationMin = 120;
+            var payload = {
+                id: 'auto_' + c.oneballId,
+                title: c.title + ' – ' + (c.league || 'OneBall TV') + ' Live',
+                league: c.league || 'OneBall TV',
+                category: 'football',
+                sport: 'football',
+                homeName: c.homeName,
+                awayName: c.awayName,
+                homeLogo: c.homeLogo,
+                awayLogo: c.awayLogo,
+                startTime: c.date.toISOString(),
+                kickoff: c.date.toISOString(),
+                duration: durationMin,
+                statusType: statusType,
+                source: 'oneball',
+                oneballId: c.oneballId,
+                streamUrl: 'https://hls.live123.fans/live/' + c.oneballId + '.m3u8',
+                playerUrl: c.playerUrl,
+                createdAt: new Date().toISOString()
+            };
+            return fetch(base + '.json').then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(function(existingData) {
+                    var key = 'auto_' + c.oneballId;
+                    var exists = existingData && existingData[key];
+                    var method = exists ? 'PUT' : 'PATCH';
+                    var target = exists ? base + '/' + encodeURIComponent(key) + '.json' : base + '.json';
+                    var body = exists ? payload : (function() { var next = {}; next[key] = payload; return next; }());
+                    return fetch(target, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+                        .then(function(r) {
+                            if (r.status === 401 || r.status === 403) throw new Error('403 Permission Denied');
+                            if (!r.ok) throw new Error('HTTP ' + r.status);
+                            return { ok: true, key: key, err: '' };
+                        })
+                        .catch(function(e) { return { ok: false, key: key, err: e.message }; });
+                })
+                .catch(function(e) { return { ok: false, key: '', err: e.message }; });
+        } catch (e) {
+            return Promise.resolve({ ok: false, key: '', err: e.message });
+        }
+    },
+
+    apLogEntry: function(msg) {
+        var log = Compose.getAutopostLog();
+        var entries = log.__entries || [];
+        entries.push({ ts: new Date().toISOString(), msg: msg });
+        if (entries.length > 50) entries = entries.slice(-50);
+        log.__entries = entries;
+        Compose.saveAutopostLog(log);
+        Compose.renderAutopostLog();
+    },
+
+    renderAutopostLog: function() {
+        var panel = document.getElementById('cp-ap-log');
+        if (!panel) return;
+        var log = Compose.getAutopostLog();
+        var entries = log.__entries || [];
+        var posted = Object.keys(log).filter(function(k) { return k !== '__entries'; }).length;
+        if (!entries.length && posted === 0) { panel.style.display = 'none'; return; }
+        panel.style.display = 'block';
+        var html = '<h3 style="margin:8px 0 6px;font-size:13px;">📋 Activity log <span style="color:var(--color-text-dim);">(' + posted + ' event(s) marked as posted)</span></h3>';
+        var rows = entries.slice(-15).reverse().map(function(e) {
+            return '<div class="manage-item"><span class="manage-label" style="font-size:12px;">' +
+                '<span style="color:var(--color-text-dim);">' + new Date(e.ts).toLocaleTimeString() + '</span> ' +
+                Compose.esc(e.msg) + '</span></div>';
+        }).join('');
+        var postedHtml = '';
+        Object.keys(log).filter(function(k) { return k !== '__entries'; }).forEach(function(k) {
+            var it = log[k];
+            postedHtml += '<div class="manage-item"><span class="manage-label" style="font-size:12px;">' +
+                '<span class="source-badge oneball">✓ POSTED</span> ' + Compose.esc(it.title || k) +
+                (it.bloggerUrl ? ' — <a href="' + Compose.esc(it.bloggerUrl) + '" target="_blank" rel="noopener">view post</a>' : '') +
+                ' <span style="color:var(--color-text-dim);">' + new Date(it.postedAt || it.ts).toLocaleString() + '</span></span></div>';
+        });
+        if (postedHtml) html += '<p style="font-size:12px;color:var(--color-text-dim);margin:8px 0 4px;">Already posted (will never be re-posted):</p>' + postedHtml;
+        html += rows;
+        html += '<button class="btn-danger" style="margin-top:8px;font-size:11px;padding:6px 10px;" onclick="Compose.clearAutopostLog()">🗑 Clear posted history</button>';
+        panel.innerHTML = html;
+    },
+
+    clearAutopostLog: function() {
+        if (!window.confirm('Clear the posted history? Events can be re-posted afterward.')) return;
+        Compose.saveAutopostLog({});
+        Compose.renderAutopostLog();
+        Gen.toast('Posted history cleared');
+    }
 };
 
 // ============================================================
@@ -5677,6 +6006,11 @@ document.addEventListener('DOMContentLoaded', function() {
     Compose.loadSettings();
     Compose.updateAuthStatus();
     Compose.initGoogleAuth();
+    if (Compose._settings && Compose._settings.autoposter === 'on') {
+        var apToggle = document.getElementById('cp-ap-toggle');
+        if (apToggle) apToggle.value = 'on';
+        Compose.startAutopostTimer();
+    }
     var clientEl = document.getElementById('cp-clientid');
     var imgbbEl = document.getElementById('cp-imgbb');
     if (clientEl && !clientEl.value) clientEl.value = BUILTIN_CLIENT_ID;
