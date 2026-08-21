@@ -2980,21 +2980,27 @@ var UnifiedGenerator = {
                         var leagueEl = card.querySelector('.league-badge');
                         var league = leagueEl ? leagueEl.textContent.trim() : 'OneBall TV';
 
-                        var homeEl = card.querySelector('.team-home');
-                        var awayEl = card.querySelector('.team-away');
-
+                                                var homeEl = card.querySelector('.team-home, [data-side="home"], [data-team="home"], .home-team');
+                        var awayEl = card.querySelector('.team-away, [data-side="away"], [data-team="away"], .away-team');
+                        var readTeamImage = function(el) {
+                            if (!el) return '';
+                            var image = el.querySelector('.team-logo img, img.team-logo, img[data-team-logo], img');
+                            if (!image) return el.getAttribute('data-logo') || el.getAttribute('data-team-logo') || '';
+                            return image.getAttribute('src') || image.getAttribute('data-src') || image.getAttribute('data-lazy-src') || (image.getAttribute('srcset') || '').split(',')[0].trim().split(' ')[0] || '';
+                        };
+                        var readTeamName = function(el) {
+                            if (!el) return '';
+                            var name = el.querySelector('.team-name, [data-team-name], .name');
+                            return (name ? name.textContent : el.getAttribute('data-team-name') || el.textContent || '').trim();
+                        };
                         var homeName = '', homeLogo = '', awayName = '', awayLogo = '';
                         if (homeEl) {
-                            var nameEl = homeEl.querySelector('.team-name');
-                            if (nameEl) homeName = nameEl.textContent.trim();
-                            var logoEl = homeEl.querySelector('.team-logo img');
-                            if (logoEl) homeLogo = logoEl.getAttribute('src') || '';
+                            homeName = readTeamName(homeEl);
+                            homeLogo = readTeamImage(homeEl);
                         }
                         if (awayEl) {
-                            var nameEl2 = awayEl.querySelector('.team-name');
-                            if (nameEl2) awayName = nameEl2.textContent.trim();
-                            var logoEl2 = awayEl.querySelector('.team-logo img');
-                            if (logoEl2) awayLogo = logoEl2.getAttribute('src') || '';
+                            awayName = readTeamName(awayEl);
+                            awayLogo = readTeamImage(awayEl);
                         }
 
                         var matchDate = null;
@@ -4101,12 +4107,30 @@ var Compose = {
         var requestId = (Compose._thumbRequestId = (Compose._thumbRequestId || 0) + 1);
 
         var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready.catch(function(){}) : Promise.resolve();
+        var templateData = Compose.getTemplateData();
+        var resolveLogo = function(existing, name) {
+            return existing ? Promise.resolve(existing) : Compose.lookupEspnTeamLogo(name, league);
+        };
 
         Promise.all([
             fontsReady,
-            Compose.loadImageSafe(homeLogo),
-            Compose.loadImageSafe(awayLogo)
-        ]).then(function(results) {
+            resolveLogo(homeLogo, templateData.homeName),
+            resolveLogo(awayLogo, templateData.awayName)
+        ]).then(function(logoUrls) {
+            if (requestId !== Compose._thumbRequestId) return null;
+            if (!homeLogo && logoUrls[1]) {
+                homeLogo = logoUrls[1];
+                var homeLogoEl = document.getElementById('cp-home-logo');
+                if (homeLogoEl) homeLogoEl.value = homeLogo;
+            }
+            if (!awayLogo && logoUrls[2]) {
+                awayLogo = logoUrls[2];
+                var awayLogoEl = document.getElementById('cp-away-logo');
+                if (awayLogoEl) awayLogoEl.value = awayLogo;
+            }
+            return Promise.all([fontsReady, Compose.loadImageSafe(logoUrls[1]), Compose.loadImageSafe(logoUrls[2])]);
+        }).then(function(results) {
+            if (!results || requestId !== Compose._thumbRequestId) return;
             if (requestId !== Compose._thumbRequestId) return;
             Compose.paintThumbnail(canvas, {
                 title: title,
@@ -4644,14 +4668,35 @@ var Compose = {
         { test: /\bpga\b|golf/i, sport: 'golf', league: 'pga' }
     ],
 
-    resolveEspnLeague: function(leagueText) {
+        resolveEspnLeague: function(leagueText) {
         var s = leagueText || '';
         for (var i=0; i<Compose.ESPN_LEAGUES.length; i++) {
             if (Compose.ESPN_LEAGUES[i].test.test(s)) return Compose.ESPN_LEAGUES[i];
         }
         return null;
     },
-
+    lookupEspnTeamLogo: function(teamName, leagueText) {
+        var name = String(teamName || '').trim();
+        if (!name) return Promise.resolve('');
+        var resolved = Compose.resolveEspnLeague(leagueText) || { sport: 'soccer', league: 'eng.1' };
+        var norm = function(value) { return Compose.norm(String(value || '').replace(/\b(fc|afc|sc|cf|club)\b/ig, '')); };
+        var target = norm(name);
+        if (!target) return Promise.resolve('');
+        var url = 'https://site.api.espn.com/apis/site/v2/sports/' + resolved.sport + '/' + resolved.league + '/teams?limit=1000';
+        return Compose.espnFetch(url).then(function(result) {
+            var root = result && result.data ? result.data : result;
+            var entries = [];
+            if (root && Array.isArray(root.sports)) root.sports.forEach(function(sport) { (sport.leagues || []).forEach(function(league) { entries = entries.concat(league.teams || []); }); });
+            if (root && Array.isArray(root.teams)) entries = entries.concat(root.teams);
+            var match = entries.map(function(item) { return item.team || item; }).find(function(team) {
+                var names = [team.displayName, team.shortDisplayName, team.name, team.location, team.abbreviation].filter(Boolean).map(norm);
+                return names.some(function(candidate) { return candidate === target || candidate.indexOf(target) !== -1 || target.indexOf(candidate) !== -1; });
+            });
+            if (!match) return '';
+            var logos = Array.isArray(match.logos) ? match.logos : [];
+            return (logos[0] && (logos[0].href || logos[0].url)) || match.logo || '';
+        }).catch(function() { return ''; });
+    },
     fetchLiveStats: function() {
         var statusEl = document.getElementById('cp-live-status');
         var setStatus = function(msg) { if (statusEl) statusEl.textContent = msg; };
@@ -5776,20 +5821,27 @@ var Compose = {
                         var matchTime = card.getAttribute('data-match-time') || '';
                         var leagueEl = card.querySelector('.league-badge');
                         var league = leagueEl ? leagueEl.textContent.trim() : 'OneBall TV';
-                        var homeEl = card.querySelector('.team-home');
-                        var awayEl = card.querySelector('.team-away');
+                        var homeEl = card.querySelector('.team-home, [data-side="home"], [data-team="home"], .home-team');
+                        var awayEl = card.querySelector('.team-away, [data-side="away"], [data-team="away"], .away-team');
+                        var readTeamImage = function(el) {
+                            if (!el) return '';
+                            var image = el.querySelector('.team-logo img, img.team-logo, img[data-team-logo], img');
+                            if (!image) return el.getAttribute('data-logo') || el.getAttribute('data-team-logo') || '';
+                            return image.getAttribute('src') || image.getAttribute('data-src') || image.getAttribute('data-lazy-src') || (image.getAttribute('srcset') || '').split(',')[0].trim().split(' ')[0] || '';
+                        };
+                        var readTeamName = function(el) {
+                            if (!el) return '';
+                            var name = el.querySelector('.team-name, [data-team-name], .name');
+                            return (name ? name.textContent : el.getAttribute('data-team-name') || el.textContent || '').trim();
+                        };
                         var homeName = '', homeLogo = '', awayName = '', awayLogo = '';
                         if (homeEl) {
-                            var nameEl = homeEl.querySelector('.team-name');
-                            if (nameEl) homeName = nameEl.textContent.trim();
-                            var logoEl = homeEl.querySelector('.team-logo img');
-                            if (logoEl) homeLogo = logoEl.getAttribute('src') || '';
+                            homeName = readTeamName(homeEl);
+                            homeLogo = readTeamImage(homeEl);
                         }
                         if (awayEl) {
-                            var nameEl2 = awayEl.querySelector('.team-name');
-                            if (nameEl2) awayName = nameEl2.textContent.trim();
-                            var logoEl2 = awayEl.querySelector('.team-logo img');
-                            if (logoEl2) awayLogo = logoEl2.getAttribute('src') || '';
+                            awayName = readTeamName(awayEl);
+                            awayLogo = readTeamImage(awayEl);
                         }
                         if (!homeName && !awayName) return;
                         var matchDate = null;

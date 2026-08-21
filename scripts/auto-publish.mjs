@@ -296,9 +296,24 @@ async function buildPostData(match) {
         thumbnail: Compose._cachedThumbnail
       };
     }, { match, blogId: BLOG_ID, imgbbKey: IMGBB_KEY });
-    const thumbnailUrl = await uploadThumbnail(draft.thumbnail);
-    const bodyWithHostedImages = await replaceInlineImages(draft.body);
-    const thumbnailHtml = thumbnailUrl ? `<img src="${escapeHtml(thumbnailUrl)}" style="max-width: 100%; height: auto; margin-bottom: 20px;" />` : '';
+    let thumbnailUrl = '';
+    try {
+      thumbnailUrl = await uploadThumbnail(draft.thumbnail);
+    } catch (error) {
+      console.warn(`[IMGBB] Thumbnail upload failed; publishing with direct data-URI fallback: ${error.message}`);
+    }
+    let bodyWithHostedImages = draft.body;
+    try {
+      bodyWithHostedImages = await replaceInlineImages(draft.body);
+    } catch (error) {
+      console.warn(`[IMGBB] Inline image hosting failed; preserving direct data-URI image in Blogger body: ${error.message}`);
+    }
+    const rawThumbnail = String(draft.thumbnail || '').trim();
+    const normalizedThumbnail = /^ata:image\//i.test(rawThumbnail) ? `d${rawThumbnail}` : rawThumbnail;
+    const fallbackThumbnail = !thumbnailUrl && /^data:image\//i.test(normalizedThumbnail) ? normalizedThumbnail : '';
+    const thumbnailHtml = thumbnailUrl
+      ? `<img src="${escapeHtml(thumbnailUrl)}" style="max-width: 100%; height: auto; margin-bottom: 20px;" />`
+      : (fallbackThumbnail ? `<img src="${escapeHtml(fallbackThumbnail)}" style="max-width: 100%; height: auto; margin-bottom: 20px;" />` : '');
     return {
       title: draft.title,
       content: `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #f1f2f6;">${thumbnailHtml}<h2>${escapeHtml(draft.title)}</h2><div>${bodyWithHostedImages.replaceAll('\n', '<br />')}</div></div>`,
