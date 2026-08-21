@@ -282,6 +282,8 @@
     <button class="is-active" data-tab="event-tab" onclick="Gen.showTab(this,'event-tab')">Event Card</button>
     <button data-tab="onetv-tab" onclick="Gen.showTab(this,'onetv-tab'); OneTV.onTabOpen();">📺 OneTV AutoPost</button>
     <button data-tab="highlights-tab" onclick="Gen.showTab(this,'videos-tab'); ReFooty.setView('highlights'); ReFooty.onTabOpen();">✨ Highlights</button>
+    <button data-tab="motorsport-highlights-tab" onclick="Gen.showTab(this,'videos-tab'); ReFooty.openMotorsportHighlights();">🏁 Motorsport Highlights</button>
+    <button data-tab="thumbnail-tab" onclick="Gen.showTab(this,'thumbnail-tab'); ThumbnailGenerator.onTabOpen();">🖼️ Thumbnail Generator</button>
     <button data-tab="tv-tab" onclick="Gen.showTab(this,'tv-tab')">Live TV Channel</button>
     <button data-tab="generator-tab" onclick="Gen.showTab(this,'generator-tab'); UnifiedGenerator.onTabOpen();">🔮 Event Generator</button>
     <button data-tab="manage-tab" onclick="Gen.showTab(this,'manage-tab'); Gen.refreshManageList();">Manage Events</button>
@@ -314,6 +316,50 @@ ONETV AUTOPOST TAB
             <button class="btn-secondary" onclick="Compose.runAutopostNow()" style="width:100%;">⚡ Run existing autoposter now</button>
             <p class="hint">Status is shared with the existing Compose autoposter below.</p>
         </div>
+    </div>
+</div>
+
+<!-- ============================================================
+THUMBNAIL GENERATOR TAB
+============================================================ -->
+<div class="tab-panel" id="thumbnail-tab">
+    <div class="compose-layout">
+        <div class="panel">
+            <h2>🖼️ Thumbnail Generator</h2>
+            <p class="hint">Create the same Sports 803 match or motorsport artwork as the supplied dashboard. Team logos are resolved automatically from ESPN when the logo fields are empty.</p>
+            <div class="field"><label>Match or event title</label><input id="tb-parse" placeholder="Arsenal vs Chelsea" oninput="ThumbnailGenerator.parseTitle()" /></div>
+            <div id="tb-parsed-row" class="parsed-teams" style="display:none;"><span class="parsed-home" id="tbp-home"></span><span class="parsed-vs">VS</span><span class="parsed-away" id="tbp-away"></span></div>
+            <div class="field-row">
+                <div class="field"><label>Home/team/driver</label><input id="tb-home" oninput="ThumbnailGenerator.schedule()" /></div>
+                <div class="field"><label>Away/team</label><input id="tb-away" oninput="ThumbnailGenerator.schedule()" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Home logo URL</label><input id="tb-home-logo" oninput="ThumbnailGenerator.schedule()" placeholder="Auto from ESPN" /></div>
+                <div class="field"><label>Away logo URL</label><input id="tb-away-logo" oninput="ThumbnailGenerator.schedule()" placeholder="Auto from ESPN" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>League / category</label><input id="tb-league" value="Premier League" oninput="ThumbnailGenerator.schedule()" /></div>
+                <div class="field"><label>Date &amp; time</label><input id="tb-dt" placeholder="Today · 20:00" oninput="ThumbnailGenerator.schedule()" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Artwork mode</label><select id="tb-mode" onchange="ThumbnailGenerator.schedule()"><option value="preview">VS / preview</option><option value="highlights">Score / highlights</option><option value="race">Motorsport</option></select></div>
+                <div class="field"><label>Aspect ratio</label><select id="tb-aspect" onchange="ThumbnailGenerator.schedule()"><option value="16:9">16:9 landscape</option><option value="1:1">1:1 square</option><option value="9:16">9:16 portrait</option></select></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Quality width</label><select id="tb-quality" onchange="ThumbnailGenerator.schedule()"><option value="800">800 px</option><option value="1280">1280 px</option><option value="1920" selected>1920 px</option></select></div>
+                <div class="field"><label>Score (highlights mode)</label><input id="tb-score" placeholder="2 – 1" oninput="ThumbnailGenerator.schedule()" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Background left</label><input id="tb-bg1" type="color" value="#0d1b2a" onchange="ThumbnailGenerator.schedule()" /></div>
+                <div class="field"><label>Background right</label><input id="tb-bg2" type="color" value="#1a0020" onchange="ThumbnailGenerator.schedule()" /></div>
+            </div>
+            <div class="thumb-actions"><button class="btn-primary" onclick="ThumbnailGenerator.generate()">⚡ Generate</button><button class="btn-secondary" onclick="ThumbnailGenerator.upload()">☁️ Upload to ImgBB</button><button class="btn-secondary" onclick="ThumbnailGenerator.download()">⬇️ Download</button></div>
+            <div class="thumb-actions"><button class="btn-secondary" onclick="ThumbnailGenerator.copyHTML()">📋 Copy image HTML</button><button class="btn-secondary" onclick="ThumbnailGenerator.sendToCompose()">✍️ Send to Compose</button></div>
+            <div class="field"><label>Hosted thumbnail URL</label><input id="tb-url" readonly placeholder="ImgBB URL appears here after upload" /></div>
+            <p class="gen-status" id="tb-status">Enter a match title to begin.</p>
+            <div class="progress-bar"><div class="progress-fill" id="tb-progress"></div></div>
+        </div>
+        <div class="panel thumb-preview-wrap"><h2>Live preview</h2><canvas id="tb-canvas" width="1920" height="1080" style="width:100%;height:auto;display:block;"></canvas><div class="logo-chip" id="tb-home-chip" style="margin:10px auto 0;"></div><div class="logo-chip" id="tb-away-chip" style="margin:6px auto 0;"></div></div>
     </div>
 </div>
 
@@ -6742,6 +6788,98 @@ var OneTV = {
             if (status) status.textContent = 'OneTV scan failed: ' + (error && error.message ? error.message : 'source unavailable');
         });
     }
+};
+</script>
+<script>
+if (window.ReFooty) {
+    ReFooty.openMotorsportHighlights = function() {
+        var self = this, grid = document.getElementById('rf-full-grid'), status = document.getElementById('rf-full-status');
+        this._currentView = 'full';
+        document.getElementById('rf-view-highlights').style.display = 'none';
+        document.getElementById('rf-view-full').style.display = '';
+        var bh = document.getElementById('rf-btn-highlights'), bf = document.getElementById('rf-btn-full');
+        if (bh) bh.style.opacity = '.55'; if (bf) bf.style.opacity = '1';
+        if (!grid || !status) return;
+        grid.innerHTML = ''; status.innerHTML = '<span class="rf-spinner"></span>Loading motorsport highlights…';
+        this.fetchJina('/full-matches?page=1', 'rf:motorsport', function(md) {
+            var cards = self.parseListingCards(md, true).filter(function(card) {
+                var text = String((card.title || '') + ' ' + (card.league || '') + ' ' + (card.sport || '')).toLowerCase();
+                return /formula\s*1|f1|motogp|nascar|indycar|racing|grand prix|superbike|wrc|motorsport|race replay/.test(text);
+            });
+            self.renderCards(grid, cards, 'MS');
+            status.textContent = cards.length ? cards.length + ' motorsport highlights loaded. Click a card to play.' : 'No motorsport highlights found right now.';
+        }, function(err) { grid.innerHTML = '<div class="rf-empty">Could not load motorsport highlights (' + err + ').</div>'; status.textContent = ''; });
+    };
+}
+var ThumbnailGenerator = {
+    _timer: null,
+    _request: 0,
+    onTabOpen: function() { this.parseTitle(); if (!document.getElementById('tb-canvas').dataset.generated) this.generate(); },
+    parseTitle: function() {
+        var title = String(document.getElementById('tb-parse').value || '').trim();
+        var match = title.match(/^(.+?)\s+(?:vs?\.?|v)\s+(.+?)(?:\s+[–—-]\s+.*)?$/i);
+        var row = document.getElementById('tb-parsed-row');
+        if (match) {
+            document.getElementById('tb-home').value = match[1].trim();
+            document.getElementById('tb-away').value = match[2].trim();
+            document.getElementById('tbp-home').textContent = match[1].trim();
+            document.getElementById('tbp-away').textContent = match[2].trim();
+            row.style.display = 'flex';
+        } else if (row) row.style.display = 'none';
+        this.schedule();
+    },
+    schedule: function() {
+        var self = this;
+        clearTimeout(this._timer);
+        this._timer = setTimeout(function() { self.generate(); }, 500);
+    },
+    setStatus: function(message, kind) {
+        var el = document.getElementById('tb-status');
+        if (el) { el.textContent = message; el.className = 'gen-status ' + (kind || ''); }
+    },
+    progress: function(value) { var el = document.getElementById('tb-progress'); if (el) el.style.width = value + '%'; },
+    generate: function() {
+        var self = this, request = ++this._request, canvas = document.getElementById('tb-canvas');
+        if (!canvas || !window.Compose) return;
+        var home = document.getElementById('tb-home').value.trim();
+        var away = document.getElementById('tb-away').value.trim();
+        var league = document.getElementById('tb-league').value.trim() || 'Sports 803';
+        var mode = document.getElementById('tb-mode').value;
+        var isRace = mode === 'race' || !away;
+        var width = parseInt(document.getElementById('tb-quality').value, 10) || 1920;
+        var aspect = document.getElementById('tb-aspect').value;
+        var heights = { '16:9': 0.5625, '1:1': 1, '9:16': 1.7778 };
+        canvas.width = aspect === '9:16' ? Math.round(width * 0.5625) : width;
+        canvas.height = Math.round(canvas.width * (heights[aspect] || 0.5625));
+        self.setStatus('Fetching ESPN team logos…', 'loading'); self.progress(12);
+        var lookup = function(existing, name) { return existing || (name && !isRace ? Compose.lookupEspnTeamLogo(name, league) : Promise.resolve('')); };
+        Promise.all([lookup(document.getElementById('tb-home-logo').value.trim(), home), lookup(document.getElementById('tb-away-logo').value.trim(), away)])
+            .then(function(logos) {
+                if (request !== self._request) return;
+                var homeLogo = document.getElementById('tb-home-logo'), awayLogo = document.getElementById('tb-away-logo');
+                if (!homeLogo.value && logos[0]) homeLogo.value = logos[0];
+                if (!awayLogo.value && logos[1]) awayLogo.value = logos[1];
+                self.progress(42);
+                return Promise.all([Compose.loadImageSafe(homeLogo.value), Compose.loadImageSafe(awayLogo.value)]).then(function(images) {
+                    if (request !== self._request) return;
+                    Compose.paintThumbnail(canvas, { title: home + (away ? ' vs ' + away : ''), league: league, datetime: document.getElementById('tb-dt').value.trim(), homeImg: images[0], awayImg: images[1], isRacing: isRace, category: league });
+                    canvas.dataset.generated = 'true';
+                    self.progress(100); self.setStatus('✓ Generated', 'done');
+                    setTimeout(function() { self.progress(0); }, 1200);
+                });
+            }).catch(function(error) { self.setStatus('Thumbnail error: ' + (error.message || 'could not render'), 'error'); self.progress(0); });
+    },
+    upload: function() {
+        var self = this, canvas = document.getElementById('tb-canvas'), key = String((Compose._settings && Compose._settings.imgbbKey) || '').trim();
+        if (!canvas || !canvas.dataset.generated) { this.setStatus('Generate the thumbnail first.', 'error'); return; }
+        if (!key) { this.setStatus('Add an ImgBB API key in Compose settings first.', 'error'); return; }
+        this.setStatus('Uploading to ImgBB…', 'loading');
+        var fd = new FormData(); fd.append('key', key); fd.append('image', canvas.toDataURL('image/jpeg', 0.9).split(',')[1]); fd.append('name', 'sports803-thumbnail-' + Date.now());
+        fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: fd }).then(function(response) { return response.text().then(function(text) { var data; try { data = JSON.parse(text); } catch (e) { data = {}; } if (!response.ok || !data.success) throw new Error('HTTP ' + response.status + ': ' + ((data.error && data.error.message) || text || 'ImgBB rejected the image')); return data; }); }).then(function(data) { var url = data.data.display_url || data.data.url; document.getElementById('tb-url').value = url; self.setStatus('✓ Uploaded to ImgBB', 'done'); }).catch(function(error) { self.setStatus('Upload failed: ' + error.message, 'error'); });
+    },
+    download: function() { var canvas = document.getElementById('tb-canvas'); if (!canvas.dataset.generated) return this.setStatus('Generate the thumbnail first.', 'error'); var link = document.createElement('a'); link.download = 'sports803-thumbnail.jpg'; link.href = canvas.toDataURL('image/jpeg', 0.92); link.click(); },
+    copyHTML: function() { var canvas = document.getElementById('tb-canvas'); if (!canvas.dataset.generated) return this.setStatus('Generate the thumbnail first.', 'error'); var src = document.getElementById('tb-url').value.trim() || canvas.toDataURL('image/jpeg', 0.88); navigator.clipboard.writeText('<img src="' + src + '" alt="Sports 803 Thumbnail" style="max-width:100%;height:auto;border-radius:8px">'); this.setStatus('✓ Image HTML copied', 'done'); },
+    sendToCompose: function() { var title = document.getElementById('tb-home').value.trim() + (document.getElementById('tb-away').value.trim() ? ' vs ' + document.getElementById('tb-away').value.trim() : ''); var fields = { 'cp-title': title, 'cp-home-logo': document.getElementById('tb-home-logo').value, 'cp-away-logo': document.getElementById('tb-away-logo').value, 'cp-league': document.getElementById('tb-league').value, 'cp-datetime': document.getElementById('tb-dt').value }; Object.keys(fields).forEach(function(id) { var el = document.getElementById(id); if (el) el.value = fields[id]; }); var source = document.getElementById('tb-url').value.trim() || document.getElementById('tb-canvas').toDataURL('image/jpeg', 0.88); var body = document.getElementById('cp-body'); if (body) body.value = '<div><img src="' + source + '" alt="' + title + '" style="max-width:100%;height:auto;border-radius:10px;margin-bottom:18px"></div>\n' + body.value; var composeButton = document.querySelector('[data-tab="compose-tab"]'); if (composeButton) composeButton.click(); }
 };
 </script>
 </body>
