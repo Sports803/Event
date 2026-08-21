@@ -4350,26 +4350,48 @@ var Compose = {
         var statusEl = document.getElementById('cp-thumb-status');
         if (statusEl) statusEl.textContent = '⏳ Uploading to imgbb...';
 
-        var arr = Compose._cachedThumbnail.split(',');
-        var mime = arr[0].match(/:(.*?);/)[1];
-        var bstr = atob(arr[1]);
-        var n = bstr.length;
-        var u8arr = new Uint8Array(n);
-        while (n--) { u8arr[n] = bstr.charCodeAt(n); }
-        var blob = new Blob([u8arr], { type: mime });
+        var rawData = String(Compose._cachedThumbnail || '').trim();
+        if (/^ata:image\//i.test(rawData)) rawData = 'd' + rawData;
+        var dataMatch = rawData.match(/^data:(image\/[a-z0-9.+-]+);base64,([\s\S]+)$/i);
+        if (!dataMatch) {
+            var invalidMessage = 'Invalid image data. Generate the thumbnail again.';
+            if (statusEl) statusEl.textContent = '❌ Upload failed: ' + invalidMessage;
+            Gen.toast('Upload failed: ' + invalidMessage, 'error');
+            return;
+        }
+        var encodedImage = dataMatch[2].replace(/\s+/g, '');
+        if (!encodedImage || !/^[a-z0-9+/=]+$/i.test(encodedImage)) {
+            var encodingMessage = 'Invalid base64 image data.';
+            if (statusEl) statusEl.textContent = '❌ Upload failed: ' + encodingMessage;
+            Gen.toast('Upload failed: ' + encodingMessage, 'error');
+            return;
+        }
 
+        // ImgBB accepts the base64 image string directly. This is more reliable across browsers
+        // than sending a Blob whose multipart filename/type can be rewritten by the browser.
         var formData = new FormData();
-        formData.append('image', blob);
-        formData.append('key', Compose._settings.imgbbKey);
+        formData.append('key', String(Compose._settings.imgbbKey || '').trim());
+        formData.append('image', encodedImage);
+        formData.append('name', 'sports803-thumbnail-' + Date.now());
 
         fetch('https://api.imgbb.com/1/upload', {
             method: 'POST',
             body: formData
         })
-        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(r) {
+            return r.text().then(function(text) {
+                var data;
+                try { data = JSON.parse(text); } catch (e) { data = {}; }
+                if (!r.ok || !data.success) {
+                    var providerMessage = data && data.error && data.error.message ? data.error.message : (text || 'Unknown ImgBB error');
+                    throw new Error('HTTP ' + r.status + ': ' + providerMessage);
+                }
+                return data;
+            });
+        })
         .then(function(data) {
-            if (!data.success) throw new Error(data.error.message);
-            var thumbUrl = data.data.url;
+            var thumbUrl = data.data && (data.data.display_url || data.data.url);
+            if (!thumbUrl) throw new Error('ImgBB returned no hosted image URL');
             document.getElementById('cp-thumb-url').value = thumbUrl;
             if (statusEl) statusEl.textContent = '✅ Uploaded to imgbb';
             Gen.toast('Thumbnail uploaded successfully!');
