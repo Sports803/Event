@@ -283,7 +283,7 @@
     <button data-tab="onetv-tab" onclick="Gen.showTab(this,'onetv-tab'); OneTV.onTabOpen();">📺 OneTV AutoPost</button>
     <button data-tab="highlights-tab" onclick="Gen.showTab(this,'videos-tab'); ReFooty.setView('highlights'); ReFooty.onTabOpen();">✨ Highlights</button>
     <button data-tab="motorsport-highlights-tab" onclick="Gen.showTab(this,'videos-tab'); ReFooty.openMotorsportHighlights();">🏁 Motorsport Highlights</button>
-    <button data-tab="thumbnail-tab" onclick="Gen.showTab(this,'thumbnail-tab'); ThumbnailGenerator.onTabOpen();">🖼️ Thumbnail Generator</button>
+    <button data-tab="thumbnail-tab" onclick="Gen.showTab(this,'thumbnail-tab');">🖼️ Thumbnail Generator</button>
     <button data-tab="tv-tab" onclick="Gen.showTab(this,'tv-tab')">Live TV Channel</button>
     <button data-tab="generator-tab" onclick="Gen.showTab(this,'generator-tab'); UnifiedGenerator.onTabOpen();">🔮 Event Generator</button>
     <button data-tab="manage-tab" onclick="Gen.showTab(this,'manage-tab'); Gen.refreshManageList();">Manage Events</button>
@@ -322,7 +322,7 @@ ONETV AUTOPOST TAB
 <!-- ============================================================
 THUMBNAIL GENERATOR TAB
 ============================================================ -->
-<div class="tab-panel" id="thumbnail-tab">
+<div class="tab-panel" id="thumbnail-tab-legacy" style="display:none;">
     <div class="compose-layout">
         <div class="panel">
             <h2>🖼️ Thumbnail Generator</h2>
@@ -360,6 +360,21 @@ THUMBNAIL GENERATOR TAB
             <div class="progress-bar"><div class="progress-fill" id="tb-progress"></div></div>
         </div>
         <div class="panel thumb-preview-wrap"><h2>Live preview</h2><canvas id="tb-canvas" width="1920" height="1080" style="width:100%;height:auto;display:block;"></canvas><div class="logo-chip" id="tb-home-chip" style="margin:10px auto 0;"></div><div class="logo-chip" id="tb-away-chip" style="margin:6px auto 0;"></div></div>
+    </div>
+</div>
+
+<!-- ============================================================
+EXACT SUPPLIED THUMBNAIL GENERATOR — ISOLATED, UNMODIFIED SOURCE
+============================================================ -->
+<div class="tab-panel" id="thumbnail-tab">
+    <div class="panel" style="padding:0;overflow:hidden;min-height:calc(100vh - 220px);">
+        <iframe
+            id="thumbnail-generator-exact-frame"
+            src="thumbnail-generator-exact.html"
+            title="Sports 803 exact Thumbnail Generator"
+            style="display:block;width:100%;min-height:calc(100vh - 220px);border:0;background:#07080c;"
+            loading="eager"
+        ></iframe>
     </div>
 </div>
 
