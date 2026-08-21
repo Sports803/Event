@@ -280,6 +280,8 @@
 
 <div class="tabs-nav">
     <button class="is-active" data-tab="event-tab" onclick="Gen.showTab(this,'event-tab')">Event Card</button>
+    <button data-tab="onetv-tab" onclick="Gen.showTab(this,'onetv-tab'); OneTV.onTabOpen();">📺 OneTV AutoPost</button>
+    <button data-tab="highlights-tab" onclick="Gen.showTab(this,'videos-tab'); ReFooty.setView('highlights'); ReFooty.onTabOpen();">✨ Highlights</button>
     <button data-tab="tv-tab" onclick="Gen.showTab(this,'tv-tab')">Live TV Channel</button>
     <button data-tab="generator-tab" onclick="Gen.showTab(this,'generator-tab'); UnifiedGenerator.onTabOpen();">🔮 Event Generator</button>
     <button data-tab="manage-tab" onclick="Gen.showTab(this,'manage-tab'); Gen.refreshManageList();">Manage Events</button>
@@ -288,6 +290,31 @@
     <button data-tab="compose-tab" onclick="Gen.showTab(this,'compose-tab'); Compose.onTabOpen();">✍️ Compose &amp; Post</button>
     <button data-tab="videos-tab" onclick="Gen.showTab(this,'videos-tab'); ReFooty.onTabOpen();">🎬 Highlights &amp; Full Matches</button>
     <button data-tab="io-tab" onclick="Gen.showTab(this,'io-tab');">Import / Export</button>
+</div>
+
+<!-- ============================================================
+ONETV AUTOPOST TAB
+============================================================ -->
+<div class="tab-panel" id="onetv-tab">
+    <div class="layout">
+        <div class="panel">
+            <h2>📺 OneTV source monitor</h2>
+            <p class="hint">Scan OneTV matches with available streams, preview the feed, and send only new events through the existing Blogger + Firebase autopost pipeline. The Event Generator and Compose workflows remain unchanged.</p>
+            <div class="field-row">
+                <div class="field"><label>Automatic posting</label><select id="onetv-autopost-toggle" onchange="OneTV.syncToggle(this.value)"><option value="off">Off</option><option value="on">On — every 10 minutes</option></select></div>
+                <div class="field"><label>Actions</label><button class="btn-oneball" onclick="OneTV.scan()" style="width:100%;">↻ Scan OneTV now</button></div>
+            </div>
+            <p class="hint" id="onetv-status">Ready — no OneTV scan has been started.</p>
+            <div id="onetv-candidates" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;margin-top:12px;"></div>
+        </div>
+        <div class="panel">
+            <h2>🤖 GitHub Actions autoposting</h2>
+            <p class="hint">For posting when your browser is closed, enable the scheduled GitHub Action in <strong>Sports803/Event</strong>. It should run every 10 minutes, use the same OneTV source, skip previously posted IDs, publish up to the configured batch limit, and push every published event to Firebase.</p>
+            <div class="field"><label>Required repository secrets</label><div class="iframe-code">BLOGGER_CLIENT_ID · BLOGGER_CLIENT_SECRET · BLOGGER_REFRESH_TOKEN · BLOGGER_BLOG_ID · IMGBB_KEY · FIREBASE_DATABASE_URL · FIREBASE_SERVICE_ACCOUNT_JSON · SPORTMONKS_API_TOKEN (optional fallback)</div></div>
+            <button class="btn-secondary" onclick="Compose.runAutopostNow()" style="width:100%;">⚡ Run existing autoposter now</button>
+            <p class="hint">Status is shared with the existing Compose autoposter below.</p>
+        </div>
+    </div>
 </div>
 
 <!-- ============================================================
@@ -6656,6 +6683,66 @@ document.addEventListener('keydown', function(e) {
 
 
 //]]>
+</script>
+<script>
+// OneTV operations shell — delegates posting to the existing Compose autoposter so
+// duplicate protection, Blogger templates, ImgBB fallback, and Firebase writes remain unified.
+var OneTV = {
+    _loaded: false,
+    onTabOpen: function() {
+        var current = document.getElementById('cp-ap-toggle');
+        var toggle = document.getElementById('onetv-autopost-toggle');
+        if (current && toggle) toggle.value = current.value || 'off';
+        if (!this._loaded) this.scan();
+    },
+    syncToggle: function(value) {
+        var current = document.getElementById('cp-ap-toggle');
+        if (current) {
+            current.value = value === 'on' ? 'on' : 'off';
+            Compose.toggleAutoposter();
+        }
+        var status = document.getElementById('onetv-status');
+        if (status) status.textContent = value === 'on' ? 'Automatic OneTV posting enabled — browser timer active. GitHub Actions runs independently when configured.' : 'Automatic OneTV posting is off.';
+    },
+    esc: function(value) {
+        return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    },
+    scan: function() {
+        var self = this;
+        var status = document.getElementById('onetv-status');
+        var grid = document.getElementById('onetv-candidates');
+        if (status) status.innerHTML = '<span class="spinner"></span>Scanning OneTV for stream-ready matches…';
+        if (grid) grid.innerHTML = '';
+        if (!window.Compose || !Compose.fetchAutopostCandidates) {
+            if (status) status.textContent = 'OneTV scanner is unavailable in this build.';
+            return;
+        }
+        Compose.fetchAutopostCandidates().then(function(items) {
+            self._loaded = true;
+            var log = Compose.getAutopostLog ? Compose.getAutopostLog() : {};
+            var pending = (items || []).filter(function(item) { return !log[item.oneballId]; });
+            if (status) status.textContent = (items || []).length + ' OneTV matches found · ' + pending.length + ' new and eligible for autoposting.';
+            if (!grid) return;
+            if (!items || !items.length) {
+                grid.innerHTML = '<div class="hint" style="grid-column:1/-1;">No OneTV stream-ready matches were found.</div>';
+                return;
+            }
+            grid.innerHTML = items.map(function(item) {
+                var posted = !!log[item.oneballId];
+                var homeLogo = item.homeLogo ? '<img src="' + self.esc(item.homeLogo) + '" alt="" style="width:28px;height:28px;object-fit:contain;" onerror="this.style.display=\'none\'" />' : '';
+                var awayLogo = item.awayLogo ? '<img src="' + self.esc(item.awayLogo) + '" alt="" style="width:28px;height:28px;object-fit:contain;" onerror="this.style.display=\'none\'" />' : '';
+                return '<div class="panel" style="padding:12px;margin:0;border-color:' + (posted ? 'rgba(6,214,160,.35)' : 'var(--color-border)') + '">' +
+                    '<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--color-text-dim);"><strong>' + self.esc(item.league || 'OneTV') + '</strong><span>' + (posted ? '✓ Posted' : 'New') + '</span></div>' +
+                    '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 6px;font-weight:800;">' + homeLogo + '<span>' + self.esc(item.homeName || 'Home') + '</span><span style="color:var(--color-secondary);">VS</span><span>' + self.esc(item.awayName || 'Away') + '</span>' + awayLogo + '</div>' +
+                    '<div style="font-size:11px;color:var(--color-text-dim);text-align:center;">' + self.esc(item.date ? new Date(item.date).toLocaleString() : 'Time unavailable') + '</div>' +
+                    '<button class="btn-secondary" style="width:100%;margin-top:9px;" ' + (posted ? 'disabled' : '') + ' onclick="Compose.runAutopostNow()">' + (posted ? 'Already posted' : 'Post new OneTV events') + '</button>' +
+                    '</div>';
+            }).join('');
+        }).catch(function(error) {
+            if (status) status.textContent = 'OneTV scan failed: ' + (error && error.message ? error.message : 'source unavailable');
+        });
+    }
+};
 </script>
 </body>
 </html>
