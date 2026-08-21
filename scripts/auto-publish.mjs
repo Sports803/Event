@@ -100,10 +100,10 @@ let imgbbFailureStreak = 0;
 async function uploadThumbnail(dataUrl) {
   const [meta, encoded] = dataUrl.split(',');
   const buffer = Buffer.from(encoded, 'base64');
-  // Skip upload entirely if ImgBB has been hammered (rate-limited on every key).
+  // If ImgBB has been hammered, fall back to direct Base64 embedding.
   if (imgbbFailureStreak >= IMGBB_KEYS.length * 2) {
-    console.warn(`[IMGBB] Skipping thumbnail upload: rate limit reached on all keys (failure streak ${imgbbFailureStreak}); post will continue without a thumbnail.`);
-    return '';
+    console.warn(`[IMGBB] Rate limit reached on all keys (failure streak ${imgbbFailureStreak}); falling back to direct Base64 embedding.`);
+    return dataUrl;
   }
   let lastError;
   for (const key of IMGBB_KEYS) {
@@ -128,8 +128,8 @@ async function uploadThumbnail(dataUrl) {
     imgbbKeyIndex++;
   }
   imgbbFailureStreak++;
-  console.warn(`[IMGBB] All keys exhausted; continuing without thumbnail (${lastError?.message || 'unknown'})`);
-  return '';
+  console.warn(`[IMGBB] All keys exhausted; falling back to direct Base64 embedding (${lastError?.message || 'unknown'})`);
+  return dataUrl;
 }
 
 async function autoImportRefooty() {
