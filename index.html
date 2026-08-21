@@ -6845,20 +6845,41 @@ var ThumbnailGenerator = {
         var away = document.getElementById('tb-away').value.trim();
         var league = document.getElementById('tb-league').value.trim() || 'Sports 803';
         var mode = document.getElementById('tb-mode').value;
-        var isRace = mode === 'race' || !away;
+        var isRace = mode === 'race';
         var width = parseInt(document.getElementById('tb-quality').value, 10) || 1920;
         var aspect = document.getElementById('tb-aspect').value;
         var heights = { '16:9': 0.5625, '1:1': 1, '9:16': 1.7778 };
         canvas.width = aspect === '9:16' ? Math.round(width * 0.5625) : width;
         canvas.height = Math.round(canvas.width * (heights[aspect] || 0.5625));
         self.setStatus('Fetching ESPN team logos…', 'loading'); self.progress(12);
-        var lookup = function(existing, name) { return existing || (name && !isRace ? Compose.lookupEspnTeamLogo(name, league) : Promise.resolve('')); };
+        var lookup = function(existing, name) {
+            if (existing || !name || isRace || !Compose.lookupEspnTeamLogo) return Promise.resolve(existing || '');
+            return Compose.lookupEspnTeamLogo(name, league).then(function(url) {
+                if (url) return url;
+                var resolved = Compose.resolveEspnLeague(league) || { sport: 'soccer', league: 'eng.1' };
+                var query = encodeURIComponent(name.trim());
+                return Compose.espnFetch('https://site.api.espn.com/apis/site/v2/sports/' + resolved.sport + '/' + resolved.league + '/teams?limit=1000&search=' + query).then(function(result) {
+                    var root = result && result.data ? result.data : result;
+                    var entries = [];
+                    if (root && Array.isArray(root.sports)) root.sports.forEach(function(sport) { (sport.leagues || []).forEach(function(item) { entries = entries.concat(item.teams || []); }); });
+                    if (root && Array.isArray(root.teams)) entries = entries.concat(root.teams);
+                    var target = Compose.norm(name);
+                    var match = entries.map(function(item) { return item.team || item; }).find(function(team) {
+                        return [team.displayName, team.shortDisplayName, team.name, team.location, team.abbreviation].filter(Boolean).some(function(label) { var candidate = Compose.norm(label); return candidate === target || candidate.indexOf(target) !== -1 || target.indexOf(candidate) !== -1; });
+                    });
+                    return match && Array.isArray(match.logos) && match.logos[0] ? (match.logos[0].href || match.logos[0].url || '') : (match && match.logo) || '';
+                }).catch(function() { return ''; });
+            });
+        };
         Promise.all([lookup(document.getElementById('tb-home-logo').value.trim(), home), lookup(document.getElementById('tb-away-logo').value.trim(), away)])
             .then(function(logos) {
                 if (request !== self._request) return;
                 var homeLogo = document.getElementById('tb-home-logo'), awayLogo = document.getElementById('tb-away-logo');
                 if (!homeLogo.value && logos[0]) homeLogo.value = logos[0];
                 if (!awayLogo.value && logos[1]) awayLogo.value = logos[1];
+                var homeChip = document.getElementById('tb-home-chip'), awayChip = document.getElementById('tb-away-chip');
+                if (homeChip) homeChip.innerHTML = homeLogo.value ? '<img src="' + homeLogo.value.replace(/"/g, '&quot;') + '" alt="">' : (home ? home.charAt(0).toUpperCase() : '?');
+                if (awayChip) awayChip.innerHTML = awayLogo.value ? '<img src="' + awayLogo.value.replace(/"/g, '&quot;') + '" alt="">' : (away ? away.charAt(0).toUpperCase() : '');
                 self.progress(42);
                 return Promise.all([Compose.loadImageSafe(homeLogo.value), Compose.loadImageSafe(awayLogo.value)]).then(function(images) {
                     if (request !== self._request) return;
