@@ -12,7 +12,7 @@ const FIREBASE_URL = (process.env.FIREBASE_DATABASE_URL || '').replace(/^http:\/
 const FIREBASE_AUTH_TOKEN = process.env.FIREBASE_AUTH_TOKEN || '';
 const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '';
 const FIREBASE_PUBLIC_WRITE = String(process.env.FIREBASE_PUBLIC_WRITE || '').toLowerCase() === 'true';
-const MAX_POSTS = Number(process.env.MAX_POSTS_PER_RUN || 5);
+const MAX_POSTS = Number(process.env.MAX_POSTS_PER_RUN || 10);
 const WINDOW_HOURS = Number(process.env.EVENT_WINDOW_HOURS || 24);
 const ACTIVE_GRACE_HOURS = Number(process.env.ACTIVE_GRACE_HOURS || 2);
 const MANUAL_SCHEDULE_PATH = process.env.MANUAL_SCHEDULE_PATH || 'automation/scheduledEvents';
@@ -91,16 +91,45 @@ async function bloggerInsert(accessToken, postData) {
   return data;
 }
 
+// ImgBB keys are tried in rotation (IMGBB_KEY, then IMGBB_KEY_2) so a
+// rate-limited key does not stop the whole autoposter.
+const IMGBB_KEYS = [IMGBB_KEY, process.env.IMGBB_KEY_2 || ''].filter(Boolean);
+let imgbbKeyIndex = 0;
+let imgbbFailureStreak = 0;
+
 async function uploadThumbnail(dataUrl) {
   const [meta, encoded] = dataUrl.split(',');
   const buffer = Buffer.from(encoded, 'base64');
-  const form = new FormData();
-  form.append('key', IMGBB_KEY);
-  form.append('image', new Blob([buffer], { type: meta.match(/data:([^;]+)/)?.[1] || 'image/png' }), 'thumbnail.png');
-  const response = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form });
-  const data = await response.json();
-  if (!response.ok || !data.success) throw new Error(`ImgBB upload failed: ${JSON.stringify(data)}`);
-  return data.data.url;
+  // Skip upload entirely if ImgBB has been hammered (rate-limited on every key).
+  if (imgbbFailureStreak >= IMGBB_KEYS.length * 2) {
+    console.warn(`[IMGBB] Skipping thumbnail upload: rate limit reached on all keys (failure streak ${imgbbFailureStreak}); post will continue without a thumbnail.`);
+    return '';
+  }
+  let lastError;
+  for (const key of IMGBB_KEYS) {
+    const form = new FormData();
+    form.append('key', key);
+    form.append('image', new Blob([buffer], { type: meta.match(/data:([^;]+)/)?.[1] || 'image/png' }), 'thumbnail.png');
+    try {
+      const response = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form });
+      const data = await response.json();
+      if (response.ok && data.success) { imgbbFailureStreak = 0; return data.data.url; }
+      const message = String(data?.error?.message || JSON.stringify(data));
+      lastError = new Error(`ImgBB ${response.status}: ${message}`);
+      if (response.status === 400 || response.status === 429) {
+        console.warn(`[IMGBB] Key ${key.slice(0, 8)}… rate limited (${response.status}); trying next key or continuing without thumbnail.`);
+        await new Promise(r => setTimeout(r, 2000 * (imgbbKeyIndex + 1)));
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn(`[IMGBB] Key ${key.slice(0, 8)}… upload threw: ${error.message}`);
+      await new Promise(r => setTimeout(r, 2000 * (imgbbKeyIndex + 1)));
+    }
+    imgbbKeyIndex++;
+  }
+  imgbbFailureStreak++;
+  console.warn(`[IMGBB] All keys exhausted; continuing without thumbnail (${lastError?.message || 'unknown'})`);
+  return '';
 }
 
 async function autoImportRefooty() {
@@ -203,9 +232,10 @@ async function buildPostData(match) {
       };
     }, { match, blogId: BLOG_ID, imgbbKey: IMGBB_KEY });
     const thumbnailUrl = await uploadThumbnail(draft.thumbnail);
+    const thumbnailHtml = thumbnailUrl ? `<img src="${escapeHtml(thumbnailUrl)}" style="max-width: 100%; height: auto; margin-bottom: 20px;" />` : '';
     return {
       title: draft.title,
-      content: `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #f1f2f6;"><img src="${thumbnailUrl}" style="max-width: 100%; height: auto; margin-bottom: 20px;" /><h2>${escapeHtml(draft.title)}</h2><div>${draft.body.replaceAll('\n', '<br />')}</div></div>`,
+      content: `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #f1f2f6;">${thumbnailHtml}<h2>${escapeHtml(draft.title)}</h2><div>${draft.body.replaceAll('\n', '<br />')}</div></div>`,
       labels: draft.labels,
       status: 'LIVE',
       ...(draft.customMetaData ? { customMetaData: draft.customMetaData } : {})
