@@ -43,7 +43,7 @@ jobs:
           FIREBASE_AUTH_TOKEN: ${{ secrets.FIREBASE_AUTH_TOKEN }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           FIREBASE_PUBLIC_WRITE: 'true'
-          MAX_POSTS_PER_RUN: '5'
+          MAX_POSTS_PER_RUN: '10'
           EVENT_WINDOW_HOURS: '24'
           ACTIVE_GRACE_HOURS: '2'
           MANUAL_SCHEDULE_PATH: 'automation/scheduledEvents'
