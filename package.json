@@ -10,7 +10,8 @@
     "verify-firebase": "node scripts/verify-firebase.mjs",
     "validate-theme": "node scripts/validate-theme.mjs sports803-theme.xml",
     "ai-router": "node scripts/ai-router.mjs",
-    "test-ai-router": "node scripts/test-ai-router.mjs"
+    "test-ai-router": "node scripts/test-ai-router.mjs",
+    "test-integrations": "node scripts/test-integrations.mjs"
   },
   "dependencies": {
     "playwright": "^1.55.0"

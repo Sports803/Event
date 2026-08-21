@@ -2,12 +2,15 @@ import { chromium } from 'playwright';
 import { createSign } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { pathToFileURL } from 'node:url';
 
 const BLOG_ID = process.env.BLOGGER_BLOG_ID;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
 const IMGBB_KEY = process.env.IMGBB_KEY;
+const SPORTMONKS_API_TOKEN = process.env.SPORTMONKS_API_TOKEN || '';
+const SPORTMONKS_API_BASE = (process.env.SPORTMONKS_API_BASE || 'https://api.sportmonks.com').replace(/\/$/, '');
 const FIREBASE_URL = (process.env.FIREBASE_DATABASE_URL || '').replace(/^http:\/\//i, 'https://').replace(/\/$/, '');
 const FIREBASE_AUTH_TOKEN = process.env.FIREBASE_AUTH_TOKEN || '';
 const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '';
@@ -91,45 +94,63 @@ async function bloggerInsert(accessToken, postData) {
   return data;
 }
 
-// ImgBB keys are tried in rotation (IMGBB_KEY, then IMGBB_KEY_2) so a
-// rate-limited key does not stop the whole autoposter.
+// ImgBB keys are tried in rotation so a rate-limited key does not stop the whole autoposter.
 const IMGBB_KEYS = [IMGBB_KEY, process.env.IMGBB_KEY_2 || ''].filter(Boolean);
 let imgbbKeyIndex = 0;
 let imgbbFailureStreak = 0;
-
-async function uploadThumbnail(dataUrl) {
-  const [meta, encoded] = dataUrl.split(',');
+function parseImageDataUri(value) {
+  const rawInput = String(value || '').trim();
+  const input = /^ata:image\//i.test(rawInput) ? `d${rawInput}` : rawInput;
+  const match = input.match(/^data:(image\/[a-z0-9.+-]+);base64,([\s\S]+)$/i);
+  if (!match) throw new Error('Image is not a valid base64 data URI');
+  const mimeType = match[1].toLowerCase();
+  const encoded = match[2].replace(/\s+/g, '');
+  if (!encoded || encoded.length < 16 || !/^[a-z0-9+/=]+$/i.test(encoded)) throw new Error('Image data URI contains invalid base64 content');
   const buffer = Buffer.from(encoded, 'base64');
-  // If ImgBB has been hammered, fall back to direct Base64 embedding.
-  if (imgbbFailureStreak >= IMGBB_KEYS.length * 2) {
-    console.warn(`[IMGBB] Rate limit reached on all keys (failure streak ${imgbbFailureStreak}); falling back to direct Base64 embedding.`);
-    return dataUrl;
-  }
+  if (!buffer.length) throw new Error('Image data URI decoded to an empty file');
+  const extension = mimeType.split('/')[1].replace(/[^a-z0-9]+/g, '') || 'png';
+  return { buffer, mimeType, filename: `sports803-thumbnail.${extension}` };
+}
+async function uploadImageDataUri(dataUri) {
+  const { buffer, mimeType, filename } = parseImageDataUri(dataUri);
   let lastError;
-  for (const key of IMGBB_KEYS) {
+  for (let attempt = 0; attempt < IMGBB_KEYS.length; attempt++) {
+    const keyIndex = (imgbbKeyIndex + attempt) % IMGBB_KEYS.length;
+    const key = IMGBB_KEYS[keyIndex];
     const form = new FormData();
     form.append('key', key);
-    form.append('image', new Blob([buffer], { type: meta.match(/data:([^;]+)/)?.[1] || 'image/png' }), 'thumbnail.png');
+    form.append('image', new Blob([buffer], { type: mimeType }), filename);
     try {
-      const response = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form });
-      const data = await response.json();
-      if (response.ok && data.success) { imgbbFailureStreak = 0; return data.data.url; }
-      const message = String(data?.error?.message || JSON.stringify(data));
-      lastError = new Error(`ImgBB ${response.status}: ${message}`);
-      if (response.status === 400 || response.status === 429) {
-        console.warn(`[IMGBB] Key ${key.slice(0, 8)}… rate limited (${response.status}); trying next key or continuing without thumbnail.`);
-        await new Promise(r => setTimeout(r, 2000 * (imgbbKeyIndex + 1)));
+      const response = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form, signal: AbortSignal.timeout(30000) });
+      const raw = await response.text();
+      let data;
+      try { data = JSON.parse(raw); } catch { data = { raw: raw.slice(0, 500) }; }
+      if (response.ok && data.success && data.data?.url) {
+        imgbbKeyIndex = (keyIndex + 1) % IMGBB_KEYS.length;
+        imgbbFailureStreak = 0;
+        return data.data.display_url || data.data.url;
       }
+      lastError = new Error(`ImgBB ${response.status}: ${String(data?.error?.message || JSON.stringify(data)).slice(0, 500)}`);
     } catch (error) {
       lastError = error;
-      console.warn(`[IMGBB] Key ${key.slice(0, 8)}… upload threw: ${error.message}`);
-      await new Promise(r => setTimeout(r, 2000 * (imgbbKeyIndex + 1)));
     }
-    imgbbKeyIndex++;
+    if (attempt + 1 < IMGBB_KEYS.length) await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1)));
   }
   imgbbFailureStreak++;
-  console.warn(`[IMGBB] All keys exhausted; falling back to direct Base64 embedding (${lastError?.message || 'unknown'})`);
-  return dataUrl;
+  throw new Error(`ImgBB upload failed after ${IMGBB_KEYS.length} key(s): ${lastError?.message || 'unknown error'}`);
+}
+async function replaceInlineImages(html) {
+  const source = String(html || '');
+  const dataUris = [...new Set(source.match(/data:image\/[a-z0-9.+-]+;base64,[^'\")\s>]+/gi) || [])];
+  let output = source;
+  for (const dataUri of dataUris) {
+    const uploadedUrl = await uploadImageDataUri(dataUri);
+    output = output.split(dataUri).join(uploadedUrl);
+  }
+  return output;
+}
+async function uploadThumbnail(dataUrl) {
+  return uploadImageDataUri(dataUrl);
 }
 
 async function autoImportRefooty() {
@@ -144,6 +165,42 @@ async function autoImportRefooty() {
 }
 
 const LOOKUP_ENDPOINT = process.env.SPORTMONKS_LOOKUP_ENDPOINT || 'https://sports803tv-ufk2plhq.manus.space/api/sports/fixture-lookup';
+function normalizeTeamName(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\b(fc|afc|sc|cf|club|calcio)\b/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+}
+function fixtureParticipants(fixture) {
+  const participants = Array.isArray(fixture.participants) ? fixture.participants : [];
+  const home = participants.find(item => item.meta?.location === 'home' || item.position === 'home')?.name || participants[0]?.name;
+  const away = participants.find(item => item.meta?.location === 'away' || item.position === 'away')?.name || participants[1]?.name;
+  if (home && away) return { home, away };
+  const [left, right] = String(fixture.name || '').split(/\s+vs\s+/i);
+  return { home: left, away: right };
+}
+function isCloseFixture(fixture, match) {
+  const start = Date.parse(fixture.starting_at || '') || Number(fixture.starting_at_timestamp || 0) * 1000;
+  const target = Number(match.date || 0);
+  if (!start || !target) return false;
+  return Math.abs(start - target) <= 3 * 60 * 60 * 1000;
+}
+async function lookupDirectSportmonks(match) {
+  if (!SPORTMONKS_API_TOKEN) return null;
+  const query = encodeURIComponent(`${match.homeName} vs ${match.awayName}`);
+  const url = `${SPORTMONKS_API_BASE}/api/v3/football/fixtures/search/${query}?include=participants;league&per_page=50`;
+  const response = await fetch(url, { headers: { Authorization: SPORTMONKS_API_TOKEN }, signal: AbortSignal.timeout(10000) });
+  const raw = await response.text();
+  let data;
+  try { data = JSON.parse(raw); } catch { data = {}; }
+  if (response.status === 401 || response.status === 403) throw new Error(`Sportmonks authentication failed (${response.status})`);
+  if (!response.ok) throw new Error(`Sportmonks ${response.status}: ${JSON.stringify(data).slice(0, 400)}`);
+  const homeTarget = normalizeTeamName(match.homeName);
+  const awayTarget = normalizeTeamName(match.awayName);
+  const candidates = Array.isArray(data.data) ? data.data : [];
+  const fixture = candidates.find(item => {
+    const teams = fixtureParticipants(item);
+    return isCloseFixture(item, match) && normalizeTeamName(teams.home) === homeTarget && normalizeTeamName(teams.away) === awayTarget;
+  });
+  return fixture ? { fixtureId: Number(fixture.id), leagueId: fixture.league_id, startingAt: fixture.starting_at } : null;
+}
 async function lookupProviderFixture(match) {
   if (match.fixtureId || match.fixture_id || !match.homeName || !match.awayName || match._refooty) return match;
   const date = new Date(Number(match.date || 0)).toISOString().slice(0, 10);
@@ -152,11 +209,19 @@ async function lookupProviderFixture(match) {
     const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    if (data.found && data.fixture?.fixtureId) return { ...match, fixtureId: Number(data.fixture.fixtureId), providerLookup: { status: 'matched', checkedAt: Date.now(), fixtureId: Number(data.fixture.fixtureId) } };
+    if (data.found && data.fixture?.fixtureId) return { ...match, fixtureId: Number(data.fixture.fixtureId), providerLeagueId: data.fixture.leagueId || data.fixture.providerLeagueId || undefined, providerLookup: { status: 'matched', checkedAt: Date.now(), fixtureId: Number(data.fixture.fixtureId) } };
+    const direct = await lookupDirectSportmonks(match);
+    if (direct?.fixtureId) return { ...match, fixtureId: direct.fixtureId, providerLeagueId: direct.leagueId, providerLookup: { status: 'matched', checkedAt: Date.now(), fixtureId: direct.fixtureId, source: 'sportmonks-direct' } };
     return { ...match, providerLookup: { status: 'not-found', checkedAt: Date.now() } };
   } catch (error) {
+    try {
+      const direct = await lookupDirectSportmonks(match);
+      if (direct?.fixtureId) return { ...match, fixtureId: direct.fixtureId, providerLeagueId: direct.leagueId, providerLookup: { status: 'matched', checkedAt: Date.now(), fixtureId: direct.fixtureId, source: 'sportmonks-direct' } };
+    } catch (directError) {
+      console.warn(`[SPORTMONKS] Direct lookup skipped for ${match.homeName} vs ${match.awayName}: ${directError.message}`);
+    }
     console.warn(`[SPORTMONKS] Lookup skipped for ${match.homeName} vs ${match.awayName}: ${error.message}`);
-    return { ...match, providerLookup: { status: 'unavailable', checkedAt: Date.now() } };
+    return { ...match, providerLookup: { status: 'unavailable', checkedAt: Date.now(), error: String(error.message).slice(0, 240) } };
   }
 }
 async function enrichProviderFixtureIds(matches) {
@@ -232,10 +297,11 @@ async function buildPostData(match) {
       };
     }, { match, blogId: BLOG_ID, imgbbKey: IMGBB_KEY });
     const thumbnailUrl = await uploadThumbnail(draft.thumbnail);
+    const bodyWithHostedImages = await replaceInlineImages(draft.body);
     const thumbnailHtml = thumbnailUrl ? `<img src="${escapeHtml(thumbnailUrl)}" style="max-width: 100%; height: auto; margin-bottom: 20px;" />` : '';
     return {
       title: draft.title,
-      content: `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #f1f2f6;">${thumbnailHtml}<h2>${escapeHtml(draft.title)}</h2><div>${draft.body.replaceAll('\n', '<br />')}</div></div>`,
+      content: `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #f1f2f6;">${thumbnailHtml}<h2>${escapeHtml(draft.title)}</h2><div>${bodyWithHostedImages.replaceAll('\n', '<br />')}</div></div>`,
       labels: draft.labels,
       status: 'LIVE',
       ...(draft.customMetaData ? { customMetaData: draft.customMetaData } : {})
@@ -487,4 +553,8 @@ async function main() {
   console.log(JSON.stringify({ scheduled: manual.length, detected: detected.length, merged: matches.length, eligible: eligible.length, selected: selected.length, posted, skippedByRateLimit: Math.max(0, eligible.length - selected.length) }));
 }
 
-main().catch(error => { console.error(error); process.exitCode = 1; });
+export { parseImageDataUri, replaceInlineImages, normalizeTeamName, fixtureParticipants, isCloseFixture, lookupDirectSportmonks };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(error => { console.error(error); process.exitCode = 1; });
+}
