@@ -1,8 +1,8 @@
-name: Auto-publish OneBall events
+name: Manual publish OneBall events (automatic schedule disabled)
 
+# Automatic Blogger publishing is intentionally disabled.
+# Use the manual workflow trigger only when publishing is explicitly required.
 on:
-  schedule:
-    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
