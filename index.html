@@ -503,7 +503,7 @@ UNIFIED EVENT GENERATOR TAB
     <div class="layout">
         <div class="panel">
             <h2>🔮 Unified Event Generator</h2>
-            <p class="hint" style="margin-bottom:14px;">Fetches from <strong>Streamed.pk</strong>, <strong>prog.txt (SportsOnline)</strong>, <strong>ddkaqiu.com (JRS)</strong>, and <strong>OneBall TV</strong> — then smart-matches events by team name and time, aggregating all streams into one unified view.</p>
+            <p class="hint" style="margin-bottom:14px;">Fetches from <strong>Streamed.pk</strong>, <strong>ddkaqiu.com (JRS)</strong>, and <strong>OneBall TV</strong> — then smart-matches events by team name and time, aggregating all streams into one unified view.</p>
 
             <div class="filter-row">
                 <input id="gen-search" type="text" placeholder="Search teams, leagues..." oninput="UnifiedGenerator.filterMatches()" style="flex:1;min-width:150px;" />
@@ -543,13 +543,13 @@ UNIFIED EVENT GENERATOR TAB
                 <p><strong>Team name normalization</strong> — Removes accents, common prefixes (FC, AFC, SC, etc.), and standardizes team names for comparison.</p>
                 <p><strong>Time proximity</strong> — Matches events within a <strong>3-hour window</strong> (configurable). This handles timezone differences and slight schedule variations.</p>
                 <p><strong>Source aggregation</strong> — When a match is found across multiple sources, all stream URLs are combined into one unified event.</p>
-                <p><strong>Example</strong> — <em>Paris Saint-Germain vs Aston Villa</em> (Streamed.pk), <em>aston villa vs psg</em> (prog.txt), and <em>PSG vs Aston Villa</em> (ddkaqiu.com) all get matched into one event with streams from every source.</p>
+                <p><strong>Example</strong> — <em>Paris Saint-Germain vs Aston Villa</em> (Streamed.pk) and <em>PSG vs Aston Villa</em> (ddkaqiu.com) all get matched into one event with streams from every source.</p>
             </div>
 
             <h2 style="margin-top:20px;">Sources covered</h2>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:11.5px;color:var(--color-text-dim);">
                 <span><span class="source-badge streamed">●</span> Streamed.pk</span>
-                <span><span class="source-badge prog">●</span> prog.txt (SportsOnline)</span>
+
                 <span><span class="source-badge ddk">●</span> ddkaqiu.com (JRS)</span>
                 <span><span class="source-badge oneball">●</span> OneBall TV</span>
                 <span><span class="source-badge espn">●</span> ESPN (fixture pull)</span>
@@ -897,13 +897,12 @@ IMPORT / EXPORT TAB
 <div class="tab-panel" id="videos-tab">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <div>
-            <h2 style="margin:0;font-size:18px;text-transform:none;letter-spacing:0;color:#fff;">🎬 Highlights &amp; Full Matches</h2>
-            <p class="hint" style="margin:4px 0 0;">Live feed from <a href="https://refooty.com/" target="_blank" rel="noopener" style="color:var(--color-link);">refooty.com</a> — click a card to play the stream in the Sports803 player.</p>
+            <h2 style="margin:0;font-size:18px;text-transform:none;letter-spacing:0;color:#fff;">🎬 OneBall Highlights &amp; Replays</h2>
+            <p class="hint" style="margin:4px 0 0;">Live feed from <a href="https://oneball.live/replay/" target="_blank" rel="noopener" style="color:var(--color-link);">oneball.live</a> — click a card to play the stream in the Sports803 player.</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn-primary rf-sub" id="rf-btn-highlights" onclick="ReFooty.loadView('highlights')">⚡ Highlights</button>
-            <button class="btn-primary rf-sub" id="rf-btn-full" onclick="ReFooty.loadView('full')">🎥 Full Matches</button>
-            <button class="btn-secondary" onclick="ReFooty.refresh()" title="Force reload from refooty.com">🔄 Refresh</button>
+            <button class="btn-primary rf-sub" id="rf-btn-highlights" onclick="ReFooty.loadView('highlights')">⚡ Latest Replays</button>
+            <button class="btn-secondary" onclick="ReFooty.refresh()" title="Force reload from oneball.live">🔄 Refresh</button>
         </div>
     </div>
 
@@ -1187,6 +1186,7 @@ var Gen = {
     // ---- CORS proxy fetch ----
     scrFetch: function(url) {
         var proxies = [
+            { url: 'https://r.jina.ai/' + url, label: 'jina' },
             { url: url, label: 'direct' },
             { url: 'https://cors.sh/?url=' + encodeURIComponent(url), label: 'cors.sh' },
             { url: 'https://corsproxy.io/?' + encodeURIComponent(url), label: 'corsproxy.io' },
@@ -2843,76 +2843,8 @@ var UnifiedGenerator = {
                 return [];
             });
 
-        // ---- 2. prog.txt (SportsOnline) ----
-        var fetchProg = Gen.scrFetch('https://sportsonline.st/prog.txt')
-            .then(function(text) {
-                var map = {};
-                var lines = (text || '').split('\n');
-                var currentWeekday = null;
-                var weekdays = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
-
-                lines.forEach(function(line) {
-                    var l = line.trim();
-                    if (!l) return;
-                    var upper = l.toUpperCase();
-                    var headerMatch = weekdays.filter(function(w) { return upper.indexOf(w) === 0; })[0];
-                    if (headerMatch && l.indexOf('|') === -1) { currentWeekday = headerMatch; return; }
-                    if (l.startsWith('#') || !l.includes('|')) return;
-                    if (l.startsWith('HD') && l.match(/^[A-Z\d]+\s+[A-Z]/)) return;
-                    if (l.startsWith('BR') && l.match(/^[A-Z\d]+\s+[A-Z]/)) return;
-
-                    var parts = l.split('|').map(function(p) { return p.trim(); }).filter(Boolean);
-                    if (parts.length < 2) return;
-
-                    var timeMatch = parts[0].match(/^(\d{1,2}):(\d{2})/);
-                    var timeStr = timeMatch ? (timeMatch[1].length < 2 ? '0' + timeMatch[1] : timeMatch[1]) + ':' + timeMatch[2] : null;
-
-                    var matchStr = parts[0].replace(/^\d{1,2}:\d{2}\s+/, '').replace(/\s*(W)\s*$/i, '').trim();
-                    var urls = parts.slice(1).filter(function(u) { return u.startsWith('http'); });
-                    if (!urls.length) return;
-
-                    var sepMatch = matchStr.match(/ (x|vs\.?|–|-|VS) /i);
-                    if (!sepMatch) return;
-                    var sep = sepMatch[0];
-                    var idx = matchStr.toLowerCase().indexOf(sep.toLowerCase());
-                    if (idx < 0) return;
-                    var teamA = matchStr.substring(0, idx).trim();
-                    var teamB = matchStr.substring(idx + sep.length).trim();
-                    if (!teamA || !teamB) return;
-
-                    teamA = teamA.replace(/^(Tennis|Darts|Cricket|Basketball|Football|Hockey|Baseball|Rugby|Golf|Billiards|AFL|UFC|MMA|MotoGP|NASCAR|Cycling):?\s*/i, '');
-                    teamB = teamB.replace(/^(Tennis|Darts|Cricket|Basketball|Football|Hockey|Baseball|Rugby|Golf|Billiards|AFL|UFC|MMA|MotoGP|NASCAR|Cycling):?\s*/i, '');
-
-                    var key = Gen.pairKey(teamA, teamB);
-                    if (!map[key]) map[key] = { weekday: currentWeekday, time: timeStr, sources: [] };
-                    for (var j=0; j<urls.length; j++) {
-                        map[key].sources.push({ url: urls[j], type: 'embed', source: 'prog.txt' });
-                    }
-                });
-
-                Object.keys(map).forEach(function(key) {
-                    var entry = map[key];
-                    var teams = key.split('|');
-                    var date = Gen.scrWeekdayToDate(entry.weekday, entry.time, true);
-                    allRawMatches.push({
-                        _source: 'prog',
-                        _sportId: 'prog',
-                        _sportName: 'prog.txt',
-                        id: 'prog_' + Date.now() + '_' + Math.random().toString(36).substr(2,4),
-                        title: teams[0] + ' vs ' + teams[1],
-                        date: date.getTime(),
-                        teams: { home: { name: teams[0], badge: '' }, away: { name: teams[1], badge: '' } },
-                        sources: entry.sources,
-                        league: 'prog.txt',
-                        isProg: true,
-                        weekday: entry.weekday,
-                        timeStr: entry.time
-                    });
-                });
-            })
-            .catch(function(err) {
-                sourceStatus.prog = 'Failed: ' + err.message;
-            });
+        // ---- 2. prog.txt (Removed) ----
+        var fetchProg = Promise.resolve();
 
         // ---- 3. ddkaqiu.com ----
         var fetchDDK = Gen.scrFetch('https://ddkaqiu.com/')
@@ -2963,26 +2895,21 @@ var UnifiedGenerator = {
                 var doc = parser.parseFromString(html, 'text/html');
                 var cards = doc.querySelectorAll('a.match-card');
                 if (!cards.length) cards = doc.querySelectorAll('[data-match-id]');
-
+                var seen = {};
                 cards.forEach(function(card) {
                     try {
                         var matchId = card.getAttribute('data-match-id');
                         if (!matchId) {
                             var href = card.getAttribute('href');
-                            if (href) {
-                                var idMatch = href.match(/\/(\d+)\.html$/);
-                                if (idMatch) matchId = idMatch[1];
-                            }
+                            if (href) { var m = href.match(/\/(\d+)\.html$/); if (m) matchId = m[1]; }
                         }
-                        if (!matchId) return;
-
+                        if (!matchId || seen[matchId]) return;
+                        seen[matchId] = true;
                         var matchTime = card.getAttribute('data-match-time') || '';
                         var leagueEl = card.querySelector('.league-badge');
                         var league = leagueEl ? leagueEl.textContent.trim() : 'OneBall TV';
-
                         var homeEl = card.querySelector('.team-home');
                         var awayEl = card.querySelector('.team-away');
-
                         var homeName = '', homeLogo = '', awayName = '', awayLogo = '';
                         if (homeEl) {
                             var nameEl = homeEl.querySelector('.team-name');
@@ -2996,18 +2923,12 @@ var UnifiedGenerator = {
                             var logoEl2 = awayEl.querySelector('.team-logo img');
                             if (logoEl2) awayLogo = logoEl2.getAttribute('src') || '';
                         }
-
+                        if (!homeName && !awayName) return;
                         var matchDate = null;
-                        if (matchTime) {
-                            try { matchDate = new Date(matchTime); } catch(e) {}
-                        }
-                        if (!matchDate || isNaN(matchDate.getTime())) {
-                            matchDate = new Date();
-                        }
-
+                        if (matchTime) { try { matchDate = new Date(matchTime); } catch(e) {} }
+                        if (!matchDate || isNaN(matchDate.getTime())) matchDate = new Date();
                         var streamUrl = 'https://hls.live123.fans/live/' + matchId + '.m3u8';
                         var playerUrl = 'https://sports803.github.io/player/?mora=' + encodeURIComponent(streamUrl);
-
                         allRawMatches.push({
                             _source: 'oneball',
                             _sportId: 'oneball',
@@ -3030,7 +2951,7 @@ var UnifiedGenerator = {
             });
 
         // ---- Wait for all ----
-        var allFetches = [fetchStreamed, fetchProg, fetchDDK, fetchOneBall];
+        var allFetches = [fetchStreamed, fetchDDK, fetchOneBall];
         Promise.all(allFetches)
             .then(function() {
                                 // ---- Smart matching ----
@@ -3045,7 +2966,7 @@ var UnifiedGenerator = {
 
                 var statusMsgs = [];
                 if (sourceStatus.streamed) statusMsgs.push('Streamed: ' + sourceStatus.streamed);
-                if (sourceStatus.prog) statusMsgs.push('prog.txt: ' + sourceStatus.prog);
+
                 if (sourceStatus.ddk) statusMsgs.push('ddkaqiu: ' + sourceStatus.ddk);
                 if (sourceStatus.oneball) statusMsgs.push('OneBall: ' + sourceStatus.oneball);
 
@@ -3323,7 +3244,6 @@ var UnifiedGenerator = {
 
             var sourceTags = match.sources.map(function(s) {
                 var cls = s === 'streamed' ? 'streamed' :
-                          s === 'prog' ? 'prog' :
                           s === 'ddk' ? 'ddk' :
                           s === 'oneball' ? 'oneball' : 'streamed';
                 return '<span class="source-badge ' + cls + '">' + s + '</span>';
@@ -6024,12 +5944,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 var ReFooty = {
-    CDN: 'https://img.refooty.com',
-    SITE: 'https://refooty.com',
+    CDN: 'https://cdn.sportnanoapi.com',
+    SITE: 'https://oneball.live',
     JINA: 'https://r.jina.ai/',
     FALLBACK: 'https://api.allorigins.win/raw?url=',
     PLAYER: 'https://sports803.github.io/player/',
-    CACHE_TTL: 5 * 60 * 1000,
+    CACHE_TTL: 10 * 60 * 1000,
     _currentView: 'highlights',
     _fullPage: 1,
     _fullMaxPage: 1,
@@ -6049,12 +5969,12 @@ var ReFooty = {
 
     loadView: function(view) {
         this._currentView = view;
-        document.getElementById('rf-view-highlights').style.display = view === 'highlights' ? '' : 'none';
-        document.getElementById('rf-view-full').style.display = view === 'full' ? '' : 'none';
+        var vh = document.getElementById('rf-view-highlights');
+        var vf = document.getElementById('rf-view-full');
+        if (vh) vh.style.display = view === 'highlights' ? '' : 'none';
+        if (vf) vf.style.display = view === 'full' ? '' : 'none';
         var bh = document.getElementById('rf-btn-highlights');
-        var bf = document.getElementById('rf-btn-full');
-        bh.style.opacity = view === 'highlights' ? '1' : '.55';
-        bf.style.opacity = view === 'full' ? '1' : '.55';
+        if (bh) bh.style.opacity = view === 'highlights' ? '1' : '.55';
         if (view === 'highlights') { this.loadHighlights(); }
         else { this.loadFullMatches(); }
     },
@@ -6064,44 +5984,20 @@ var ReFooty = {
         var grid = document.getElementById('rf-highlights-grid');
         var status = document.getElementById('rf-highlights-status');
         grid.innerHTML = '';
-        status.innerHTML = '<span class="rf-spinner"></span>Loading latest highlights from refooty.com…';
-        this.fetchJina('/', 'rf:home', function(md) {
-            var cards = this.parseListingCards(md, false);
+        status.innerHTML = '<span class="rf-spinner"></span>Loading latest replays from oneball.live…';
+        this.fetchJina('/replay/', 'rf:replay', function(md) {
+            var cards = this.parseOneBallReplays(md);
             this.renderCards(grid, cards, 'HL');
-            status.textContent = cards.length ? cards.length + ' highlights loaded. Click a card to play.' : 'No highlights found on refooty.com right now.';
+            status.textContent = cards.length ? cards.length + ' replays loaded. Click a card to play.' : 'No replays found on oneball.live right now.';
         }.bind(this), function(err) {
-            grid.innerHTML = '<div class="rf-empty">Could not reach refooty.com (' + err + ').<br/>Try again in a moment — the reader service may be rate-limited (20 requests/min).</div>';
+            grid.innerHTML = '<div class="rf-empty">Could not reach oneball.live (' + err + ').<br/>Try again in a moment.</div>';
             status.textContent = '';
         });
     },
 
-    // ---------- full matches ----------
     loadFullMatches: function() {
-        var self = this;
-        var page = this._fullPage;
-        var grid = document.getElementById('rf-full-grid');
-        var status = document.getElementById('rf-full-status');
-        grid.innerHTML = '';
-        status.innerHTML = '<span class="rf-spinner"></span>Loading full match replays…';
-        this.fetchJina('/full-matches?page=' + page, 'rf:full:' + page, function(md) {
-            var cards = self.parseListingCards(md, true);
-            if (!cards.length) { self._fullMaxPage = Math.max(1, page - 1); self._fullPage = self._fullMaxPage; status.textContent = 'No more full match replays.'; grid.innerHTML = '<div class="rf-empty">End of the list.</div>'; return; }
-            self._fullMaxPage = Math.max(page, self._fullMaxPage);
-            // auto-warm the next page while the user browses the current one
-            self.fetchJina('/full-matches?page=' + (page + 1), 'rf:full:' + (page + 1), function(md) { if (self.parseListingCards(md, true).length) { self._fullMaxPage = Math.max(self._fullMaxPage, page + 1); self.updateFullNav(); } else { self._fullMaxPage = Math.max(1, page); self.updateFullNav(); } }, function() {});
-            status.innerHTML = '<span class="rf-spinner"></span>Resolving stream URLs for ' + cards.length + ' replays…';
-            self.resolveM3u8Batch(cards, function(resolved, failed) {
-                self.renderCards(grid, resolved, 'FM');
-                var note = resolved.length + ' replays ready';
-                if (failed.length) note += ' · ' + failed.length + ' could not be resolved';
-                note += '. Click a card to play.';
-                status.textContent = note;
-                self.updateFullNav();
-            });
-        }, function(err) {
-            grid.innerHTML = '<div class="rf-empty">Could not reach refooty.com (' + err + ').<br/>Try again in a moment — the reader service may be rate-limited.</div>';
-            status.textContent = '';
-        });
+        // OneBall doesn't have a separate "Full Matches" page, so we just reuse highlights/replays
+        this.loadHighlights();
     },
 
     fullPageNav: function(delta) {
@@ -6152,105 +6048,46 @@ var ReFooty = {
         for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('rf:') === 0) localStorage.removeItem(k); }
     },
 
-    // ---------- parsers (r.jina.ai Markdown or raw HTML fallback) ----------
-    parseListingCards: function(text, isFull) {
+    // ---------- OneBall Replay Parser ----------
+    parseOneBallReplays: function(text) {
         var self = this;
         var lines = text.split('\n');
         var cards = [];
-        // matches both '![Image...] HD](url)' and simple '[HD](url)' anchors
-        // NOTE: inner image markdown is '![alt](url)' (starts with !), so the repeated inner group uses !?\[...\]
-        var reAnchor = /\[(?:!?\[[^\]]*\]\([^)]*\)\s*)*(?:Full Match )?HD[^\]]*\]\(https:\/\/refooty\.com\/video\/([^)\s]+)/;
-        var reLogo = /!\[Image \d+: ([^\]]*)\]\((https:\/\/img\.refooty\.com\/logo\/teams\/\d+\.webp)\)/g;
-        lines.forEach(function(line, i) {
-            var am = reAnchor.exec(line);
-            if (!am) return;
-            var slug = am[1].split('?')[0];
-            // team logos from the anchor itself (full-matches cards include them)
-            var teamLogos = [];
-            var imgm;
-            while ((imgm = reLogo.exec(am[0])) !== null) teamLogos.push({ name: imgm[1], url: imgm[2] });
-            reLogo.lastIndex = 0;
-            // team-name text line(s) immediately after the anchor line
-            var teams = [];
-            var t = i + 1;
-            var blanks = 0;
-            while (t < lines.length && !lines[t].trim()) { blanks++; t++; }
-            if (blanks > 1) { /* gap too large — the line belongs to another card */ t = lines.length; }
-            if (t < lines.length && !reAnchor.test(lines[t]) && !/^#|\[[^\]]+\]\(/.test(lines[t])) {
-                var tl = lines[t].trim().replace(/\s+/g, ' ');
-                // drop trailing quality tag like ' Full Match HD'
-                tl = tl.replace(/\bFull Match HD\s*$/i, '').replace(/\bHD\s*$/i, '').trim();
-                // strip leading 'View all →' link markup if present
-                tl = tl.replace(/^\[[^\]]*\]\([^)]*\)\s*/i, '').trim();
-                tl = tl.replace(/\bFull Match HD\s*$/i, '').replace(/\bHD\s*$/i, '').trim();
-                if (/\s(?:vs|v)\s/i.test(tl)) {
-                    var tpm = tl.match(/^(.+?)\s+(?:vs|v)\s+(.+)$/i);
-                    if (tpm) teams = [self.cap(tpm[1].trim()), self.cap(tpm[2].trim())];
-                } else if (tl) {
-                    teams = [self.cap(tl)];
-                }
+        // Extracting replay cards from Jina markdown
+        // OneBall replay cards in markdown look like: [⚽ League 08-23 22:30 Home VS Away HD Replay 1 Watch FHD Chinese 1 Watch...](https://oneball.live/replay/12345.html)
+        var reReplay = /\[.*?\]\((https:\/\/oneball\.live\/replay\/(\d+)\.html)\)/g;
+        var m;
+        while ((m = reReplay.exec(text)) !== null) {
+            var url = m[1];
+            var matchId = m[2];
+            var anchorText = m[0];
+
+            // Try to extract teams from anchor text or nearby lines
+            var home = '', away = '', league = '', dateStr = '';
+            var teamMatch = anchorText.match(/⚽\s*(.*?)\s*(\d{2}-\d{2}\s+\d{2}:\d{2})\s*(.*?)\s*VS\s*(.*?)\s*(?:HD|FHD)/);
+            if (teamMatch) {
+                league = teamMatch[1].trim();
+                dateStr = teamMatch[2].trim();
+                home = teamMatch[3].trim();
+                away = teamMatch[4].trim();
             }
-            // league & relative date: nearest preceding league anchor line within 8 lines
-            var league = '', dateStr = '';
-            // news/behind-the-scenes blocks use a plain-text line like ' News  3 days ago '
-            // immediately before the [HD](...) anchor (no markdown link)
-            for (var p = i - 1; p >= Math.max(0, i - 4) && !league; p--) {
-                var pl = lines[p].trim().replace(/\s+/g, ' ');
-                var pm = pl.match(/^(News|Behind the Scenes|[A-Za-z][A-Za-z ,'.:&\-]{2,28})\s+(yesterday|today|\d+ days? ago|\d+ weeks? ago|\d+ months? ago)?\s*$/i);
-                if (pm) { league = pm[1]; if (pm[2]) dateStr = pm[2]; }
-            }
-            for (var b = i - 1; b >= Math.max(0, i - 12) && !league; b--) {
-                var lm = lines[b].match(/\[([^\]\n]+)\]\(https:\/\/refooty\.com\/([^)\s]+)\)\s+((?:yesterday|today|\d+ days? ago|\d+ weeks? ago|\d+ months? ago))\s*$/);
-                if (lm && lm[2].indexOf('/video/') === -1 && lm[2].indexOf('/all-') === -1) {
-                    league = lm[1];
-                    dateStr = lm[3];
-                } else {
-                    var lm2 = lines[b].match(/\[([^\]\n]+)\]\(https:\/\/refooty\.com\/([^)\s]+)(?:\s+"[^"]*")?\)/);
-                    if (lm2 && lm2[2].indexOf('/video/') === -1 && lm2[2].indexOf('/all-') === -1 && lm2[1].length > 2 && lm2[1].length < 30 && !/view\s+all/i.test(lm2[1]) && !/^(hd|full|news|videos|image)$/i.test(lm2[1]) && !/^image\s+\d+/i.test(lm2[1])) { league = lm2[1]; }
-                }
-            }
-            if (!league) {
-                for (var a = i + 1; a < Math.min(lines.length, i + 8) && !league; a++) {
-                    var lf = lines[a].trim().replace(/\s+/g, ' ');
-                    var lfm = lf.match(/\[([^\]\n]+)\]\(https:\/\/refooty\.com\/([^)\s]+)(?:\s+"[^"]*")?\)\s+((?:yesterday|today|\d+ days? ago|\d+ weeks? ago|\d+ months? ago))?\s*$/);
-                    if (lfm && lfm[2].indexOf('/video/') === -1 && lfm[2].indexOf('/all-') === -1 && lfm[1].length > 2 && lfm[1].length < 30 && !/view\s+all/i.test(lfm[1]) && !/^(hd|full|news|videos|image)$/i.test(lfm[1]) && !/^image\s+\d+/i.test(lfm[1])) {
-                        league = lfm[1];
-                        if (lfm[3]) dateStr = lfm[3];
-                    }
-                }
-            }
-            if (isFull) league = league.replace(/Full Matches?$/i, '').trim();
-            var home = teamLogos[0] ? teamLogos[0].name : (teams[0] || '');
-            var away = teamLogos[1] ? teamLogos[1].name : (teams[1] || '');
+
             cards.push({
-                slug: slug,
-                title: '',
+                slug: matchId,
+                title: home + ' vs ' + away,
                 home: home,
                 away: away,
-                homeLogo: teamLogos[0] ? teamLogos[0].url : '',
-                awayLogo: teamLogos[1] ? teamLogos[1].url : '',
+                homeLogo: '',
+                awayLogo: '',
                 cover: '',
-                date: self.readableDate(dateStr),
+                date: dateStr,
                 league: league,
                 m3u8: null,
+                replayUrl: url,
                 needsResolve: true
             });
-        });
-        cards.forEach(function(c) {
-            c.title = (c.home ? c.home : c.slug.replace(/-/g, ' ')) + (c.away ? ' vs ' + c.away : '');
-            if (!c.m3u8) {
-                // don't guess — the real m3u8 name is embedded in the video page (JSON-LD / markdown);
-                // resolve on click via fetchVideoPageM3u8 instead
-                c.m3u8 = null;
-            }
-        });
-        // dedupe same slug
-        var seen = {};
-        return cards.filter(function(c) {
-            if (seen[c.slug]) return false;
-            seen[c.slug] = 1;
-            return !!c.title.trim();
-        });
+        }
+        return cards;
     },
     readableDate: function(rel) {
         if (!rel) return '';
@@ -6307,43 +6144,32 @@ var ReFooty = {
         var cacheKey = 'rf:vp:' + slug;
         var self = this;
         var cached = this.readCache(cacheKey);
-        if (cached) {
-            var m3 = (cached.match(/\(https:\/\/img\.refooty\.com\/m3u8\/[^)\s]+\.m3u8\)/) || [])[0] || (cached.match(/"contentUrl":"(https:\/\/[^"\s]+m3u8[^"\s]*)"/) || [])[1] || null;
-            var t = (cached.match(/^Title:\s*(.+)$/m) || [])[1] || ((cached.match(/<title>([^<]*)<\/title>/) || [])[1] || '');
-            if (m3) { cb(m3, t ? t.replace(/\s*-\s*Watch.*/i, '').trim() : null); return; }
-            // cached html (e.g. jina markdown) contains no stream — refetch live
+        if (cached && cached.indexOf('m3u8') !== -1) {
+            cb(cached, null);
+            return;
         }
-        function extractM3u8(html) { return (html.match(/"contentUrl":"(https:\/\/[^"\s]+m3u8[^"\s]*)"/) || [])[1] || null; }
-        function extractTitle(html) { return ((html.match(/^Title:\s*(.+)$/m) || [])[1] || (html.match(/<title>([^<]*)<\/title>/) || [])[1] || '').replace(/\s*-\s*Watch.*/i, '').trim(); }
-        function tryCorsSh() {
-            return fetch('https://proxy.cors.sh/' + self.SITE + '/video/' + slug, { cache: 'no-store' })
-                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-                .then(function(html) {
-                    var m3 = extractM3u8(html);
-                    if (m3) try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), html: html })); } catch (e) {}
-                    cb(m3, m3 ? extractTitle(html) : null);
-                })
-                .catch(function() { cb(null, null); });
+        
+        var replayUrl = 'https://oneball.live/replay/' + slug + '.html';
+        
+        function extractM3u8(html) {
+            var m = html.match(/data-url="([^"]+m3u8[^"]*)"/i) || 
+                    html.match(/switchStream\('([^']+m3u8[^']*)'/i);
+            return m ? m[1] : null;
         }
-        function tryAllOrigins() {
-            return fetch(self.FALLBACK + encodeURIComponent(self.SITE + '/video/' + slug), { cache: 'no-store' })
-                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-                .then(function(html) {
-                    var m3 = extractM3u8(html);
-                    if (m3) { try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), html: html })); } catch (e) {} cb(m3, extractTitle(html)); }
-                    else tryCorsSh();
-                })
-                .catch(tryCorsSh);
-        }
-        fetch(this.JINA + this.SITE + '/video/' + slug, { cache: 'no-store' })
-            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-            .then(function(md) {
-                var m3 = (md.match(/https:\/\/img\.refooty\.com\/m3u8\/[^)\s]+\.m3u8/) || [])[0] || null;
-                var t = (md.match(/^Title:\s*(.+)$/m) || [])[1] || '';
-                if (m3) { try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), html: md })); } catch (e) {} cb(m3, t.replace(/\s*-\s*Watch.*/i, '').trim()); }
-                else tryAllOrigins(); // jina strips JSON-LD; fall through to raw-HTML tiers
+
+        Gen.scrFetch(replayUrl)
+            .then(function(html) {
+                var m3 = extractM3u8(html);
+                if (m3) {
+                    self.writeCache(cacheKey, m3);
+                    cb(m3, null);
+                } else {
+                    cb(null, null);
+                }
             })
-            .catch(tryAllOrigins);
+            .catch(function() {
+                cb(null, null);
+            });
     },
 
     // ---------- rendering ----------
@@ -6394,18 +6220,17 @@ var ReFooty = {
         var self = this;
         var modal = document.getElementById('rf-player-modal');
         document.getElementById('rf-modal-title').textContent = card.title + (card.date ? ' · ' + card.date : '');
-        document.getElementById('rf-modal-m3u8').textContent = 'Resolving stream…';
+        document.getElementById('rf-modal-m3u8').textContent = 'Resolving replay stream…';
         document.getElementById('rf-player-iframe').src = 'about:blank';
         modal.style.display = 'flex';
         function openWith(m3u8) {
-            if (!m3u8) { self.toast('This replay has no stream available yet — try again later.', 4000); return; }
+            if (!m3u8) { self.toast('This replay stream is not available yet — try again later.', 4000); return; }
             self._currentStream = m3u8;
             card.m3u8 = m3u8;
             document.getElementById('rf-modal-m3u8').textContent = m3u8;
             document.getElementById('rf-player-iframe').src = self.PLAYER + '?mora=' + encodeURIComponent(m3u8);
         }
-        // prefer the real m3u8 from the video page (cached); slug-based CDN guess is unreliable
-        self.fetchVideoPageM3u8(card.slug, function(m3u8, title) {
+        self.fetchVideoPageM3u8(card.slug, function(m3u8) {
             openWith(m3u8);
         });
     },
@@ -6494,33 +6319,38 @@ var ReFooty = {
                 Compose.renderThumbnail();
             }
 
-            // 3. ESPN match context: live/final score, scorers, form, h2h, stats…
+            // 3. Match context & templates
+            var playerUrl = self.PLAYER + '?mora=' + encodeURIComponent(card.m3u8 || '');
+            var body = '<h3>Match Highlights & Replay</h3>\n' +
+                       '<div class="player-container" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.3);background:#000;">\n' +
+                       '  <iframe src="' + playerUrl + '" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" allowfullscreen></iframe>\n' +
+                       '</div>\n\n' +
+                       '<p>Watch the full match highlights and replay of <strong>' + teams + '</strong>. Stay tuned for more updates and post-match analysis.</p>';
+            cp('cp-body', body);
+
             if (typeof Compose !== 'undefined' && Compose.fetchEspnContext) {
                 Compose.fetchEspnContext(true).then(function(ctx) {
                     var inserted = [];
                     function insertTpl(t) { Compose.insertTemplate(t); inserted.push(t); }
                     function insertSec(s) { Compose.insertSection(s); inserted.push(s); }
-                    // headline recap with ESPN score + scorers
+                    // headline recap
                     insertTpl('highlights');
-                    // full match overview
+                    // overview
                     insertSec('overview');
-                    // final/live score + stats when ESPN has data
                     if (ctx && ctx.found) {
                         insertSec('result');
                         insertSec('stats');
                         insertSec('recap');
                     }
-                    // implications/standings context
                     insertSec('implications');
-                    if (inserted.length) {
-                        self.toast('✅ Article composed with ' + inserted.length + ' ESPN-backed sections.', 4500);
-                    } else {
-                        self.toast('⚠️ ESPN has no data for this league — general sections inserted. League: ' + (card.league || '?'), 5000);
-                    }
                     Compose.autoGenerateMetaDescription();
                     Compose.updateSEOMetrics();
                     if (btn) { btn.textContent = '📝 Post'; btn.className = btn.className.replace(/\s?rf-posting/, ''); }
+                    self.toast('✅ Replay article composed successfully.', 4000);
                 });
+            } else {
+                if (btn) { btn.textContent = '📝 Post'; btn.className = btn.className.replace(/\s?rf-posting/, ''); }
+                self.toast('✅ Replay article composed successfully.', 4000);
             }
         });
     },
@@ -6531,18 +6361,29 @@ var ReFooty = {
         var self = this;
         var cacheKey = 'rf:thumb:' + slug;
         var cached = this.readCache(cacheKey);
-        if (cached) { var m = (cached.match(/https:\/\/img\.refooty\.com\/thumbnail\/[^"'\s\)]+\.webp/)); cb(m ? m[0] : null); return; }
-        var save = function(html) { try { self.writeCache(cacheKey, html); } catch (e) {} };
-        function tryCorsSh() {
-            fetch('https://proxy.cors.sh/' + self.SITE + '/video/' + slug, { cache: 'no-store' })
+        if (cached) { cb(cached); return; }
+        
+        var replayUrl = 'https://oneball.live/replay/' + slug + '.html';
+        
+        function tryAllOrigins() {
+            fetch(self.FALLBACK + encodeURIComponent(replayUrl), { cache: 'no-store' })
                 .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-                .then(function(html) { save(html); var m = (html.match(/og:image[^>]*content="([^"]+)"/) || [])[1] || null; cb(m); })
+                .then(function(html) { 
+                    var m = (html.match(/og:image[^>]*content="([^"]+)"/) || [])[1] || null;
+                    if (m) { try { self.writeCache(cacheKey, m); } catch(e){} }
+                    cb(m); 
+                })
                 .catch(function() { cb(null); });
         }
-        fetch(self.FALLBACK + encodeURIComponent(self.SITE + '/video/' + slug), { cache: 'no-store' })
+        
+        fetch(this.JINA + replayUrl, { cache: 'no-store' })
             .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-            .then(function(html) { save(html); var m = (html.match(/og:image[^>]*content="([^"]+)"/) || [])[1] || null; if (m) cb(m); else tryCorsSh(); })
-            .catch(tryCorsSh);
+            .then(function(md) {
+                var m = (md.match(/og:image[^>]*content="([^"]+)"/) || [])[1] || null;
+                if (m) { try { self.writeCache(cacheKey, m); } catch(e){} cb(m); }
+                else tryAllOrigins();
+            })
+            .catch(tryAllOrigins);
     },
 
     closePlayer: function() {
